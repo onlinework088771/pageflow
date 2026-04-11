@@ -123,7 +123,8 @@ export default function Settings() {
   const [isReconfiguring, setIsReconfiguring] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const callbackUrl = `${origin}/api/auth/facebook/callback`;
+  const directCallbackUrl = `${origin}/api/auth/facebook/callback`;
+  const magicCallbackUrl = `${origin}/api/auth/facebook/magic-callback`;
   const generatedPrivacyUrl = `${origin}/privacy`;
 
   const isConfigured = settings?.appConfigured && settings?.setupStep >= 5 && !isReconfiguring;
@@ -387,9 +388,12 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground mt-1 mb-3">
                     Go to <strong>Facebook Login for Business → Settings</strong>. Paste this URL into <em>Valid OAuth Redirect URIs</em> and click <strong>Save changes</strong>.
                   </p>
-                  <CopyableField label="OAuth Callback URL" value={callbackUrl} />
+                  <div className="space-y-3">
+                    <CopyableField label="Direct Connection Callback" value={directCallbackUrl} />
+                    <CopyableField label="Magic Link Callback" value={magicCallbackUrl} />
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    This single URL handles both direct connections and Magic Link connections.
+                    Add <strong>both</strong> URLs to your Facebook app's Valid OAuth Redirect URIs.
                   </p>
                 </div>
               </div>
