@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FacebookPagePostingFrequency } from "./facebookPagePostingFrequency";
+import type { FacebookPageScheduleLogic } from "./facebookPageScheduleLogic";
+import type { FacebookPageScrapingStatus } from "./facebookPageScrapingStatus";
+import type { FacebookPageSourceType } from "./facebookPageSourceType";
 import type { FacebookPageStatus } from "./facebookPageStatus";
 
 export interface FacebookPage {
@@ -20,5 +23,15 @@ export interface FacebookPage {
   status: FacebookPageStatus;
   accountId: string;
   lastPostedAt?: string;
+  sourceType?: FacebookPageSourceType;
+  sourceIdentity?: string;
+  postsPerDay: number;
+  scheduleLogic: FacebookPageScheduleLogic;
+  timezone: string;
+  timeSlots?: string[];
+  scrapingStatus: FacebookPageScrapingStatus;
+  totalPosted: number;
+  totalPending: number;
+  totalFailed: number;
   createdAt: string;
 }

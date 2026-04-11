@@ -361,6 +361,83 @@ paths:
         "204":
           description: Page removed
 
+  /pages/{pageId}/automation:
+    patch:
+      operationId: updatePageAutomation
+      tags: [pages]
+      security:
+        - bearerAuth: []
+      summary: Update page automation settings
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageAutomationBody"
+      responses:
+        "200":
+          description: Updated page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookPage"
+
+  /pages/{pageId}/source:
+    patch:
+      operationId: updatePageSource
+      tags: [pages]
+      security:
+        - bearerAuth: []
+      summary: Update page content source
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageSourceBody"
+      responses:
+        "200":
+          description: Updated page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookPage"
+
+  /accounts/{accountId}/available-pages:
+    get:
+      operationId: getAccountAvailablePages
+      tags: [accounts]
+      security:
+        - bearerAuth: []
+      summary: Get synced pages for a Facebook account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of synced pages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FacebookPage"
+
   /tokens:
     get:
       operationId: listTokens
@@ -682,9 +759,34 @@ components:
           type: string
         lastPostedAt:
           type: string
+        sourceType:
+          type: string
+          enum: [instagram, youtube, tiktok]
+        sourceIdentity:
+          type: string
+        postsPerDay:
+          type: integer
+        scheduleLogic:
+          type: string
+          enum: [fixed, random]
+        timezone:
+          type: string
+        timeSlots:
+          type: array
+          items:
+            type: string
+        scrapingStatus:
+          type: string
+          enum: [pending, active, done]
+        totalPosted:
+          type: integer
+        totalPending:
+          type: integer
+        totalFailed:
+          type: integer
         createdAt:
           type: string
-      required: [id, fbPageId, name, automationEnabled, status, accountId, createdAt]
+      required: [id, fbPageId, name, automationEnabled, status, accountId, createdAt, postsPerDay, scheduleLogic, timezone, scrapingStatus, totalPosted, totalPending, totalFailed]
 
     CreatePageBody:
       type: object
@@ -700,6 +802,18 @@ components:
         postingFrequency:
           type: string
           enum: [daily, twice_daily, weekly, custom]
+        sourceType:
+          type: string
+          enum: [instagram, youtube, tiktok]
+        sourceIdentity:
+          type: string
+        postsPerDay:
+          type: integer
+        scheduleLogic:
+          type: string
+          enum: [fixed, random]
+        timezone:
+          type: string
       required: [fbPageId, name, accountId]
 
     UpdatePageBody:
@@ -713,6 +827,33 @@ components:
         status:
           type: string
           enum: [active, paused]
+
+    UpdatePageAutomationBody:
+      type: object
+      properties:
+        postsPerDay:
+          type: integer
+        scheduleLogic:
+          type: string
+          enum: [fixed, random]
+        timezone:
+          type: string
+        timeSlots:
+          type: array
+          items:
+            type: string
+        automationEnabled:
+          type: boolean
+
+    UpdatePageSourceBody:
+      type: object
+      properties:
+        sourceType:
+          type: string
+          enum: [instagram, youtube, tiktok]
+        sourceIdentity:
+          type: string
+      required: [sourceType, sourceIdentity]
 
     TokensInfo:
       type: object

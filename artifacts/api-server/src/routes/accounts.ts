@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, facebookAccountsTable } from "@workspace/db";
+import { eq, asc } from "drizzle-orm";
+import { db, facebookAccountsTable, facebookPagesTable } from "@workspace/db";
 import {
   CreateAccountBody,
   GetAccountParams,
   DeleteAccountParams,
   ListAccountsResponse,
   GetAccountResponse,
+  GetAccountAvailablePagesParams,
+  GetAccountAvailablePagesResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -65,6 +67,47 @@ router.get("/accounts/:accountId", async (req, res): Promise<void> => {
     return;
   }
   res.json(GetAccountResponse.parse(serializeAccount(account)));
+});
+
+router.get("/accounts/:accountId/available-pages", async (req, res): Promise<void> => {
+  const params = GetAccountAvailablePagesParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  const accountId = parseInt(params.data.accountId, 10);
+  const pages = await db
+    .select()
+    .from(facebookPagesTable)
+    .where(eq(facebookPagesTable.accountId, accountId))
+    .orderBy(asc(facebookPagesTable.createdAt));
+
+  const serialized = pages.map((p) => ({
+    id: String(p.id),
+    fbPageId: p.fbPageId,
+    name: p.name,
+    category: p.category ?? undefined,
+    profilePicture: p.profilePicture ?? undefined,
+    followersCount: p.followersCount,
+    automationEnabled: p.automationEnabled,
+    postingFrequency: p.postingFrequency,
+    status: p.status,
+    accountId: String(p.accountId),
+    lastPostedAt: p.lastPostedAt instanceof Date ? p.lastPostedAt.toISOString() : (p.lastPostedAt ?? undefined),
+    sourceType: p.sourceType ?? undefined,
+    sourceIdentity: p.sourceIdentity ?? undefined,
+    postsPerDay: p.postsPerDay,
+    scheduleLogic: p.scheduleLogic,
+    timezone: p.timezone,
+    timeSlots: Array.isArray(p.timeSlots) ? p.timeSlots : [],
+    scrapingStatus: p.scrapingStatus,
+    totalPosted: p.totalPosted,
+    totalPending: p.totalPending,
+    totalFailed: p.totalFailed,
+    createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+  }));
+
+  res.json(GetAccountAvailablePagesResponse.parse(serialized));
 });
 
 router.delete("/accounts/:accountId", async (req, res): Promise<void> => {

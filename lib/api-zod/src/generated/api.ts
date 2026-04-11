@@ -213,6 +213,16 @@ export const SyncAccountPagesResponse = zod.object({
       status: zod.enum(["active", "paused", "error"]),
       accountId: zod.string(),
       lastPostedAt: zod.string().optional(),
+      sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+      sourceIdentity: zod.string().optional(),
+      postsPerDay: zod.number(),
+      scheduleLogic: zod.enum(["fixed", "random"]),
+      timezone: zod.string(),
+      timeSlots: zod.array(zod.string()).optional(),
+      scrapingStatus: zod.enum(["pending", "active", "done"]),
+      totalPosted: zod.number(),
+      totalPending: zod.number(),
+      totalFailed: zod.number(),
       createdAt: zod.string(),
     }),
   ),
@@ -239,6 +249,16 @@ export const ListPagesResponseItem = zod.object({
   status: zod.enum(["active", "paused", "error"]),
   accountId: zod.string(),
   lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
   createdAt: zod.string(),
 });
 export const ListPagesResponse = zod.array(ListPagesResponseItem);
@@ -254,6 +274,11 @@ export const CreatePageBody = zod.object({
   postingFrequency: zod
     .enum(["daily", "twice_daily", "weekly", "custom"])
     .optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number().optional(),
+  scheduleLogic: zod.enum(["fixed", "random"]).optional(),
+  timezone: zod.string().optional(),
 });
 
 /**
@@ -277,6 +302,16 @@ export const GetPageResponse = zod.object({
   status: zod.enum(["active", "paused", "error"]),
   accountId: zod.string(),
   lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
   createdAt: zod.string(),
 });
 
@@ -309,6 +344,16 @@ export const UpdatePageResponse = zod.object({
   status: zod.enum(["active", "paused", "error"]),
   accountId: zod.string(),
   lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
   createdAt: zod.string(),
 });
 
@@ -318,6 +363,124 @@ export const UpdatePageResponse = zod.object({
 export const DeletePageParams = zod.object({
   pageId: zod.coerce.string(),
 });
+
+/**
+ * @summary Update page automation settings
+ */
+export const UpdatePageAutomationParams = zod.object({
+  pageId: zod.coerce.string(),
+});
+
+export const UpdatePageAutomationBody = zod.object({
+  postsPerDay: zod.number().optional(),
+  scheduleLogic: zod.enum(["fixed", "random"]).optional(),
+  timezone: zod.string().optional(),
+  timeSlots: zod.array(zod.string()).optional(),
+  automationEnabled: zod.boolean().optional(),
+});
+
+export const UpdatePageAutomationResponse = zod.object({
+  id: zod.string(),
+  fbPageId: zod.string(),
+  name: zod.string(),
+  category: zod.string().optional(),
+  profilePicture: zod.string().optional(),
+  followersCount: zod.number().optional(),
+  automationEnabled: zod.boolean(),
+  postingFrequency: zod
+    .enum(["daily", "twice_daily", "weekly", "custom"])
+    .optional(),
+  status: zod.enum(["active", "paused", "error"]),
+  accountId: zod.string(),
+  lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Update page content source
+ */
+export const UpdatePageSourceParams = zod.object({
+  pageId: zod.coerce.string(),
+});
+
+export const UpdatePageSourceBody = zod.object({
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]),
+  sourceIdentity: zod.string(),
+});
+
+export const UpdatePageSourceResponse = zod.object({
+  id: zod.string(),
+  fbPageId: zod.string(),
+  name: zod.string(),
+  category: zod.string().optional(),
+  profilePicture: zod.string().optional(),
+  followersCount: zod.number().optional(),
+  automationEnabled: zod.boolean(),
+  postingFrequency: zod
+    .enum(["daily", "twice_daily", "weekly", "custom"])
+    .optional(),
+  status: zod.enum(["active", "paused", "error"]),
+  accountId: zod.string(),
+  lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Get synced pages for a Facebook account
+ */
+export const GetAccountAvailablePagesParams = zod.object({
+  accountId: zod.coerce.string(),
+});
+
+export const GetAccountAvailablePagesResponseItem = zod.object({
+  id: zod.string(),
+  fbPageId: zod.string(),
+  name: zod.string(),
+  category: zod.string().optional(),
+  profilePicture: zod.string().optional(),
+  followersCount: zod.number().optional(),
+  automationEnabled: zod.boolean(),
+  postingFrequency: zod
+    .enum(["daily", "twice_daily", "weekly", "custom"])
+    .optional(),
+  status: zod.enum(["active", "paused", "error"]),
+  accountId: zod.string(),
+  lastPostedAt: zod.string().optional(),
+  sourceType: zod.enum(["instagram", "youtube", "tiktok"]).optional(),
+  sourceIdentity: zod.string().optional(),
+  postsPerDay: zod.number(),
+  scheduleLogic: zod.enum(["fixed", "random"]),
+  timezone: zod.string(),
+  timeSlots: zod.array(zod.string()).optional(),
+  scrapingStatus: zod.enum(["pending", "active", "done"]),
+  totalPosted: zod.number(),
+  totalPending: zod.number(),
+  totalFailed: zod.number(),
+  createdAt: zod.string(),
+});
+export const GetAccountAvailablePagesResponse = zod.array(
+  GetAccountAvailablePagesResponseItem,
+);
 
 /**
  * @summary List token packages

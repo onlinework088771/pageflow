@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreatePageBodyPostingFrequency } from "./createPageBodyPostingFrequency";
+import type { CreatePageBodyScheduleLogic } from "./createPageBodyScheduleLogic";
+import type { CreatePageBodySourceType } from "./createPageBodySourceType";
 
 export interface CreatePageBody {
   fbPageId: string;
@@ -13,4 +15,9 @@ export interface CreatePageBody {
   category?: string;
   accountId: string;
   postingFrequency?: CreatePageBodyPostingFrequency;
+  sourceType?: CreatePageBodySourceType;
+  sourceIdentity?: string;
+  postsPerDay?: number;
+  scheduleLogic?: CreatePageBodyScheduleLogic;
+  timezone?: string;
 }

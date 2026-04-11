@@ -10,6 +10,9 @@ import Signup from "@/pages/signup";
 import Overview from "@/pages/overview";
 import Accounts from "@/pages/accounts";
 import PagesManagement from "@/pages/pages-management";
+import PageDetail from "@/pages/page-detail";
+import FbSuccess from "@/pages/fb-success";
+import FbConnect from "@/pages/fb-connect";
 import Settings from "@/pages/settings";
 
 const queryClient = new QueryClient({
@@ -23,6 +26,8 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
+      <Route path="/fb-success" component={FbSuccess} />
+      <Route path="/fb-connect" component={FbConnect} />
       <Route path="/">
         <ProtectedRoute component={Overview} />
       </Route>
@@ -31,6 +36,9 @@ function Router() {
       </Route>
       <Route path="/pages">
         <ProtectedRoute component={PagesManagement} />
+      </Route>
+      <Route path="/pages/:id">
+        <ProtectedRoute component={PageDetail} />
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />

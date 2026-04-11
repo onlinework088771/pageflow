@@ -36,7 +36,9 @@ import type {
   SyncPagesResponse,
   TokensInfo,
   UpdateAgencySettingsBody,
+  UpdatePageAutomationBody,
   UpdatePageBody,
+  UpdatePageSourceBody,
   UserProfile,
   VerifyCredentialsBody,
 } from "./api.schemas";
@@ -1526,6 +1528,276 @@ export const useDeletePage = <
 > => {
   return useMutation(getDeletePageMutationOptions(options));
 };
+
+/**
+ * @summary Update page automation settings
+ */
+export const getUpdatePageAutomationUrl = (pageId: string) => {
+  return `/api/pages/${pageId}/automation`;
+};
+
+export const updatePageAutomation = async (
+  pageId: string,
+  updatePageAutomationBody: UpdatePageAutomationBody,
+  options?: RequestInit,
+): Promise<FacebookPage> => {
+  return customFetch<FacebookPage>(getUpdatePageAutomationUrl(pageId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePageAutomationBody),
+  });
+};
+
+export const getUpdatePageAutomationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePageAutomation>>,
+    TError,
+    { pageId: string; data: BodyType<UpdatePageAutomationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePageAutomation>>,
+  TError,
+  { pageId: string; data: BodyType<UpdatePageAutomationBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePageAutomation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePageAutomation>>,
+    { pageId: string; data: BodyType<UpdatePageAutomationBody> }
+  > = (props) => {
+    const { pageId, data } = props ?? {};
+
+    return updatePageAutomation(pageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePageAutomationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePageAutomation>>
+>;
+export type UpdatePageAutomationMutationBody =
+  BodyType<UpdatePageAutomationBody>;
+export type UpdatePageAutomationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update page automation settings
+ */
+export const useUpdatePageAutomation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePageAutomation>>,
+    TError,
+    { pageId: string; data: BodyType<UpdatePageAutomationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePageAutomation>>,
+  TError,
+  { pageId: string; data: BodyType<UpdatePageAutomationBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePageAutomationMutationOptions(options));
+};
+
+/**
+ * @summary Update page content source
+ */
+export const getUpdatePageSourceUrl = (pageId: string) => {
+  return `/api/pages/${pageId}/source`;
+};
+
+export const updatePageSource = async (
+  pageId: string,
+  updatePageSourceBody: UpdatePageSourceBody,
+  options?: RequestInit,
+): Promise<FacebookPage> => {
+  return customFetch<FacebookPage>(getUpdatePageSourceUrl(pageId), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePageSourceBody),
+  });
+};
+
+export const getUpdatePageSourceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePageSource>>,
+    TError,
+    { pageId: string; data: BodyType<UpdatePageSourceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePageSource>>,
+  TError,
+  { pageId: string; data: BodyType<UpdatePageSourceBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePageSource"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePageSource>>,
+    { pageId: string; data: BodyType<UpdatePageSourceBody> }
+  > = (props) => {
+    const { pageId, data } = props ?? {};
+
+    return updatePageSource(pageId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePageSourceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePageSource>>
+>;
+export type UpdatePageSourceMutationBody = BodyType<UpdatePageSourceBody>;
+export type UpdatePageSourceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update page content source
+ */
+export const useUpdatePageSource = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePageSource>>,
+    TError,
+    { pageId: string; data: BodyType<UpdatePageSourceBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePageSource>>,
+  TError,
+  { pageId: string; data: BodyType<UpdatePageSourceBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePageSourceMutationOptions(options));
+};
+
+/**
+ * @summary Get synced pages for a Facebook account
+ */
+export const getGetAccountAvailablePagesUrl = (accountId: string) => {
+  return `/api/accounts/${accountId}/available-pages`;
+};
+
+export const getAccountAvailablePages = async (
+  accountId: string,
+  options?: RequestInit,
+): Promise<FacebookPage[]> => {
+  return customFetch<FacebookPage[]>(
+    getGetAccountAvailablePagesUrl(accountId),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetAccountAvailablePagesQueryKey = (accountId: string) => {
+  return [`/api/accounts/${accountId}/available-pages`] as const;
+};
+
+export const getGetAccountAvailablePagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAccountAvailablePages>>,
+  TError = ErrorType<unknown>,
+>(
+  accountId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAccountAvailablePages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAccountAvailablePagesQueryKey(accountId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAccountAvailablePages>>
+  > = ({ signal }) =>
+    getAccountAvailablePages(accountId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!accountId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAccountAvailablePages>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAccountAvailablePagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAccountAvailablePages>>
+>;
+export type GetAccountAvailablePagesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get synced pages for a Facebook account
+ */
+
+export function useGetAccountAvailablePages<
+  TData = Awaited<ReturnType<typeof getAccountAvailablePages>>,
+  TError = ErrorType<unknown>,
+>(
+  accountId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAccountAvailablePages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAccountAvailablePagesQueryOptions(
+    accountId,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List token packages

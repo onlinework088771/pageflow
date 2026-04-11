@@ -143,6 +143,32 @@ export const FacebookPageStatus = {
   error: "error",
 } as const;
 
+export type FacebookPageSourceType =
+  (typeof FacebookPageSourceType)[keyof typeof FacebookPageSourceType];
+
+export const FacebookPageSourceType = {
+  instagram: "instagram",
+  youtube: "youtube",
+  tiktok: "tiktok",
+} as const;
+
+export type FacebookPageScheduleLogic =
+  (typeof FacebookPageScheduleLogic)[keyof typeof FacebookPageScheduleLogic];
+
+export const FacebookPageScheduleLogic = {
+  fixed: "fixed",
+  random: "random",
+} as const;
+
+export type FacebookPageScrapingStatus =
+  (typeof FacebookPageScrapingStatus)[keyof typeof FacebookPageScrapingStatus];
+
+export const FacebookPageScrapingStatus = {
+  pending: "pending",
+  active: "active",
+  done: "done",
+} as const;
+
 export interface FacebookPage {
   id: string;
   fbPageId: string;
@@ -155,6 +181,16 @@ export interface FacebookPage {
   status: FacebookPageStatus;
   accountId: string;
   lastPostedAt?: string;
+  sourceType?: FacebookPageSourceType;
+  sourceIdentity?: string;
+  postsPerDay: number;
+  scheduleLogic: FacebookPageScheduleLogic;
+  timezone: string;
+  timeSlots?: string[];
+  scrapingStatus: FacebookPageScrapingStatus;
+  totalPosted: number;
+  totalPending: number;
+  totalFailed: number;
   createdAt: string;
 }
 
@@ -173,12 +209,34 @@ export const CreatePageBodyPostingFrequency = {
   custom: "custom",
 } as const;
 
+export type CreatePageBodySourceType =
+  (typeof CreatePageBodySourceType)[keyof typeof CreatePageBodySourceType];
+
+export const CreatePageBodySourceType = {
+  instagram: "instagram",
+  youtube: "youtube",
+  tiktok: "tiktok",
+} as const;
+
+export type CreatePageBodyScheduleLogic =
+  (typeof CreatePageBodyScheduleLogic)[keyof typeof CreatePageBodyScheduleLogic];
+
+export const CreatePageBodyScheduleLogic = {
+  fixed: "fixed",
+  random: "random",
+} as const;
+
 export interface CreatePageBody {
   fbPageId: string;
   name: string;
   category?: string;
   accountId: string;
   postingFrequency?: CreatePageBodyPostingFrequency;
+  sourceType?: CreatePageBodySourceType;
+  sourceIdentity?: string;
+  postsPerDay?: number;
+  scheduleLogic?: CreatePageBodyScheduleLogic;
+  timezone?: string;
 }
 
 export type UpdatePageBodyPostingFrequency =
@@ -203,6 +261,36 @@ export interface UpdatePageBody {
   automationEnabled?: boolean;
   postingFrequency?: UpdatePageBodyPostingFrequency;
   status?: UpdatePageBodyStatus;
+}
+
+export type UpdatePageAutomationBodyScheduleLogic =
+  (typeof UpdatePageAutomationBodyScheduleLogic)[keyof typeof UpdatePageAutomationBodyScheduleLogic];
+
+export const UpdatePageAutomationBodyScheduleLogic = {
+  fixed: "fixed",
+  random: "random",
+} as const;
+
+export interface UpdatePageAutomationBody {
+  postsPerDay?: number;
+  scheduleLogic?: UpdatePageAutomationBodyScheduleLogic;
+  timezone?: string;
+  timeSlots?: string[];
+  automationEnabled?: boolean;
+}
+
+export type UpdatePageSourceBodySourceType =
+  (typeof UpdatePageSourceBodySourceType)[keyof typeof UpdatePageSourceBodySourceType];
+
+export const UpdatePageSourceBodySourceType = {
+  instagram: "instagram",
+  youtube: "youtube",
+  tiktok: "tiktok",
+} as const;
+
+export interface UpdatePageSourceBody {
+  sourceType: UpdatePageSourceBodySourceType;
+  sourceIdentity: string;
 }
 
 export interface TokenPackage {

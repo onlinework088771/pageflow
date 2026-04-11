@@ -38,8 +38,11 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - **AuthContext**: `useAuth()` hook provides `user`, `login()`, `logout()`, `isAuthenticated`
   - Overview dashboard with stats cards (active pages, automation health, account health, token balance)
   - FB Accounts management — connect via real Facebook OAuth; disconnect; sync pages
-  - Pages management — add/remove pages, toggle automation, set posting frequency
-  - Agency Settings with 3-step BYOC wizard (Bring Your Own Credentials) for Facebook Developer App setup
+  - **Pages management** (`/pages`) — card-based grid; search/filter; 2-step Add Page wizard (select account+page → configure source/schedule); toggle automation per card; click card to open detail
+  - **Page detail** (`/pages/:id`) — Overview tab (stats: posted/pending/failed, page info) + Settings tab (Automation sub-tab: postsPerDay/scheduleLogic/timezone/timeSlots; Source sub-tab; Connections sub-tab; Identity sub-tab)
+  - **FB OAuth success page** (`/fb-success`) — public landing after OAuth; shows synced page count
+  - **FB Connect (magic link)** (`/fb-connect?token=...`) — public landing; calls `/agency/magic-link/verify` to verify cross-browser link
+  - Agency Settings with 5-step BYOC wizard (Bring Your Own Credentials) for Facebook Developer App setup
   - Token system with packages and transaction history
   - Automation logs viewer
 
