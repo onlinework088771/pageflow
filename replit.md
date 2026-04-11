@@ -25,3 +25,27 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+### FB Agency Dashboard (`artifacts/fb-agency`)
+- **Type**: react-vite, preview at `/`
+- **Purpose**: Facebook Page Automation Agency Dashboard ("PageFlow")
+- **Features**:
+  - Overview dashboard with stats cards (active pages, automation health, account health, token balance)
+  - FB Accounts management — connect/disconnect Facebook accounts
+  - Pages management — add/remove pages, toggle automation, set posting frequency
+  - Agency Settings with 3-step BYOC wizard (Bring Your Own Credentials) for Facebook Developer App setup
+  - Token system with packages and transaction history
+
+### API Server (`artifacts/api-server`)
+- Express 5 backend, serves all routes under `/api`
+- Routes: `/api/agency/settings`, `/api/accounts`, `/api/pages`, `/api/overview/stats`, `/api/tokens`
+
+## Database Schema
+
+- `agency_settings` — single-row agency config (BYOC app credentials, setup progress)
+- `facebook_accounts` — connected Facebook user accounts
+- `facebook_pages` — managed Facebook pages (with automation settings)
+- `token_balance` — single-row token balance
+- `token_transactions` — token purchase/usage history

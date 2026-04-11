@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: FB Agency Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: agency
+    description: Agency configuration
+  - name: accounts
+    description: Facebook account management
+  - name: pages
+    description: Facebook page management
+  - name: tokens
+    description: Token management
+  - name: overview
+    description: Dashboard overview
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +33,256 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /agency/settings:
+    get:
+      operationId: getAgencySettings
+      tags: [agency]
+      summary: Get agency settings
+      responses:
+        "200":
+          description: Agency settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+    put:
+      operationId: updateAgencySettings
+      tags: [agency]
+      summary: Update agency settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAgencySettingsBody"
+      responses:
+        "200":
+          description: Updated agency settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+
+  /agency/app-config:
+    post:
+      operationId: setupFacebookApp
+      tags: [agency]
+      summary: Configure BYOC Facebook app credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FacebookAppConfigBody"
+      responses:
+        "200":
+          description: App configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+
+  /overview/stats:
+    get:
+      operationId: getOverviewStats
+      tags: [overview]
+      summary: Get dashboard overview stats
+      responses:
+        "200":
+          description: Overview stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewStats"
+
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: List connected Facebook accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FacebookAccount"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Connect a Facebook account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountBody"
+      responses:
+        "201":
+          description: Account connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookAccount"
+
+  /accounts/{accountId}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get a Facebook account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookAccount"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Disconnect a Facebook account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Account disconnected
+
+  /pages:
+    get:
+      operationId: listPages
+      tags: [pages]
+      summary: List all managed pages
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, paused, all]
+      responses:
+        "200":
+          description: List of pages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FacebookPage"
+    post:
+      operationId: createPage
+      tags: [pages]
+      summary: Add a page to management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePageBody"
+      responses:
+        "201":
+          description: Page added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookPage"
+
+  /pages/{pageId}:
+    get:
+      operationId: getPage
+      tags: [pages]
+      summary: Get page details
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Page details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookPage"
+    patch:
+      operationId: updatePage
+      tags: [pages]
+      summary: Update page settings
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageBody"
+      responses:
+        "200":
+          description: Updated page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FacebookPage"
+    delete:
+      operationId: deletePage
+      tags: [pages]
+      summary: Remove page from management
+      parameters:
+        - name: pageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Page removed
+
+  /tokens:
+    get:
+      operationId: listTokens
+      tags: [tokens]
+      summary: List token packages
+      responses:
+        "200":
+          description: Token balance and packages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokensInfo"
+    post:
+      operationId: addTokens
+      tags: [tokens]
+      summary: Add tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTokensBody"
+      responses:
+        "200":
+          description: Updated token balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokensInfo"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +290,235 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    AgencySettings:
+      type: object
+      properties:
+        id:
+          type: string
+        agencyName:
+          type: string
+        appId:
+          type: string
+        appSecret:
+          type: string
+        privacyPolicyUrl:
+          type: string
+        appConfigured:
+          type: boolean
+        appLive:
+          type: boolean
+        setupStep:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, agencyName, appConfigured, appLive, setupStep]
+
+    UpdateAgencySettingsBody:
+      type: object
+      properties:
+        agencyName:
+          type: string
+        privacyPolicyUrl:
+          type: string
+
+    FacebookAppConfigBody:
+      type: object
+      properties:
+        appId:
+          type: string
+        appSecret:
+          type: string
+        privacyPolicyUrl:
+          type: string
+        step:
+          type: integer
+      required: [step]
+
+    OverviewStats:
+      type: object
+      properties:
+        activePagesCount:
+          type: integer
+        totalPagesCount:
+          type: integer
+        automationActiveCount:
+          type: integer
+        accountHealth:
+          type: string
+          enum: [active, warning, inactive]
+        tokenBalance:
+          type: integer
+        systemStatus:
+          type: string
+          enum: [online, degraded, offline]
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+      required: [activePagesCount, totalPagesCount, automationActiveCount, accountHealth, tokenBalance, systemStatus, recentActivity]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+        pageName:
+          type: string
+      required: [id, type, message, timestamp]
+
+    FacebookAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        fbUserId:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        profilePicture:
+          type: string
+        pagesCount:
+          type: integer
+        status:
+          type: string
+          enum: [connected, expired, error]
+        connectedAt:
+          type: string
+      required: [id, fbUserId, name, pagesCount, status, connectedAt]
+
+    CreateAccountBody:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        fbUserId:
+          type: string
+      required: [accessToken, name, fbUserId]
+
+    FacebookPage:
+      type: object
+      properties:
+        id:
+          type: string
+        fbPageId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        profilePicture:
+          type: string
+        followersCount:
+          type: integer
+        automationEnabled:
+          type: boolean
+        postingFrequency:
+          type: string
+          enum: [daily, twice_daily, weekly, custom]
+        status:
+          type: string
+          enum: [active, paused, error]
+        accountId:
+          type: string
+        lastPostedAt:
+          type: string
+        createdAt:
+          type: string
+      required: [id, fbPageId, name, automationEnabled, status, accountId, createdAt]
+
+    CreatePageBody:
+      type: object
+      properties:
+        fbPageId:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        accountId:
+          type: string
+        postingFrequency:
+          type: string
+          enum: [daily, twice_daily, weekly, custom]
+      required: [fbPageId, name, accountId]
+
+    UpdatePageBody:
+      type: object
+      properties:
+        automationEnabled:
+          type: boolean
+        postingFrequency:
+          type: string
+          enum: [daily, twice_daily, weekly, custom]
+        status:
+          type: string
+          enum: [active, paused]
+
+    TokensInfo:
+      type: object
+      properties:
+        balance:
+          type: integer
+        packages:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenPackage"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenTransaction"
+      required: [balance, packages, transactions]
+
+    TokenPackage:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        tokens:
+          type: integer
+        price:
+          type: number
+      required: [id, name, tokens, price]
+
+    TokenTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [purchase, usage, refund]
+        amount:
+          type: integer
+        description:
+          type: string
+        timestamp:
+          type: string
+      required: [id, type, amount, description, timestamp]
+
+    AddTokensBody:
+      type: object
+      properties:
+        packageId:
+          type: string
+        amount:
+          type: integer
+      required: [amount]

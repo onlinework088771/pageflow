@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "FB Agency Dashboard"
+version = "1.0.0"
+id = "artifacts/fb-agency"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24102
+
+[services.development]
+run = "pnpm --filter @workspace/fb-agency run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fb-agency", "run", "build" ]
+publicDir = "artifacts/fb-agency/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24102"
+BASE_PATH = "/"
