@@ -38,7 +38,8 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - **AuthContext**: `useAuth()` hook provides `user`, `login()`, `logout()`, `isAuthenticated`
   - Overview dashboard with stats cards (active pages, automation health, account health, token balance)
   - FB Accounts management — connect via real Facebook OAuth; disconnect; sync pages
-  - **Pages management** (`/pages`) — card-based grid; search/filter; 2-step Add Page wizard (select account+page → configure source/schedule); toggle automation per card; click card to open detail
+  - **Pages management** (`/pages`) — card-based grid; search/filter; 2-step Add Page wizard (select account+page → configure source/schedule); uses upsert so re-adding an existing page just updates its configuration; toggle automation per card; click card to open detail
+  - **Upload Scheduler** (`/upload`) — manually upload video files (MP4/MOV/AVI up to 500MB) or paste a video URL; select multiple Facebook pages via checkboxes; set exact date/time with timezone; view and delete pending scheduled uploads
   - **Page detail** (`/pages/:id`) — Overview tab (stats: posted/pending/failed, page info) + Settings tab (Automation sub-tab: postsPerDay/scheduleLogic/timezone/timeSlots; Source sub-tab; Connections sub-tab; Identity sub-tab)
   - **FB OAuth success page** (`/fb-success`) — public landing after OAuth; shows synced page count
   - **FB Connect (magic link)** (`/fb-connect?token=...`) — public landing; calls `/agency/magic-link/verify` to verify cross-browser link

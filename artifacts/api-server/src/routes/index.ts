@@ -8,6 +8,8 @@ import overviewRouter from "./overview";
 import tokensRouter from "./tokens";
 import facebookOAuthRouter from "./facebook-oauth";
 import automationLogsRouter from "./automation-logs";
+import scheduledVideosRouter from "./scheduled-videos";
+import youtubeRouter from "./youtube";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -24,5 +26,7 @@ router.use(requireAuth, pagesRouter);
 router.use(requireAuth, overviewRouter);
 router.use(requireAuth, tokensRouter);
 router.use(requireAuth, automationLogsRouter);
+router.use(requireAuth, scheduledVideosRouter);
+router.use(requireAuth, youtubeRouter);
 
 export default router;

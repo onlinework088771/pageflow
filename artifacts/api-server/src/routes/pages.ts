@@ -89,9 +89,26 @@ router.post("/pages", async (req, res): Promise<void> => {
     status: "active",
     automationEnabled: true,
     scrapingStatus: "pending",
+  }).onConflictDoUpdate({
+    target: facebookPagesTable.fbPageId,
+    set: {
+      name: parsed.data.name,
+      category: parsed.data.category ?? undefined,
+      accountId,
+      postingFrequency: parsed.data.postingFrequency ?? "daily",
+      sourceType: parsed.data.sourceType ?? undefined,
+      sourceIdentity: parsed.data.sourceIdentity ?? undefined,
+      postsPerDay: parsed.data.postsPerDay ?? 3,
+      scheduleLogic: parsed.data.scheduleLogic ?? "fixed",
+      timezone: parsed.data.timezone ?? "UTC",
+      status: "active",
+      automationEnabled: true,
+      scrapingStatus: "pending",
+    },
   }).returning();
 
-  await db.update(facebookAccountsTable).set({ pagesCount: account.pagesCount + 1 }).where(eq(facebookAccountsTable.id, accountId));
+  const existingPages = await db.select().from(facebookPagesTable).where(eq(facebookPagesTable.accountId, accountId));
+  await db.update(facebookAccountsTable).set({ pagesCount: existingPages.length }).where(eq(facebookAccountsTable.id, accountId));
 
   res.status(201).json(GetPageResponse.parse(serializePage(page)));
 });

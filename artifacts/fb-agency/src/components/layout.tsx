@@ -4,7 +4,7 @@ import { useGetOverviewStats, getGetOverviewStatsQueryKey } from "@workspace/api
 import {
   Activity, LayoutDashboard, Users, Files, Settings,
   LogOut, Coins, ShieldCheck, AlertTriangle, Menu, X,
-  ChevronRight, Zap,
+  ChevronRight, Zap, Upload,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/accounts", label: "FB Accounts", icon: Users },
   { href: "/pages", label: "Pages", icon: Files },
+  { href: "/upload", label: "Upload", icon: Upload },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

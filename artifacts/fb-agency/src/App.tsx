@@ -14,6 +14,7 @@ import PageDetail from "@/pages/page-detail";
 import FbSuccess from "@/pages/fb-success";
 import FbConnect from "@/pages/fb-connect";
 import Settings from "@/pages/settings";
+import UploadScheduler from "@/pages/upload-scheduler";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +43,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />
+      </Route>
+      <Route path="/upload">
+        <ProtectedRoute component={UploadScheduler} />
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -27,6 +27,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const TOKEN_KEY = "pf_auth_token";
 const USER_KEY = "pf_auth_user";
 
+export function getAuthToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ user: null, token: null, isLoading: true });
 
