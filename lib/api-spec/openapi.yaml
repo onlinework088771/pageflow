@@ -9,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
   - name: agency
     description: Agency configuration
   - name: accounts
@@ -19,6 +21,8 @@ tags:
     description: Token management
   - name: overview
     description: Dashboard overview
+  - name: logs
+    description: Automation logs
 
 paths:
   /healthz:
@@ -34,10 +38,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
 
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupBody"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already in use
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
   /agency/settings:
     get:
       operationId: getAgencySettings
       tags: [agency]
+      security:
+        - bearerAuth: []
       summary: Get agency settings
       responses:
         "200":
@@ -49,6 +112,8 @@ paths:
     put:
       operationId: updateAgencySettings
       tags: [agency]
+      security:
+        - bearerAuth: []
       summary: Update agency settings
       requestBody:
         required: true
@@ -68,6 +133,8 @@ paths:
     post:
       operationId: setupFacebookApp
       tags: [agency]
+      security:
+        - bearerAuth: []
       summary: Configure BYOC Facebook app credentials
       requestBody:
         required: true
@@ -87,6 +154,8 @@ paths:
     get:
       operationId: getOverviewStats
       tags: [overview]
+      security:
+        - bearerAuth: []
       summary: Get dashboard overview stats
       responses:
         "200":
@@ -100,6 +169,8 @@ paths:
     get:
       operationId: listAccounts
       tags: [accounts]
+      security:
+        - bearerAuth: []
       summary: List connected Facebook accounts
       responses:
         "200":
@@ -113,6 +184,8 @@ paths:
     post:
       operationId: createAccount
       tags: [accounts]
+      security:
+        - bearerAuth: []
       summary: Connect a Facebook account
       requestBody:
         required: true
@@ -132,6 +205,8 @@ paths:
     get:
       operationId: getAccount
       tags: [accounts]
+      security:
+        - bearerAuth: []
       summary: Get a Facebook account
       parameters:
         - name: accountId
@@ -149,6 +224,8 @@ paths:
     delete:
       operationId: deleteAccount
       tags: [accounts]
+      security:
+        - bearerAuth: []
       summary: Disconnect a Facebook account
       parameters:
         - name: accountId
@@ -160,10 +237,33 @@ paths:
         "204":
           description: Account disconnected
 
+  /accounts/{accountId}/sync-pages:
+    post:
+      operationId: syncAccountPages
+      tags: [accounts]
+      security:
+        - bearerAuth: []
+      summary: Sync pages from Facebook Graph API for an account
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pages synced
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncPagesResponse"
+
   /pages:
     get:
       operationId: listPages
       tags: [pages]
+      security:
+        - bearerAuth: []
       summary: List all managed pages
       parameters:
         - name: status
@@ -183,6 +283,8 @@ paths:
     post:
       operationId: createPage
       tags: [pages]
+      security:
+        - bearerAuth: []
       summary: Add a page to management
       requestBody:
         required: true
@@ -202,6 +304,8 @@ paths:
     get:
       operationId: getPage
       tags: [pages]
+      security:
+        - bearerAuth: []
       summary: Get page details
       parameters:
         - name: pageId
@@ -219,6 +323,8 @@ paths:
     patch:
       operationId: updatePage
       tags: [pages]
+      security:
+        - bearerAuth: []
       summary: Update page settings
       parameters:
         - name: pageId
@@ -242,6 +348,8 @@ paths:
     delete:
       operationId: deletePage
       tags: [pages]
+      security:
+        - bearerAuth: []
       summary: Remove page from management
       parameters:
         - name: pageId
@@ -257,6 +365,8 @@ paths:
     get:
       operationId: listTokens
       tags: [tokens]
+      security:
+        - bearerAuth: []
       summary: List token packages
       responses:
         "200":
@@ -268,6 +378,8 @@ paths:
     post:
       operationId: addTokens
       tags: [tokens]
+      security:
+        - bearerAuth: []
       summary: Add tokens
       requestBody:
         required: true
@@ -283,7 +395,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/TokensInfo"
 
+  /automation-logs:
+    get:
+      operationId: listAutomationLogs
+      tags: [logs]
+      security:
+        - bearerAuth: []
+      summary: List automation logs
+      parameters:
+        - name: pageId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of automation logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AutomationLog"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -291,6 +435,57 @@ components:
         status:
           type: string
       required: [status]
+
+    SignupBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        agencyName:
+          type: string
+        name:
+          type: string
+      required: [email, password, agencyName, name]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/UserProfile"
+      required: [token, user]
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        agencyName:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+      required: [id, email, name, agencyName, role, createdAt]
 
     AgencySettings:
       type: object
@@ -411,6 +606,17 @@ components:
           type: string
       required: [accessToken, name, fbUserId]
 
+    SyncPagesResponse:
+      type: object
+      properties:
+        synced:
+          type: integer
+        pages:
+          type: array
+          items:
+            $ref: "#/components/schemas/FacebookPage"
+      required: [synced, pages]
+
     FacebookPage:
       type: object
       properties:
@@ -522,3 +728,27 @@ components:
         amount:
           type: integer
       required: [amount]
+
+    AutomationLog:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        message:
+          type: string
+        pageId:
+          type: string
+        pageName:
+          type: string
+        accountId:
+          type: string
+        status:
+          type: string
+          enum: [success, error, info]
+        metadata:
+          type: string
+        createdAt:
+          type: string
+      required: [id, type, message, status, createdAt]

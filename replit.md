@@ -15,6 +15,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Auth**: JWT (jsonwebtoken + bcryptjs), tokens stored in localStorage
 
 ## Key Commands
 
@@ -32,20 +33,46 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - **Type**: react-vite, preview at `/`
 - **Purpose**: Facebook Page Automation Agency Dashboard ("PageFlow")
 - **Features**:
+  - **JWT Auth**: Signup (/signup) and Login (/login) pages; token stored in localStorage
+  - **Protected routes**: All dashboard pages redirect to /login if not authenticated
+  - **AuthContext**: `useAuth()` hook provides `user`, `login()`, `logout()`, `isAuthenticated`
   - Overview dashboard with stats cards (active pages, automation health, account health, token balance)
-  - FB Accounts management — connect/disconnect Facebook accounts
+  - FB Accounts management — connect via real Facebook OAuth; disconnect; sync pages
   - Pages management — add/remove pages, toggle automation, set posting frequency
   - Agency Settings with 3-step BYOC wizard (Bring Your Own Credentials) for Facebook Developer App setup
   - Token system with packages and transaction history
+  - Automation logs viewer
 
 ### API Server (`artifacts/api-server`)
 - Express 5 backend, serves all routes under `/api`
-- Routes: `/api/agency/settings`, `/api/accounts`, `/api/pages`, `/api/overview/stats`, `/api/tokens`
+- **Auth routes** (public): `POST /api/auth/signup`, `POST /api/auth/login`, `GET /api/auth/me`
+- **Facebook OAuth**: `GET /api/auth/facebook` (redirect), `GET /api/auth/facebook/callback`
+- **Protected routes** (require `Authorization: Bearer <JWT>`): `/api/agency/settings`, `/api/accounts`, `/api/pages`, `/api/overview/stats`, `/api/tokens`, `/api/automation-logs`
+- JWT secret read from `SESSION_SECRET` environment variable
+- Auth middleware: `artifacts/api-server/src/middlewares/auth.ts`
 
 ## Database Schema
 
+- `users` — agency users (email, password_hash, name, agency_name, role)
 - `agency_settings` — single-row agency config (BYOC app credentials, setup progress)
-- `facebook_accounts` — connected Facebook user accounts
+- `facebook_accounts` — connected Facebook user accounts (with OAuth access tokens)
 - `facebook_pages` — managed Facebook pages (with automation settings)
 - `token_balance` — single-row token balance
 - `token_transactions` — token purchase/usage history
+- `automation_logs` — automation action logs (type, message, page, status)
+
+## OpenAPI + Codegen
+
+OpenAPI spec lives at `lib/api-spec/openapi.yaml`. After changing the spec:
+```
+pnpm --filter @workspace/api-spec run codegen
+```
+This regenerates `lib/api-client-react` (React Query hooks) and `lib/api-zod` (Zod validation schemas).
+
+## Auth Flow
+
+1. User signs up at `/signup` or logs in at `/login`
+2. API returns `{token, user}` — frontend stores token in `localStorage["pf_auth_token"]`
+3. `setAuthTokenGetter()` from `@workspace/api-client-react` is called in AuthContext to attach JWT to all API requests
+4. `ProtectedRoute` component checks `isAuthenticated` and redirects to `/login` if false
+5. Facebook OAuth: clicking "Connect Account" redirects to `/api/auth/facebook?token=<JWT>` which redirects to Facebook, then callback at `/api/auth/facebook/callback` syncs pages

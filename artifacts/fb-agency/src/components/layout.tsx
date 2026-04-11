@@ -5,6 +5,8 @@ import { Activity, LayoutDashboard, Users, Files, Settings, LogOut, Coins, Shiel
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/auth-context";
+import { useQueryClient } from "@tanstack/react-query";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -16,6 +18,17 @@ const navItems = [
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: stats } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
+  const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
+
+  const initials = user?.name
+    ? user.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()
+    : "?";
+
+  function handleLogout() {
+    logout();
+    queryClient.clear();
+  }
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background">
@@ -50,27 +63,33 @@ export function Layout({ children }: { children: ReactNode }) {
               <Coins className="h-4 w-4 text-yellow-500" />
               <span>{stats?.tokenBalance?.toLocaleString() || "0"}</span>
             </div>
-            
+
             <div className="hidden sm:flex items-center gap-2 bg-muted px-3 py-1.5 rounded-full text-sm font-medium">
               {stats?.systemStatus === "online" ? (
-                 <ShieldCheck className="h-4 w-4 text-green-500" />
+                <ShieldCheck className="h-4 w-4 text-green-500" />
               ) : stats?.systemStatus === "degraded" ? (
-                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                <AlertTriangle className="h-4 w-4 text-yellow-500" />
               ) : (
-                 <AlertTriangle className="h-4 w-4 text-red-500" />
+                <AlertTriangle className="h-4 w-4 text-red-500" />
               )}
               <span className="capitalize">{stats?.systemStatus || "Online"}</span>
             </div>
 
             <div className="flex items-center gap-3 border-l pl-4 ml-2">
               <div className="flex flex-col items-end">
-                <span className="text-sm font-medium leading-none">Shakil</span>
-                <span className="text-xs text-muted-foreground mt-1">Agency Admin</span>
+                <span className="text-sm font-medium leading-none">{user?.name || "..."}</span>
+                <span className="text-xs text-muted-foreground mt-1">{user?.agencyName || "Agency"}</span>
               </div>
               <Avatar className="h-9 w-9 border-2 border-primary/20">
-                <AvatarFallback className="bg-primary/10 text-primary">SH</AvatarFallback>
+                <AvatarFallback className="bg-primary/10 text-primary">{initials}</AvatarFallback>
               </Avatar>
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive transition-colors ml-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Sign out"
+                className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                onClick={handleLogout}
+              >
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>

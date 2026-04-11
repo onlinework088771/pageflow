@@ -15,6 +15,50 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
+ * @summary Create a new account
+ */
+export const signupBodyPasswordMin = 6;
+
+export const SignupBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string().min(signupBodyPasswordMin),
+  agencyName: zod.string(),
+  name: zod.string(),
+});
+
+/**
+ * @summary Login with email and password
+ */
+export const LoginBody = zod.object({
+  email: zod.string().email(),
+  password: zod.string(),
+});
+
+export const LoginResponse = zod.object({
+  token: zod.string(),
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string(),
+    name: zod.string(),
+    agencyName: zod.string(),
+    role: zod.string(),
+    createdAt: zod.string(),
+  }),
+});
+
+/**
+ * @summary Get current user
+ */
+export const GetMeResponse = zod.object({
+  id: zod.string(),
+  email: zod.string(),
+  name: zod.string(),
+  agencyName: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
  * @summary Get agency settings
  */
 export const GetAgencySettingsResponse = zod.object({
@@ -143,6 +187,35 @@ export const GetAccountResponse = zod.object({
  */
 export const DeleteAccountParams = zod.object({
   accountId: zod.coerce.string(),
+});
+
+/**
+ * @summary Sync pages from Facebook Graph API for an account
+ */
+export const SyncAccountPagesParams = zod.object({
+  accountId: zod.coerce.string(),
+});
+
+export const SyncAccountPagesResponse = zod.object({
+  synced: zod.number(),
+  pages: zod.array(
+    zod.object({
+      id: zod.string(),
+      fbPageId: zod.string(),
+      name: zod.string(),
+      category: zod.string().optional(),
+      profilePicture: zod.string().optional(),
+      followersCount: zod.number().optional(),
+      automationEnabled: zod.boolean(),
+      postingFrequency: zod
+        .enum(["daily", "twice_daily", "weekly", "custom"])
+        .optional(),
+      status: zod.enum(["active", "paused", "error"]),
+      accountId: zod.string(),
+      lastPostedAt: zod.string().optional(),
+      createdAt: zod.string(),
+    }),
+  ),
 });
 
 /**
@@ -298,3 +371,26 @@ export const AddTokensResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List automation logs
+ */
+export const ListAutomationLogsQueryParams = zod.object({
+  pageId: zod.coerce.string().optional(),
+  limit: zod.coerce.number().optional(),
+});
+
+export const ListAutomationLogsResponseItem = zod.object({
+  id: zod.string(),
+  type: zod.string(),
+  message: zod.string(),
+  pageId: zod.string().optional(),
+  pageName: zod.string().optional(),
+  accountId: zod.string().optional(),
+  status: zod.enum(["success", "error", "info"]),
+  metadata: zod.string().optional(),
+  createdAt: zod.string(),
+});
+export const ListAutomationLogsResponse = zod.array(
+  ListAutomationLogsResponseItem,
+);

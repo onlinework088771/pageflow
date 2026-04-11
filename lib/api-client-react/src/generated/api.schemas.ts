@@ -9,6 +9,33 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface SignupBody {
+  email: string;
+  /** @minLength 6 */
+  password: string;
+  agencyName: string;
+  name: string;
+}
+
+export interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  agencyName: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: UserProfile;
+}
+
 export interface AgencySettings {
   id: string;
   agencyName: string;
@@ -131,6 +158,11 @@ export interface FacebookPage {
   createdAt: string;
 }
 
+export interface SyncPagesResponse {
+  synced: number;
+  pages: FacebookPage[];
+}
+
 export type CreatePageBodyPostingFrequency =
   (typeof CreatePageBodyPostingFrequency)[keyof typeof CreatePageBodyPostingFrequency];
 
@@ -208,6 +240,27 @@ export interface AddTokensBody {
   amount: number;
 }
 
+export type AutomationLogStatus =
+  (typeof AutomationLogStatus)[keyof typeof AutomationLogStatus];
+
+export const AutomationLogStatus = {
+  success: "success",
+  error: "error",
+  info: "info",
+} as const;
+
+export interface AutomationLog {
+  id: string;
+  type: string;
+  message: string;
+  pageId?: string;
+  pageName?: string;
+  accountId?: string;
+  status: AutomationLogStatus;
+  metadata?: string;
+  createdAt: string;
+}
+
 export type ListPagesParams = {
   status?: ListPagesStatus;
 };
@@ -220,3 +273,8 @@ export const ListPagesStatus = {
   paused: "paused",
   all: "all",
 } as const;
+
+export type ListAutomationLogsParams = {
+  pageId?: string;
+  limit?: number;
+};

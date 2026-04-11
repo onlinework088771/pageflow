@@ -7,12 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function Overview() {
   const { data: stats, isLoading } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
   const addTokens = useAddTokens();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleAddTokens = () => {
     addTokens.mutate(
@@ -31,7 +33,7 @@ export default function Overview() {
       <div className="flex flex-col gap-8">
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Welcome back, Shakil</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Welcome back, {user?.name?.split(" ")[0] ?? "there"}</h1>
             <p className="text-muted-foreground mt-1">Here's what's happening with your pages today.</p>
           </div>
           <div className="flex items-center gap-3">
