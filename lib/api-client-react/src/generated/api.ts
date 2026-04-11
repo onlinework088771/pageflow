@@ -30,6 +30,7 @@ import type {
   ListAutomationLogsParams,
   ListPagesParams,
   LoginBody,
+  MagicLinkResponse,
   OverviewStats,
   SignupBody,
   SyncPagesResponse,
@@ -37,6 +38,7 @@ import type {
   UpdateAgencySettingsBody,
   UpdatePageBody,
   UserProfile,
+  VerifyCredentialsBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1684,6 +1686,174 @@ export const useAddTokens = <
   TContext
 > => {
   return useMutation(getAddTokensMutationOptions(options));
+};
+
+/**
+ * @summary Verify Facebook App credentials with the Graph API
+ */
+export const getVerifyFacebookCredentialsUrl = () => {
+  return `/api/agency/verify-credentials`;
+};
+
+export const verifyFacebookCredentials = async (
+  verifyCredentialsBody: VerifyCredentialsBody,
+  options?: RequestInit,
+): Promise<AgencySettings> => {
+  return customFetch<AgencySettings>(getVerifyFacebookCredentialsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(verifyCredentialsBody),
+  });
+};
+
+export const getVerifyFacebookCredentialsMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyFacebookCredentials>>,
+    TError,
+    { data: BodyType<VerifyCredentialsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyFacebookCredentials>>,
+  TError,
+  { data: BodyType<VerifyCredentialsBody> },
+  TContext
+> => {
+  const mutationKey = ["verifyFacebookCredentials"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyFacebookCredentials>>,
+    { data: BodyType<VerifyCredentialsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyFacebookCredentials(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyFacebookCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyFacebookCredentials>>
+>;
+export type VerifyFacebookCredentialsMutationBody =
+  BodyType<VerifyCredentialsBody>;
+export type VerifyFacebookCredentialsMutationError = ErrorType<void>;
+
+/**
+ * @summary Verify Facebook App credentials with the Graph API
+ */
+export const useVerifyFacebookCredentials = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyFacebookCredentials>>,
+    TError,
+    { data: BodyType<VerifyCredentialsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof verifyFacebookCredentials>>,
+  TError,
+  { data: BodyType<VerifyCredentialsBody> },
+  TContext
+> => {
+  return useMutation(getVerifyFacebookCredentialsMutationOptions(options));
+};
+
+/**
+ * @summary Generate a short-lived magic link for cross-browser Facebook connection
+ */
+export const getGenerateMagicLinkUrl = () => {
+  return `/api/agency/magic-link`;
+};
+
+export const generateMagicLink = async (
+  options?: RequestInit,
+): Promise<MagicLinkResponse> => {
+  return customFetch<MagicLinkResponse>(getGenerateMagicLinkUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getGenerateMagicLinkMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateMagicLink>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateMagicLink>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["generateMagicLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateMagicLink>>,
+    void
+  > = () => {
+    return generateMagicLink(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateMagicLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateMagicLink>>
+>;
+
+export type GenerateMagicLinkMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate a short-lived magic link for cross-browser Facebook connection
+ */
+export const useGenerateMagicLink = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateMagicLink>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateMagicLink>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getGenerateMagicLinkMutationOptions(options));
 };
 
 /**

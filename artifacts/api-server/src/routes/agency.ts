@@ -1,13 +1,18 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, agencySettingsTable } from "@workspace/db";
+import { eq, lt, asc } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import axios from "axios";
+import { db, agencySettingsTable, magicLinksTable } from "@workspace/db";
 import {
   UpdateAgencySettingsBody,
   SetupFacebookAppBody,
   GetAgencySettingsResponse,
   UpdateAgencySettingsResponse,
   SetupFacebookAppResponse,
+  VerifyFacebookCredentialsBody,
+  GenerateMagicLinkResponse,
 } from "@workspace/api-zod";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -27,14 +32,13 @@ function serializeSettings(s: typeof agencySettingsTable.$inferSelect) {
 }
 
 async function ensureAgencySettings() {
-  const existing = await db.select().from(agencySettingsTable).limit(1);
+  const existing = await db.select().from(agencySettingsTable).orderBy(asc(agencySettingsTable.id)).limit(1);
   if (existing.length > 0) return existing[0];
   const [created] = await db.insert(agencySettingsTable).values({ agencyName: "My Agency" }).returning();
   return created;
 }
 
 router.get("/agency/settings", async (req, res): Promise<void> => {
-  req.log.info("Getting agency settings");
   const settings = await ensureAgencySettings();
   res.json(GetAgencySettingsResponse.parse(serializeSettings(settings)));
 });
@@ -64,14 +68,76 @@ router.post("/agency/app-config", async (req, res): Promise<void> => {
   if (parsed.data.appId != null) updates.appId = parsed.data.appId;
   if (parsed.data.appSecret != null) updates.appSecret = parsed.data.appSecret;
   if (parsed.data.privacyPolicyUrl != null) updates.privacyPolicyUrl = parsed.data.privacyPolicyUrl;
-  if (parsed.data.step >= 3) {
-    updates.appConfigured = true;
-    updates.appLive = true;
-  } else if (parsed.data.step >= 1) {
-    updates.appConfigured = false;
-  }
   const [updated] = await db.update(agencySettingsTable).set(updates).where(eq(agencySettingsTable.id, settings.id)).returning();
   res.json(SetupFacebookAppResponse.parse(serializeSettings(updated)));
+});
+
+// POST /agency/verify-credentials — verifies App ID + Secret with Facebook Graph API
+router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
+  const parsed = VerifyFacebookCredentialsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { appId, appSecret } = parsed.data;
+
+  try {
+    // Call Facebook Graph API to verify the credentials
+    const verifyRes = await axios.get(`https://graph.facebook.com/v19.0/${appId}`, {
+      params: {
+        access_token: `${appId}|${appSecret}`,
+        fields: "id,name,link",
+      },
+    });
+
+    const appData = verifyRes.data;
+    logger.info({ appId, appName: appData.name }, "Facebook app credentials verified");
+
+    const settings = await ensureAgencySettings();
+    const [updated] = await db
+      .update(agencySettingsTable)
+      .set({
+        appId,
+        appSecret,
+        appConfigured: true,
+        appLive: true,
+        setupStep: 5,
+        agencyName: appData.name ?? settings.agencyName,
+      })
+      .where(eq(agencySettingsTable.id, settings.id))
+      .returning();
+
+    res.json(GetAgencySettingsResponse.parse(serializeSettings(updated)));
+  } catch (err: unknown) {
+    logger.warn({ err, appId }, "Facebook app credentials verification failed");
+    const msg =
+      (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
+      "Invalid App ID or App Secret. Please check your credentials.";
+    res.status(400).json({ error: msg });
+  }
+});
+
+// POST /agency/magic-link — generates a short-lived magic link token for cross-browser FB connection
+router.post("/agency/magic-link", async (req, res): Promise<void> => {
+  const settings = await ensureAgencySettings();
+  if (!settings.appId) {
+    res.status(400).json({ error: "Facebook App not configured. Complete the BYOC setup first." });
+    return;
+  }
+
+  // Clean up expired tokens
+  await db.delete(magicLinksTable).where(eq(magicLinksTable.used, true));
+
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+  await db.insert(magicLinksTable).values({ token, expiresAt });
+
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const url = `${origin}/api/auth/facebook/magic?token=${token}`;
+
+  res.json(GenerateMagicLinkResponse.parse({ token, url, expiresAt: expiresAt.toISOString() }));
 });
 
 export default router;

@@ -261,6 +261,17 @@ export interface AutomationLog {
   createdAt: string;
 }
 
+export interface VerifyCredentialsBody {
+  appId: string;
+  appSecret: string;
+}
+
+export interface MagicLinkResponse {
+  token: string;
+  url: string;
+  expiresAt: string;
+}
+
 export type ListPagesParams = {
   status?: ListPagesStatus;
 };

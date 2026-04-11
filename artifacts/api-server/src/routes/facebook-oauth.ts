@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import axios from "axios";
-import { eq } from "drizzle-orm";
-import { db, agencySettingsTable, facebookAccountsTable, facebookPagesTable } from "@workspace/db";
+import { eq, lt } from "drizzle-orm";
+import { db, agencySettingsTable, facebookAccountsTable, facebookPagesTable, magicLinksTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
@@ -189,6 +189,49 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
     const frontBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
     res.redirect(`${frontBase}/accounts?fb_error=${encodeURIComponent(msg)}`);
   }
+});
+
+// GET /auth/facebook/magic?token=xxx — magic link initiation (no auth header needed)
+router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
+  const { token } = req.query as Record<string, string>;
+  const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
+
+  if (!token) {
+    res.redirect(`${frontendBase}/accounts?fb_error=invalid_magic_link`);
+    return;
+  }
+
+  // Expire old tokens
+  await db.delete(magicLinksTable).where(lt(magicLinksTable.expiresAt, new Date()));
+
+  const [link] = await db.select().from(magicLinksTable).where(eq(magicLinksTable.token, token));
+
+  if (!link || link.used) {
+    res.redirect(`${frontendBase}/accounts?fb_error=magic_link_expired`);
+    return;
+  }
+
+  const [settings] = await db.select().from(agencySettingsTable).limit(1);
+  if (!settings?.appId) {
+    res.redirect(`${frontendBase}/accounts?fb_error=app_not_configured`);
+    return;
+  }
+
+  // Mark token as used
+  await db.update(magicLinksTable).set({ used: true }).where(eq(magicLinksTable.id, link.id));
+
+  const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/callback`;
+  const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
+  const state = Buffer.from(JSON.stringify({ magic: true })).toString("base64");
+
+  const authUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
+  authUrl.searchParams.set("client_id", settings.appId);
+  authUrl.searchParams.set("redirect_uri", callbackUrl);
+  authUrl.searchParams.set("scope", scope);
+  authUrl.searchParams.set("state", state);
+  authUrl.searchParams.set("response_type", "code");
+
+  res.redirect(authUrl.toString());
 });
 
 export default router;

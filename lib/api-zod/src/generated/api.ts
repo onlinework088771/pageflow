@@ -373,6 +373,36 @@ export const AddTokensResponse = zod.object({
 });
 
 /**
+ * @summary Verify Facebook App credentials with the Graph API
+ */
+export const VerifyFacebookCredentialsBody = zod.object({
+  appId: zod.string(),
+  appSecret: zod.string(),
+});
+
+export const VerifyFacebookCredentialsResponse = zod.object({
+  id: zod.string(),
+  agencyName: zod.string(),
+  appId: zod.string().optional(),
+  appSecret: zod.string().optional(),
+  privacyPolicyUrl: zod.string().optional(),
+  appConfigured: zod.boolean(),
+  appLive: zod.boolean(),
+  setupStep: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
+ * @summary Generate a short-lived magic link for cross-browser Facebook connection
+ */
+export const GenerateMagicLinkResponse = zod.object({
+  token: zod.string(),
+  url: zod.string(),
+  expiresAt: zod.string(),
+});
+
+/**
  * @summary List automation logs
  */
 export const ListAutomationLogsQueryParams = zod.object({

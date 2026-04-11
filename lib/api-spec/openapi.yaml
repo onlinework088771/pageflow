@@ -395,6 +395,44 @@ paths:
               schema:
                 $ref: "#/components/schemas/TokensInfo"
 
+  /agency/verify-credentials:
+    post:
+      operationId: verifyFacebookCredentials
+      tags: [agency]
+      security:
+        - bearerAuth: []
+      summary: Verify Facebook App credentials with the Graph API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyCredentialsBody"
+      responses:
+        "200":
+          description: Credentials verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+        "400":
+          description: Invalid credentials
+
+  /agency/magic-link:
+    post:
+      operationId: generateMagicLink
+      tags: [agency]
+      security:
+        - bearerAuth: []
+      summary: Generate a short-lived magic link for cross-browser Facebook connection
+      responses:
+        "200":
+          description: Magic link generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MagicLinkResponse"
+
   /automation-logs:
     get:
       operationId: listAutomationLogs
@@ -752,3 +790,23 @@ components:
         createdAt:
           type: string
       required: [id, type, message, status, createdAt]
+
+    VerifyCredentialsBody:
+      type: object
+      properties:
+        appId:
+          type: string
+        appSecret:
+          type: string
+      required: [appId, appSecret]
+
+    MagicLinkResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        url:
+          type: string
+        expiresAt:
+          type: string
+      required: [token, url, expiresAt]
