@@ -525,6 +525,87 @@ export const useUpdateAgencySettings = <
 };
 
 /**
+ * @summary Reset agency Facebook app credentials
+ */
+export const getResetAgencySettingsUrl = () => {
+  return `/api/agency/settings`;
+};
+
+export const resetAgencySettings = async (
+  options?: RequestInit,
+): Promise<AgencySettings> => {
+  return customFetch<AgencySettings>(getResetAgencySettingsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getResetAgencySettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetAgencySettings>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resetAgencySettings>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["resetAgencySettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resetAgencySettings>>,
+    void
+  > = () => {
+    return resetAgencySettings(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResetAgencySettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetAgencySettings>>
+>;
+
+export type ResetAgencySettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reset agency Facebook app credentials
+ */
+export const useResetAgencySettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resetAgencySettings>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resetAgencySettings>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getResetAgencySettingsMutationOptions(options));
+};
+
+/**
  * @summary Configure BYOC Facebook app credentials
  */
 export const getSetupFacebookAppUrl = () => {

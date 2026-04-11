@@ -11,6 +11,7 @@ import {
   SetupFacebookAppResponse,
   VerifyFacebookCredentialsBody,
   GenerateMagicLinkResponse,
+  ResetAgencySettingsResponse,
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 
@@ -55,6 +56,26 @@ router.put("/agency/settings", async (req, res): Promise<void> => {
   if (parsed.data.privacyPolicyUrl != null) updates.privacyPolicyUrl = parsed.data.privacyPolicyUrl;
   const [updated] = await db.update(agencySettingsTable).set(updates).where(eq(agencySettingsTable.id, settings.id)).returning();
   res.json(UpdateAgencySettingsResponse.parse(serializeSettings(updated)));
+});
+
+// DELETE /agency/settings — permanently resets all Facebook app credentials to defaults
+router.delete("/agency/settings", async (req, res): Promise<void> => {
+  const settings = await ensureAgencySettings();
+  const [reset] = await db
+    .update(agencySettingsTable)
+    .set({
+      appId: null,
+      appSecret: null,
+      privacyPolicyUrl: null,
+      appConfigured: false,
+      appLive: false,
+      setupStep: 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(agencySettingsTable.id, settings.id))
+    .returning();
+  logger.info({ id: settings.id }, "Agency settings reset");
+  res.json(ResetAgencySettingsResponse.parse(serializeSettings(reset)));
 });
 
 router.post("/agency/app-config", async (req, res): Promise<void> => {

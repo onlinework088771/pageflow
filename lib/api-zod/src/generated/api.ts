@@ -96,6 +96,22 @@ export const UpdateAgencySettingsResponse = zod.object({
 });
 
 /**
+ * @summary Reset agency Facebook app credentials
+ */
+export const ResetAgencySettingsResponse = zod.object({
+  id: zod.string(),
+  agencyName: zod.string(),
+  appId: zod.string().optional(),
+  appSecret: zod.string().optional(),
+  privacyPolicyUrl: zod.string().optional(),
+  appConfigured: zod.boolean(),
+  appLive: zod.boolean(),
+  setupStep: zod.number(),
+  createdAt: zod.string().optional(),
+  updatedAt: zod.string().optional(),
+});
+
+/**
  * @summary Configure BYOC Facebook app credentials
  */
 export const SetupFacebookAppBody = zod.object({

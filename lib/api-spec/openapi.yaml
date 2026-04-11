@@ -128,6 +128,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgencySettings"
+    delete:
+      operationId: resetAgencySettings
+      tags: [agency]
+      security:
+        - bearerAuth: []
+      summary: Reset agency Facebook app credentials
+      responses:
+        "200":
+          description: Agency settings after reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
 
   /agency/app-config:
     post:

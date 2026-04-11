@@ -7,8 +7,20 @@ import {
   useUpdateAgencySettings,
   useVerifyFacebookCredentials,
   useGenerateMagicLink,
+  useResetAgencySettings,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +107,7 @@ export default function Settings() {
   const setupFacebookApp = useSetupFacebookApp();
   const updateSettings = useUpdateAgencySettings();
   const verifyCredentials = useVerifyFacebookCredentials();
+  const resetSettings = useResetAgencySettings();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -148,6 +161,26 @@ export default function Settings() {
         onError: () => toast({ title: "Failed to save step — please try again", variant: "destructive" }),
       }
     );
+  };
+
+  const handleResetCredentials = () => {
+    resetSettings.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetAgencySettingsQueryKey() });
+        setInitialized(false);
+        setIsReconfiguring(false);
+        setStep(1);
+        setAppId("");
+        setAppSecret("");
+        setVerifyAppId("");
+        setVerifyAppSecret("");
+        setPrivacyPolicyUrl("");
+        toast({ title: "Credentials removed", description: "Your Facebook app configuration has been permanently deleted." });
+      },
+      onError: () => {
+        toast({ title: "Failed to remove credentials", variant: "destructive" });
+      },
+    });
   };
 
   const handleVerifyAndSave = () => {
@@ -473,15 +506,42 @@ export default function Settings() {
                 <span className="text-xs uppercase tracking-widest font-semibold text-muted-foreground">BYOC Configuration</span>
               </div>
               {isConfigured && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 text-xs"
-                  onClick={() => setIsReconfiguring(true)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Remove
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2 text-xs"
+                      disabled={resetSettings.isPending}
+                    >
+                      {resetSettings.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      {resetSettings.isPending ? "Removing..." : "Remove"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove Facebook App Credentials?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete your Facebook App ID, App Secret, and all BYOC configuration from the database. You will need to go through the setup wizard again to reconnect.
+                        <br /><br />
+                        <strong>This action cannot be undone.</strong>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={handleResetCredentials}
+                      >
+                        Yes, Remove Permanently
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </CardHeader>
             <CardContent className="pt-0">
