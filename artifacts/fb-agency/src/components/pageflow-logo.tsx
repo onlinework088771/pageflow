@@ -1,29 +1,23 @@
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-const LOGO_SRC = `${BASE}/pageflow-logo.png`;
+const LOGO_SRC = `${BASE}/pageflow-logo-trimmed.png`;
 
 interface PageFlowLogoProps {
-  /** Controls the rendered height. Width scales proportionally. */
-  size?: "xs" | "sm" | "md" | "lg";
-  /**
-   * "dark" – apply a strong brightness/contrast boost for dark backgrounds (auth pages)
-   * "nav"  – moderate boost suited for the glass navbar
-   */
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
   variant?: "dark" | "nav";
   className?: string;
 }
 
 const sizeMap: Record<string, string> = {
   xs: "h-5",
-  sm: "h-8",
-  md: "h-11",
-  lg: "h-16",
+  sm: "h-7",
+  md: "h-9",
+  lg: "h-12",
+  xl: "h-16",
 };
 
 const filterMap: Record<string, string> = {
-  /* Renders the logo as pure white + a purple glow — ideal for dark page backgrounds */
   dark: "brightness(0) invert(1) drop-shadow(0 0 14px rgba(139,92,246,0.55))",
-  /* Slight boost for the glass navbar — preserves natural colours */
-  nav:  "brightness(1.5) saturate(1.2) drop-shadow(0 0 8px rgba(139,92,246,0.25))",
+  nav:  "brightness(1.3) saturate(1.2) drop-shadow(0 0 6px rgba(139,92,246,0.2))",
 };
 
 export function PageFlowLogo({ size = "sm", variant = "nav", className = "" }: PageFlowLogoProps) {

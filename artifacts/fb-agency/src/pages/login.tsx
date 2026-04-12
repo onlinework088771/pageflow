@@ -52,7 +52,7 @@ export default function Login() {
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-5">
-            <PageFlowLogo size="lg" variant="dark" />
+            <PageFlowLogo size="xl" variant="dark" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Welcome back</h1>
           <p className="text-gray-400 mt-1.5 text-sm">Sign in to your agency dashboard</p>

@@ -70,11 +70,11 @@ export function Layout({ children }: { children: ReactNode }) {
             boxShadow: "0 1px 0 0 hsl(var(--border)), 0 4px 20px -4px rgba(0,0,0,0.15)",
           }}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
 
             <div className="flex items-center gap-6 lg:gap-8 min-w-0">
               <Link href="/" className="flex items-center shrink-0 group">
-                <PageFlowLogo size="md" className="group-hover:opacity-90 transition-opacity" />
+                <PageFlowLogo size="lg" className="group-hover:opacity-90 transition-opacity" />
               </Link>
 
               <nav className="hidden md:flex items-center gap-0.5">
