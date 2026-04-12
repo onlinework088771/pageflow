@@ -16,31 +16,45 @@ function isYouTubeUrl(url: string): boolean {
   return /youtube\.com|youtu\.be/.test(url);
 }
 
-async function downloadYouTubeVideo(url: string, outputPath: string): Promise<void> {
-  logger.info({ url, outputPath }, "Downloading YouTube video via yt-dlp");
-  await execFileAsync(YT_DLP_PATH, [
-    "--format", "mp4/bestvideo+bestaudio/best",
-    "--merge-output-format", "mp4",
-    "--output", outputPath,
-    "--no-playlist",
-    "--quiet",
-    url,
-  ], { timeout: 120_000 });
+/**
+ * Fast path: extract a direct CDN stream URL from YouTube using yt-dlp.
+ * This takes ~2-3 seconds vs. downloading the entire file.
+ */
+async function getYouTubeDirectUrl(url: string): Promise<string> {
+  logger.info({ url }, "Extracting YouTube direct URL via yt-dlp");
+  const { stdout } = await execFileAsync(
+    YT_DLP_PATH,
+    [
+      "--get-url",
+      "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best",
+      "--no-playlist",
+      url,
+    ],
+    { timeout: 30_000 },
+  );
+  const directUrl = stdout.trim().split("\n")[0];
+  if (!directUrl) throw new Error("yt-dlp returned no direct URL");
+  return directUrl;
 }
 
-async function downloadDirectVideo(url: string, outputPath: string): Promise<void> {
-  logger.info({ url }, "Downloading direct video URL");
-  const response = await axios.get(url, {
-    responseType: "stream",
-    timeout: 60_000,
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-  await new Promise<void>((resolve, reject) => {
-    const writer = fs.createWriteStream(outputPath);
-    response.data.pipe(writer);
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
+/**
+ * Slow fallback: download the full YouTube video to a temp file.
+ * Only used if the direct URL approach fails.
+ */
+async function downloadYouTubeVideo(url: string, outputPath: string): Promise<void> {
+  logger.info({ url, outputPath }, "Downloading YouTube video via yt-dlp (fallback)");
+  await execFileAsync(
+    YT_DLP_PATH,
+    [
+      "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best",
+      "--merge-output-format", "mp4",
+      "--output", outputPath,
+      "--no-playlist",
+      "--quiet",
+      url,
+    ],
+    { timeout: 180_000 },
+  );
 }
 
 async function getPageAccessToken(fbPageId: string, userToken: string): Promise<string> {
@@ -54,12 +68,42 @@ async function getPageAccessToken(fbPageId: string, userToken: string): Promise<
   return res.data.access_token;
 }
 
-async function uploadVideoToFacebook(
+/**
+ * Fast upload: pass a URL so Facebook downloads it directly — no server-side download.
+ */
+async function uploadVideoViaUrl(
+  fbPageId: string,
+  pageToken: string,
+  title: string,
+  videoUrl: string,
+): Promise<string> {
+  logger.info({ fbPageId, videoUrl: videoUrl.slice(0, 80) }, "Uploading video to Facebook via URL");
+  const res = await axios.post(
+    `${FB_API}/${fbPageId}/videos`,
+    null,
+    {
+      params: {
+        file_url: videoUrl,
+        title,
+        description: title,
+        access_token: pageToken,
+      },
+      timeout: 120_000,
+    },
+  );
+  return res.data?.id ?? "unknown";
+}
+
+/**
+ * Binary upload: used for locally-uploaded files where no URL is available.
+ */
+async function uploadVideoViaFile(
   fbPageId: string,
   pageToken: string,
   title: string,
   videoFilePath: string,
 ): Promise<string> {
+  logger.info({ fbPageId, videoFilePath }, "Uploading video to Facebook as binary");
   const form = new FormData();
   form.append("source", fs.createReadStream(videoFilePath));
   form.append("title", title);
@@ -79,12 +123,45 @@ async function postVideoToPage(
   fbPageId: string,
   pageToken: string,
   title: string,
-  videoFilePath: string,
+  opts: { localFilePath?: string; videoUrl?: string; originalUrl?: string },
 ): Promise<string> {
-  return uploadVideoToFacebook(fbPageId, pageToken, title, videoFilePath);
+  const { localFilePath, videoUrl, originalUrl } = opts;
+
+  // Local file → binary upload (fastest for files already on disk)
+  if (localFilePath && fs.existsSync(localFilePath)) {
+    return uploadVideoViaFile(fbPageId, pageToken, title, localFilePath);
+  }
+
+  // YouTube URL → extract CDN stream URL, pass to Facebook
+  if (originalUrl && isYouTubeUrl(originalUrl)) {
+    try {
+      const directUrl = await getYouTubeDirectUrl(originalUrl);
+      return await uploadVideoViaUrl(fbPageId, pageToken, title, directUrl);
+    } catch (err: any) {
+      logger.warn({ err: err.message }, "YouTube direct URL failed, falling back to download");
+      // Fallback: download the file then binary-upload
+      const tmpDir = path.join(process.cwd(), "uploads");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      const tmpFile = path.join(tmpDir, `yt_fallback_${Date.now()}.mp4`);
+      try {
+        await downloadYouTubeVideo(originalUrl, tmpFile);
+        const result = await uploadVideoViaFile(fbPageId, pageToken, title, tmpFile);
+        return result;
+      } finally {
+        try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
+      }
+    }
+  }
+
+  // Direct video URL (MP4 CDN link, etc.) → pass to Facebook directly
+  if (videoUrl) {
+    return uploadVideoViaUrl(fbPageId, pageToken, title, videoUrl);
+  }
+
+  throw new Error("No video source available (no file, no URL)");
 }
 
-export async function executeScheduledPost(videoId: number, publicBaseUrl?: string): Promise<void> {
+export async function executeScheduledPost(videoId: number, _publicBaseUrl?: string): Promise<void> {
   const [video] = await db
     .select()
     .from(scheduledVideosTable)
@@ -105,39 +182,13 @@ export async function executeScheduledPost(videoId: number, publicBaseUrl?: stri
     ? path.join(process.cwd(), video.videoPath.replace(/^\//, ""))
     : undefined;
 
-  let tempFilePath: string | undefined;
-  let localFilePath: string | undefined;
+  const localFilePath =
+    localVideoPath && fs.existsSync(localVideoPath) ? localVideoPath : undefined;
+
+  let postedCount = 0;
+  const errors: string[] = [];
 
   try {
-    if (localVideoPath && fs.existsSync(localVideoPath)) {
-      localFilePath = localVideoPath;
-    } else if (videoUrl) {
-      const tmpDir = path.join(process.cwd(), "uploads");
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-      tempFilePath = path.join(tmpDir, `tmp_${videoId}_${Date.now()}.mp4`);
-
-      if (isYouTubeUrl(videoUrl)) {
-        await downloadYouTubeVideo(videoUrl, tempFilePath);
-      } else {
-        await downloadDirectVideo(videoUrl, tempFilePath);
-      }
-      localFilePath = tempFilePath;
-    }
-
-    if (!localFilePath || !fs.existsSync(localFilePath)) {
-      await db
-        .update(scheduledVideosTable)
-        .set({
-          status: "failed",
-          errorMessage: "No video file available. Please upload a file or provide a direct MP4 URL.",
-        })
-        .where(eq(scheduledVideosTable.id, videoId));
-      return;
-    }
-
-    let postedCount = 0;
-    const errors: string[] = [];
-
     for (const pageId of pageIds) {
       try {
         const [page] = await db
@@ -145,49 +196,49 @@ export async function executeScheduledPost(videoId: number, publicBaseUrl?: stri
           .from(facebookPagesTable)
           .where(eq(facebookPagesTable.id, parseInt(pageId, 10)));
 
-        if (!page) {
-          errors.push(`Page ${pageId} not found`);
-          continue;
-        }
+        if (!page) { errors.push(`Page ${pageId} not found`); continue; }
 
         const [account] = await db
           .select()
           .from(facebookAccountsTable)
           .where(eq(facebookAccountsTable.id, page.accountId));
 
-        if (!account) {
-          errors.push(`Account for page ${pageId} not found`);
-          continue;
-        }
+        if (!account) { errors.push(`Account for page ${pageId} not found`); continue; }
 
         const pageToken = await getPageAccessToken(page.fbPageId, account.accessToken);
-        await postVideoToPage(page.fbPageId, pageToken, video.title, localFilePath);
+
+        await postVideoToPage(page.fbPageId, pageToken, video.title, {
+          localFilePath,
+          videoUrl,
+          originalUrl: videoUrl,
+        });
         postedCount++;
 
         logger.info({ videoId, pageId, fbPageId: page.fbPageId }, "Posted video to Facebook page");
       } catch (err: any) {
-        const msg =
-          err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
-        errors.push(`${msg}`);
+        const msg = err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
+        errors.push(msg);
         logger.error({ videoId, pageId, err: msg }, "Failed to post video to page");
       }
     }
 
     const finalStatus = postedCount > 0 ? "posted" : "failed";
-    const errorMessage = errors.length > 0 ? errors.slice(0, 3).join(" | ") : undefined;
+    const errorMessage = errors.length ? errors.slice(0, 3).join(" | ") : undefined;
 
     await db
       .update(scheduledVideosTable)
       .set({ status: finalStatus, postedCount, errorMessage: errorMessage ?? null })
       .where(eq(scheduledVideosTable.id, videoId));
-  } finally {
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      try { fs.unlinkSync(tempFilePath); } catch {}
-    }
+  } catch (err: any) {
+    await db
+      .update(scheduledVideosTable)
+      .set({ status: "failed", errorMessage: err.message })
+      .where(eq(scheduledVideosTable.id, videoId));
+    throw err;
   }
 }
 
-export async function runScheduler(publicBaseUrl?: string): Promise<void> {
+export async function runScheduler(_publicBaseUrl?: string): Promise<void> {
   try {
     const now = new Date();
     const dueVideos = await db
@@ -202,7 +253,7 @@ export async function runScheduler(publicBaseUrl?: string): Promise<void> {
 
     for (const video of dueVideos) {
       logger.info({ videoId: video.id, title: video.title }, "Scheduler: posting due video");
-      executeScheduledPost(video.id, publicBaseUrl).catch((err) => {
+      executeScheduledPost(video.id).catch((err) => {
         logger.error({ videoId: video.id, err: err.message }, "Scheduler: post failed");
       });
     }

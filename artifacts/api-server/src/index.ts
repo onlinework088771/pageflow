@@ -37,7 +37,7 @@ app.listen(port, (err) => {
     runScheduler(publicBaseUrl).catch((e) =>
       logger.error({ err: e.message }, "Scheduler error"),
     );
-  }, 60_000);
+  }, 10_000);
 
   runScheduler(publicBaseUrl).catch(() => {});
 });

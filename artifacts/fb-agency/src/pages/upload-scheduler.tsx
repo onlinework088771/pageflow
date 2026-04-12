@@ -119,7 +119,7 @@ export default function UploadScheduler() {
 
   useEffect(() => {
     fetchScheduledVideos();
-    const interval = setInterval(fetchScheduledVideos, 10_000);
+    const interval = setInterval(fetchScheduledVideos, 5_000);
     return () => clearInterval(interval);
   }, [fetchScheduledVideos]);
 
@@ -133,8 +133,10 @@ export default function UploadScheduler() {
       setScheduledVideos((prev) =>
         prev.map((v) => (v.id === id ? { ...v, status: "processing" } : v)),
       );
-      setTimeout(fetchScheduledVideos, 5000);
-      setTimeout(fetchScheduledVideos, 15000);
+      setTimeout(fetchScheduledVideos, 2000);
+      setTimeout(fetchScheduledVideos, 6000);
+      setTimeout(fetchScheduledVideos, 12000);
+      setTimeout(fetchScheduledVideos, 25000);
     } catch (err: any) {
       toast({ title: "Post failed", description: err.message, variant: "destructive" });
     } finally {
@@ -256,8 +258,10 @@ export default function UploadScheduler() {
         setScheduledVideos((prev) =>
           prev.map((v) => (v.id === newVideo.id ? { ...v, status: "processing" } : v)),
         );
-        setTimeout(fetchScheduledVideos, 5000);
-        setTimeout(fetchScheduledVideos, 20000);
+        setTimeout(fetchScheduledVideos, 2000);
+        setTimeout(fetchScheduledVideos, 6000);
+        setTimeout(fetchScheduledVideos, 12000);
+        setTimeout(fetchScheduledVideos, 25000);
       }
     } catch (err: any) {
       toast({ title: "Failed to post", description: err.message, variant: "destructive" });
