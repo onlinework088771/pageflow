@@ -74,7 +74,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
             <div className="flex items-center gap-6 lg:gap-8 min-w-0">
               <Link href="/" className="flex items-center shrink-0 group">
-                <PageFlowLogo size="sm" className="opacity-95 group-hover:opacity-100 transition-opacity" />
+                <PageFlowLogo size="md" className="group-hover:opacity-90 transition-opacity" />
               </Link>
 
               <nav className="hidden md:flex items-center gap-0.5">

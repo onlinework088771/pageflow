@@ -20,8 +20,10 @@ const sizeMap: Record<string, string> = {
 };
 
 const filterMap: Record<string, string> = {
-  dark: "brightness(10) saturate(0.55) drop-shadow(0 0 12px rgba(139,92,246,0.5))",
-  nav:  "brightness(1.4) drop-shadow(0 0 8px rgba(139,92,246,0.3))",
+  /* Renders the logo as pure white + a purple glow — ideal for dark page backgrounds */
+  dark: "brightness(0) invert(1) drop-shadow(0 0 14px rgba(139,92,246,0.55))",
+  /* Slight boost for the glass navbar — preserves natural colours */
+  nav:  "brightness(1.5) saturate(1.2) drop-shadow(0 0 8px rgba(139,92,246,0.25))",
 };
 
 export function PageFlowLogo({ size = "sm", variant = "nav", className = "" }: PageFlowLogoProps) {
