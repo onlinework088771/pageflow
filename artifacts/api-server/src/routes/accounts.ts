@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { db, facebookAccountsTable, facebookPagesTable } from "@workspace/db";
 import {
   CreateAccountBody,
@@ -27,8 +27,12 @@ function serializeAccount(a: typeof facebookAccountsTable.$inferSelect) {
 }
 
 router.get("/accounts", async (req, res): Promise<void> => {
-  req.log.info("Listing Facebook accounts");
-  const accounts = await db.select().from(facebookAccountsTable).orderBy(facebookAccountsTable.connectedAt);
+  const userId = req.user!.userId;
+  const accounts = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(eq(facebookAccountsTable.userId, userId))
+    .orderBy(facebookAccountsTable.connectedAt);
   res.json(ListAccountsResponse.parse(accounts.map(serializeAccount)));
 });
 
@@ -38,12 +42,22 @@ router.post("/accounts", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const existing = await db.select().from(facebookAccountsTable).where(eq(facebookAccountsTable.fbUserId, parsed.data.fbUserId));
+  const userId = req.user!.userId;
+  const existing = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(
+      and(
+        eq(facebookAccountsTable.fbUserId, parsed.data.fbUserId),
+        eq(facebookAccountsTable.userId, userId),
+      ),
+    );
   if (existing.length > 0) {
     res.status(409).json({ error: "This Facebook account is already connected." });
     return;
   }
   const [account] = await db.insert(facebookAccountsTable).values({
+    userId,
     fbUserId: parsed.data.fbUserId,
     name: parsed.data.name,
     email: parsed.data.email ?? undefined,
@@ -60,8 +74,12 @@ router.get("/accounts/:accountId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.accountId, 10);
-  const [account] = await db.select().from(facebookAccountsTable).where(eq(facebookAccountsTable.id, id));
+  const [account] = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(and(eq(facebookAccountsTable.id, id), eq(facebookAccountsTable.userId, userId)));
   if (!account) {
     res.status(404).json({ error: "Account not found" });
     return;
@@ -75,7 +93,18 @@ router.get("/accounts/:accountId/available-pages", async (req, res): Promise<voi
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const accountId = parseInt(params.data.accountId, 10);
+
+  const [account] = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(and(eq(facebookAccountsTable.id, accountId), eq(facebookAccountsTable.userId, userId)));
+  if (!account) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
   const pages = await db
     .select()
     .from(facebookPagesTable)
@@ -116,8 +145,12 @@ router.delete("/accounts/:accountId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.accountId, 10);
-  const [deleted] = await db.delete(facebookAccountsTable).where(eq(facebookAccountsTable.id, id)).returning();
+  const [deleted] = await db
+    .delete(facebookAccountsTable)
+    .where(and(eq(facebookAccountsTable.id, id), eq(facebookAccountsTable.userId, userId)))
+    .returning();
   if (!deleted) {
     res.status(404).json({ error: "Account not found" });
     return;

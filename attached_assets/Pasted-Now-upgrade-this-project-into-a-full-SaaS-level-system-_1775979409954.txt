@@ -1,0 +1,118 @@
+Now upgrade this project into a full SaaS-level system with Analytics + Multi-user support.
+
+========================
+
+1. ANALYTICS SYSTEM
+   ========================
+
+Create a new "Analytics" section in the dashboard.
+
+Flow:
+
+1. Show all connected Facebook accounts of the logged-in user
+
+2. When user selects an account:
+   
+   - Fetch and display all pages under that account
+
+3. For each page:
+   
+   - Show page name, page image (if available)
+   - Add "View Analytics" button
+
+4. When "View Analytics" is clicked:
+   
+   - Fetch real data using Facebook Graph API
+   - Display:
+     - Total posts/videos count
+     - Total views
+     - Followers count
+     - Engagement (likes, comments, shares)
+     - Page reach/impressions
+     - Growth chart (last 7 days / 30 days)
+
+5. UI Requirements:
+
+- Use modern charts (line/bar charts)
+- Clean SaaS design (similar to Stripe/Notion style)
+- Responsive for mobile and desktop
+- Smooth transitions and loading states
+
+6. Backend:
+
+- Create API routes:
+  - GET /api/accounts
+  - GET /api/pages/:accountId
+  - GET /api/analytics/:pageId
+- Fetch data from Facebook Graph API
+- Cache or store analytics data if needed
+
+========================
+2. MULTI-USER SYSTEM (CRITICAL SECURITY FIX)
+
+Fix the system to support multiple users securely.
+
+Current issue:
+
+- When another user opens the site, they can see previously connected Facebook accounts (this must NOT happen)
+
+Requirements:
+
+1. Authentication System:
+
+- Implement login/signup system
+- Use JWT-based authentication
+- Store user sessions securely
+
+2. User-based Data Storage:
+
+- Each user must have separate data
+- Structure:
+  user_id → facebook_accounts → pages → analytics
+
+3. Data Isolation:
+
+- When a user logs in:
+  - Only show THEIR connected Facebook accounts
+- No global/shared data
+
+4. New User Experience:
+
+- New users should see a completely empty dashboard
+- They can connect their own Facebook account
+
+5. API Security:
+
+- Protect all backend routes using authentication middleware
+- Prevent access to other users’ data
+
+6. Logout:
+
+- Clear session/token properly
+
+========================
+3. EXTRA IMPROVEMENTS
+
+- Add loading states for all API calls
+- Add error handling with user-friendly messages
+- Add success notifications
+- Optimize performance
+- Keep code clean and modular
+
+========================
+IMPORTANT
+
+- Use real Facebook Graph API (no dummy data)
+- Do NOT use global state for storing user data
+- Everything must be user-specific and secure
+- The UI must look premium and production-ready
+
+Build step-by-step:
+
+1. Authentication
+2. Database structure
+3. Facebook integration
+4. Analytics system
+5. UI connection
+
+Do not stop until the system is fully functional.

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -54,9 +54,11 @@ function serializeVideo(v: typeof scheduledVideosTable.$inferSelect) {
 }
 
 router.get("/scheduled-videos", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
   const videos = await db
     .select()
     .from(scheduledVideosTable)
+    .where(eq(scheduledVideosTable.userId, userId))
     .orderBy(asc(scheduledVideosTable.scheduledAt));
   res.json(videos.map(serializeVideo));
 });
@@ -101,9 +103,11 @@ router.post("/scheduled-videos", upload.single("video"), async (req, res): Promi
       return;
     }
 
+    const userId = req.user!.userId;
     const [video] = await db
       .insert(scheduledVideosTable)
       .values({
+        userId,
         title,
         pageIds: parsedPageIds,
         scheduledAt: scheduledDate,

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, inArray } from "drizzle-orm";
 import { db, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
 import {
   CreatePageBody,
@@ -49,16 +49,38 @@ function serializePage(p: typeof facebookPagesTable.$inferSelect) {
   };
 }
 
+async function getUserAccountIds(userId: number): Promise<number[]> {
+  const accounts = await db
+    .select({ id: facebookAccountsTable.id })
+    .from(facebookAccountsTable)
+    .where(eq(facebookAccountsTable.userId, userId));
+  return accounts.map((a) => a.id);
+}
+
 router.get("/pages", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
+  const accountIds = await getUserAccountIds(userId);
   const queryParsed = ListPagesQueryParams.safeParse(req.query);
   const statusFilter = queryParsed.success ? queryParsed.data.status : undefined;
 
+  const baseWhere = accountIds.length
+    ? inArray(facebookPagesTable.accountId, accountIds)
+    : eq(facebookPagesTable.id, -1);
+
   if (statusFilter && statusFilter !== "all") {
-    const pages = await db.select().from(facebookPagesTable).where(eq(facebookPagesTable.status, statusFilter as "active" | "paused")).orderBy(asc(facebookPagesTable.createdAt));
+    const pages = await db
+      .select()
+      .from(facebookPagesTable)
+      .where(and(baseWhere, eq(facebookPagesTable.status, statusFilter as "active" | "paused")))
+      .orderBy(asc(facebookPagesTable.createdAt));
     res.json(ListPagesResponse.parse(pages.map(serializePage)));
     return;
   }
-  const pages = await db.select().from(facebookPagesTable).orderBy(asc(facebookPagesTable.createdAt));
+  const pages = await db
+    .select()
+    .from(facebookPagesTable)
+    .where(baseWhere)
+    .orderBy(asc(facebookPagesTable.createdAt));
   res.json(ListPagesResponse.parse(pages.map(serializePage)));
 });
 
@@ -68,8 +90,12 @@ router.post("/pages", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const accountId = parseInt(parsed.data.accountId, 10);
-  const [account] = await db.select().from(facebookAccountsTable).where(eq(facebookAccountsTable.id, accountId));
+  const [account] = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(and(eq(facebookAccountsTable.id, accountId), eq(facebookAccountsTable.userId, userId)));
   if (!account) {
     res.status(404).json({ error: "Account not found" });
     return;

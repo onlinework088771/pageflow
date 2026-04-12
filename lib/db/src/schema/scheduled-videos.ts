@@ -1,8 +1,10 @@
 import { pgTable, text, serial, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const scheduledVideosTable = pgTable("scheduled_videos", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   videoUrl: text("video_url"),
   videoPath: text("video_path"),

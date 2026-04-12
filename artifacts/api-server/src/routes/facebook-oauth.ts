@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import axios from "axios";
-import { eq, lt } from "drizzle-orm";
+import { eq, lt, and } from "drizzle-orm";
 import { db, agencySettingsTable, facebookAccountsTable, facebookPagesTable, magicLinksTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
@@ -123,11 +123,16 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
     const { id: fbUserId, name, email, picture } = profileRes.data;
     const profilePicture = picture?.data?.url;
 
-    // Upsert the Facebook account
+    // Upsert the Facebook account scoped to this user
     const [existing] = await db
       .select()
       .from(facebookAccountsTable)
-      .where(eq(facebookAccountsTable.fbUserId, fbUserId));
+      .where(
+        and(
+          eq(facebookAccountsTable.fbUserId, fbUserId),
+          eq(facebookAccountsTable.userId, userId!),
+        ),
+      );
 
     let accountId: number;
 
@@ -140,7 +145,7 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
     } else {
       const [account] = await db
         .insert(facebookAccountsTable)
-        .values({ fbUserId, name, email: email ?? null, profilePicture: profilePicture ?? null, accessToken: longToken, status: "connected" })
+        .values({ userId: userId!, fbUserId, name, email: email ?? null, profilePicture: profilePicture ?? null, accessToken: longToken, status: "connected" })
         .returning();
       accountId = account.id;
     }
@@ -223,7 +228,7 @@ router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
   // Use the dedicated magic-link callback URL
   const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/magic-callback`;
   const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
-  const state = Buffer.from(JSON.stringify({ magic: true })).toString("base64");
+  const state = Buffer.from(JSON.stringify({ magic: true, userId: link.userId })).toString("base64");
 
   const authUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
   authUrl.searchParams.set("client_id", settings.appId);
@@ -296,11 +301,25 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
     const { id: fbUserId, name, email, picture } = profileRes.data;
     const profilePicture = picture?.data?.url;
 
-    // Upsert the Facebook account
+    // Decode userId from the OAuth state parameter
+    let magicUserId: number | null = null;
+    try {
+      const { state: stateParam } = req.query as Record<string, string>;
+      if (stateParam) {
+        const decoded = JSON.parse(Buffer.from(stateParam, "base64").toString());
+        magicUserId = decoded.userId ?? null;
+      }
+    } catch {}
+
+    // Upsert the Facebook account scoped to the magic link's user (if known)
+    const accountWhere = magicUserId
+      ? and(eq(facebookAccountsTable.fbUserId, fbUserId), eq(facebookAccountsTable.userId, magicUserId))
+      : eq(facebookAccountsTable.fbUserId, fbUserId);
+
     const [existing] = await db
       .select()
       .from(facebookAccountsTable)
-      .where(eq(facebookAccountsTable.fbUserId, fbUserId));
+      .where(accountWhere);
 
     let accountId: number;
 
@@ -314,6 +333,7 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
       const [account] = await db
         .insert(facebookAccountsTable)
         .values({
+          userId: magicUserId ?? undefined,
           fbUserId,
           name,
           email: email ?? null,
