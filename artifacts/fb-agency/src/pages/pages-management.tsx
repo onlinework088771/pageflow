@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Search, Files, Users, TrendingUp, Clock, ChevronRight,
-  Instagram, Youtube, Globe, Trash2, MoreHorizontal,
+  Instagram, Youtube, Globe, Trash2, MoreHorizontal, X,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +48,7 @@ const defaultStep2 = {
   postsPerDay: 3,
   scheduleLogic: "fixed" as "fixed" | "random",
   timezone: "UTC",
+  timeSlots: [] as string[],
 };
 
 export default function PagesManagement() {
@@ -71,6 +72,7 @@ export default function PagesManagement() {
   const [step, setStep] = useState<Step>(1);
   const [step1, setStep1] = useState({ accountId: "", fbPageId: "" });
   const [step2, setStep2] = useState(defaultStep2);
+  const [newWizardSlot, setNewWizardSlot] = useState("");
 
   const { data: accountPages } = useGetAccountAvailablePages(
     step1.accountId,
@@ -112,6 +114,7 @@ export default function PagesManagement() {
           postsPerDay: step2.postsPerDay,
           scheduleLogic: step2.scheduleLogic,
           timezone: step2.timezone,
+          timeSlots: step2.timeSlots,
         },
       },
       {
@@ -125,6 +128,29 @@ export default function PagesManagement() {
         },
       }
     );
+  }
+
+  function handleWizardAddSlot() {
+    if (!newWizardSlot) return;
+    if (step2.timeSlots.includes(newWizardSlot)) return;
+    if (step2.timeSlots.length >= 10) return;
+    setStep2((s) => ({ ...s, timeSlots: [...s.timeSlots, newWizardSlot].sort() }));
+    setNewWizardSlot("");
+  }
+
+  function handleWizardRemoveSlot(slot: string) {
+    setStep2((s) => ({ ...s, timeSlots: s.timeSlots.filter((t) => t !== slot) }));
+  }
+
+  function formatSlotInTz(slot: string, tz: string) {
+    try {
+      const [h, m] = slot.split(":").map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: tz }).format(d);
+    } catch {
+      return slot;
+    }
   }
 
   function handleToggle(id: string, enabled: boolean) {
@@ -506,7 +532,7 @@ export default function PagesManagement() {
                   <Label>Schedule Logic</Label>
                   <Select
                     value={step2.scheduleLogic}
-                    onValueChange={(v: any) => setStep2((s) => ({ ...s, scheduleLogic: v }))}
+                    onValueChange={(v: any) => setStep2((s) => ({ ...s, scheduleLogic: v, timeSlots: [] }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -534,6 +560,67 @@ export default function PagesManagement() {
                   </Select>
                 </div>
               </div>
+
+              {step2.scheduleLogic === "fixed" && (
+                <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
+                  <div>
+                    <Label className="flex items-center gap-1.5 text-sm">
+                      <Clock className="h-3.5 w-3.5" />
+                      Posting Times
+                      <span className="text-muted-foreground font-normal text-xs">
+                        — shown in {step2.timezone}
+                      </span>
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Videos will post at exactly these times. Add up to 10 slots.
+                    </p>
+                  </div>
+
+                  {step2.timeSlots.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {step2.timeSlots.map((slot) => (
+                        <div
+                          key={slot}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-background text-xs font-mono font-semibold"
+                        >
+                          {formatSlotInTz(slot, step2.timezone)}
+                          <button
+                            type="button"
+                            onClick={() => handleWizardRemoveSlot(slot)}
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No times added yet — add at least one below.</p>
+                  )}
+
+                  {step2.timeSlots.length < 10 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        type="time"
+                        value={newWizardSlot}
+                        onChange={(e) => setNewWizardSlot(e.target.value)}
+                        className="h-8 rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleWizardAddSlot}
+                        disabled={!newWizardSlot}
+                        className="h-8 gap-1 text-xs"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Time
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>

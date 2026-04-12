@@ -237,6 +237,7 @@ export interface CreatePageBody {
   postsPerDay?: number;
   scheduleLogic?: CreatePageBodyScheduleLogic;
   timezone?: string;
+  timeSlots?: string[];
 }
 
 export type UpdatePageBodyPostingFrequency =

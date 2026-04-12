@@ -295,6 +295,7 @@ export const CreatePageBody = zod.object({
   postsPerDay: zod.number().optional(),
   scheduleLogic: zod.enum(["fixed", "random"]).optional(),
   timezone: zod.string().optional(),
+  timeSlots: zod.array(zod.string()).optional(),
 });
 
 /**
