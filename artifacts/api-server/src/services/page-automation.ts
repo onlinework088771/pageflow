@@ -11,7 +11,9 @@ const execFileAsync = promisify(execFile);
 const FB_API = "https://graph.facebook.com/v19.0";
 const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
 
-// --- Timezone-aware time matching ---
+// ---------------------------------------------------------------------------
+// Timezone-aware time matching
+// ---------------------------------------------------------------------------
 
 function getCurrentHHMM(timezone: string): string {
   try {
@@ -30,45 +32,12 @@ function getCurrentHHMM(timezone: string): string {
 }
 
 function timeSlotDue(slot: string, timezone: string): boolean {
-  const current = getCurrentHHMM(timezone);
-  return current === slot;
+  return getCurrentHHMM(timezone) === slot;
 }
 
-// --- YouTube RSS scraper ---
-
-async function fetchChannelIdFromHandle(handle: string): Promise<string | null> {
-  const cleanHandle = handle.replace(/^@/, "").replace(/\/$/, "");
-  if (cleanHandle.startsWith("UC") && cleanHandle.length === 24) return cleanHandle;
-  try {
-    const resp = await fetch(`https://www.youtube.com/@${cleanHandle}`, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" },
-    });
-    const html = await resp.text();
-    const match = html.match(/"channelId":"(UC[a-zA-Z0-9_-]+)"/);
-    if (match) return match[1];
-    const match2 = html.match(/channel\/([^"&?\/\s]{24})/);
-    if (match2) return match2[1];
-  } catch {}
-  return null;
-}
-
-async function fetchChannelVideos(channelId: string): Promise<{ videoId: string; title: string; description: string }[]> {
-  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" } });
-  if (!resp.ok) throw new Error(`YouTube RSS ${resp.status}`);
-  const xml = await resp.text();
-  const parsed = await parseStringPromise(xml, { explicitArray: false });
-  const entries = parsed?.feed?.entry;
-  if (!entries) return [];
-  const arr = Array.isArray(entries) ? entries : [entries];
-  return arr.slice(0, 20).map((e: any) => ({
-    videoId: e["yt:videoId"] ?? "",
-    title: e.title ?? "",
-    description: (e["media:group"]?.["media:description"] ?? "").slice(0, 2000),
-  }));
-}
-
-// --- Caption / hashtag generation ---
+// ---------------------------------------------------------------------------
+// Caption / hashtag generation
+// ---------------------------------------------------------------------------
 
 export function generateCaption(title: string, description: string, tags?: string[]): string {
   const hashtagsFromDesc = (description.match(/#[\w\u00C0-\u024F]+/g) ?? []).slice(0, 12);
@@ -95,9 +64,11 @@ export function generateCaption(title: string, description: string, tags?: strin
   return hashStr ? `${title}\n\n${hashStr}` : title;
 }
 
-// --- YouTube metadata via yt-dlp ---
+// ---------------------------------------------------------------------------
+// yt-dlp helpers — work for YouTube, Instagram, TikTok
+// ---------------------------------------------------------------------------
 
-async function getYouTubeMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
+async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
   try {
     const { stdout } = await execFileAsync(
       YT_DLP_PATH,
@@ -116,7 +87,100 @@ async function getYouTubeMetadata(url: string): Promise<{ title: string; descrip
   }
 }
 
-// --- Facebook token ---
+async function getDirectVideoUrl(url: string): Promise<string> {
+  const { stdout } = await execFileAsync(
+    YT_DLP_PATH,
+    [
+      "--get-url",
+      "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best",
+      "--no-playlist",
+      "--no-warnings",
+      url,
+    ],
+    { timeout: 30_000 },
+  );
+  const directUrl = stdout.trim().split("\n")[0];
+  if (!directUrl) throw new Error("yt-dlp returned no direct URL");
+  return directUrl;
+}
+
+/**
+ * Fetch a list of recent video IDs + URLs from any yt-dlp-supported
+ * playlist/profile URL. Returns newest-first (as yt-dlp provides them).
+ */
+async function fetchProfileVideos(
+  profileUrl: string,
+  limit = 20,
+): Promise<{ videoId: string; title: string; url: string }[]> {
+  try {
+    const { stdout } = await execFileAsync(
+      YT_DLP_PATH,
+      [
+        "--flat-playlist",
+        "--print", "%(id)s\t%(title)s\t%(webpage_url)s",
+        "--playlist-end", String(limit),
+        "--no-warnings",
+        profileUrl,
+      ],
+      { timeout: 45_000 },
+    );
+
+    return stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [videoId, title, url] = line.split("\t");
+        return { videoId: videoId ?? "", title: title ?? "", url: url ?? "" };
+      })
+      .filter((v) => v.videoId);
+  } catch (err: any) {
+    logger.warn({ profileUrl, err: err.message }, "yt-dlp --flat-playlist failed");
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// YouTube RSS scraper (preferred for YouTube — no yt-dlp rate-limit risk)
+// ---------------------------------------------------------------------------
+
+async function fetchChannelIdFromHandle(handle: string): Promise<string | null> {
+  const cleanHandle = handle.replace(/^@/, "").replace(/\/$/, "");
+  if (cleanHandle.startsWith("UC") && cleanHandle.length === 24) return cleanHandle;
+  try {
+    const resp = await fetch(`https://www.youtube.com/@${cleanHandle}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" },
+    });
+    const html = await resp.text();
+    const match = html.match(/"channelId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (match) return match[1];
+    const match2 = html.match(/channel\/([^"&?\/\s]{24})/);
+    if (match2) return match2[1];
+  } catch {}
+  return null;
+}
+
+async function fetchYouTubeRssVideos(
+  channelId: string,
+): Promise<{ videoId: string; title: string; description: string }[]> {
+  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" } });
+  if (!resp.ok) throw new Error(`YouTube RSS ${resp.status}`);
+  const xml = await resp.text();
+  const parsed = await parseStringPromise(xml, { explicitArray: false });
+  const entries = parsed?.feed?.entry;
+  if (!entries) return [];
+  const arr = Array.isArray(entries) ? entries : [entries];
+  return arr.slice(0, 20).map((e: any) => ({
+    videoId: e["yt:videoId"] ?? "",
+    title: e.title ?? "",
+    description: (e["media:group"]?.["media:description"] ?? "").slice(0, 2000),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Facebook helpers
+// ---------------------------------------------------------------------------
 
 async function getPageAccessToken(fbPageId: string, userToken: string): Promise<string> {
   const res = await axios.get(`${FB_API}/${fbPageId}`, {
@@ -126,37 +190,20 @@ async function getPageAccessToken(fbPageId: string, userToken: string): Promise<
   return res.data?.access_token ?? userToken;
 }
 
-// --- YouTube direct URL extraction ---
-
-async function getYouTubeDirectUrl(url: string): Promise<string> {
-  const { stdout } = await execFileAsync(
-    YT_DLP_PATH,
-    ["--get-url", "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best", "--no-playlist", url],
-    { timeout: 30_000 },
-  );
-  const directUrl = stdout.trim().split("\n")[0];
-  if (!directUrl) throw new Error("yt-dlp returned no direct URL");
-  return directUrl;
-}
-
-// --- Post one YouTube video to a Facebook page ---
-
-async function postYouTubeVideoToPage(
+async function postVideoUrlToFacebook(
   fbPageId: string,
-  userAccessToken: string,
-  ytUrl: string,
+  pageToken: string,
+  title: string,
   caption: string,
+  directUrl: string,
 ): Promise<string> {
-  const pageToken = await getPageAccessToken(fbPageId, userAccessToken);
-  const directUrl = await getYouTubeDirectUrl(ytUrl);
-
   const res = await axios.post(
     `${FB_API}/${fbPageId}/videos`,
     null,
     {
       params: {
         file_url: directUrl,
-        title: caption.split("\n")[0],
+        title,
         description: caption,
         access_token: pageToken,
       },
@@ -166,51 +213,133 @@ async function postYouTubeVideoToPage(
   return res.data?.id ?? "unknown";
 }
 
-// --- Page automation scheduler ---
+// ---------------------------------------------------------------------------
+// Per-source posting logic
+// ---------------------------------------------------------------------------
 
-// Track in-memory which slots we already triggered this minute to avoid duplicates
-const triggeredSlots = new Map<string, string>(); // pageId:slot -> HH:MM when last triggered
+async function postNextYouTubeVideo(
+  page: typeof facebookPagesTable.$inferSelect,
+  pageToken: string,
+): Promise<{ postedVideoId: string }> {
+  const identity = page.sourceIdentity!;
 
-export async function runPageAutomation(): Promise<void> {
-  try {
-    const activePages = await db
-      .select()
-      .from(facebookPagesTable)
-      .where(
-        and(
-          eq(facebookPagesTable.automationEnabled, true),
-          eq(facebookPagesTable.scheduleLogic, "fixed"),
-          eq(facebookPagesTable.sourceType, "youtube"),
-          eq(facebookPagesTable.status, "active"),
-        ),
-      );
-
-    if (!activePages.length) return;
-
-    for (const page of activePages) {
-      const slots: string[] = Array.isArray(page.timeSlots) ? page.timeSlots : [];
-      if (!slots.length || !page.sourceIdentity) continue;
-
-      const timezone = page.timezone || "UTC";
-      const dueSlot = slots.find((slot) => timeSlotDue(slot, timezone));
-      if (!dueSlot) continue;
-
-      const dedupeKey = `${page.id}:${dueSlot}`;
-      const currentHHMM = getCurrentHHMM(timezone);
-      if (triggeredSlots.get(dedupeKey) === currentHHMM) continue; // already posted this minute
-      triggeredSlots.set(dedupeKey, currentHHMM);
-
-      logger.info({ pageId: page.id, slot: dueSlot, timezone }, "Page automation: time slot due, posting");
-
-      // Run in background so one slow page doesn't block others
-      postPageNextVideo(page).catch((err) => {
-        logger.error({ pageId: page.id, err: err.message }, "Page automation post failed");
-      });
-    }
-  } catch (err: any) {
-    logger.error({ err: err.message }, "Page automation scheduler error");
+  // Resolve channel ID
+  let channelId: string | null = null;
+  if (identity.startsWith("http")) {
+    const m = identity.match(/channel\/([^/?&]+)/) ?? identity.match(/\?.*c=([^&]+)/);
+    channelId = m?.[1] ?? null;
+  } else {
+    channelId = await fetchChannelIdFromHandle(identity);
   }
+  if (!channelId) throw new Error(`Could not resolve YouTube channel from "${identity}"`);
+
+  const videos = await fetchYouTubeRssVideos(channelId);
+  if (!videos.length) throw new Error("No videos found on YouTube channel");
+
+  // Pick next unseen video (RSS is newest-first → post in chronological order)
+  const lastPostedId = page.lastPostedYtVideoId;
+  let nextVideo = videos[0];
+  if (lastPostedId) {
+    const lastIdx = videos.findIndex((v) => v.videoId === lastPostedId);
+    if (lastIdx > 0) {
+      nextVideo = videos[lastIdx - 1];
+    } else if (lastIdx === 0) {
+      nextVideo = videos[videos.length - 1]; // wrap around to oldest
+    }
+  }
+
+  const ytUrl = `https://www.youtube.com/watch?v=${nextVideo.videoId}`;
+
+  // Get richer metadata from yt-dlp
+  let meta = { title: nextVideo.title, description: nextVideo.description, tags: [] as string[] };
+  try {
+    const m = await getVideoMetadata(ytUrl);
+    if (m.title) meta = m;
+  } catch {}
+
+  const caption = generateCaption(meta.title, meta.description, meta.tags);
+  const directUrl = await getDirectVideoUrl(ytUrl);
+  await postVideoUrlToFacebook(page.fbPageId, pageToken, meta.title || nextVideo.title, caption, directUrl);
+
+  return { postedVideoId: nextVideo.videoId };
 }
+
+async function postNextInstagramVideo(
+  page: typeof facebookPagesTable.$inferSelect,
+  pageToken: string,
+): Promise<{ postedVideoId: string }> {
+  const handle = page.sourceIdentity!.replace(/^@/, "");
+  const profileUrl = `https://www.instagram.com/@${handle}/`;
+
+  const videos = await fetchProfileVideos(profileUrl, 20);
+  if (!videos.length) throw new Error(`No Instagram videos found for @${handle}`);
+
+  const lastPostedId = page.lastPostedYtVideoId;
+  let nextVideo = videos[0];
+
+  if (lastPostedId) {
+    const lastIdx = videos.findIndex((v) => v.videoId === lastPostedId);
+    if (lastIdx > 0) {
+      nextVideo = videos[lastIdx - 1];
+    } else if (lastIdx === 0) {
+      nextVideo = videos[videos.length - 1];
+    }
+  }
+
+  const videoUrl = nextVideo.url || `https://www.instagram.com/reel/${nextVideo.videoId}/`;
+
+  // Get metadata + direct stream URL
+  const [meta, directUrl] = await Promise.all([
+    getVideoMetadata(videoUrl).catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] })),
+    getDirectVideoUrl(videoUrl),
+  ]);
+
+  const title = meta.title || nextVideo.title || handle;
+  const caption = generateCaption(title, meta.description, meta.tags);
+  await postVideoUrlToFacebook(page.fbPageId, pageToken, title, caption, directUrl);
+
+  return { postedVideoId: nextVideo.videoId };
+}
+
+async function postNextTikTokVideo(
+  page: typeof facebookPagesTable.$inferSelect,
+  pageToken: string,
+): Promise<{ postedVideoId: string }> {
+  const handle = page.sourceIdentity!.replace(/^@/, "");
+  const profileUrl = `https://www.tiktok.com/@${handle}`;
+
+  const videos = await fetchProfileVideos(profileUrl, 20);
+  if (!videos.length) throw new Error(`No TikTok videos found for @${handle}`);
+
+  const lastPostedId = page.lastPostedYtVideoId;
+  let nextVideo = videos[0];
+
+  if (lastPostedId) {
+    const lastIdx = videos.findIndex((v) => v.videoId === lastPostedId);
+    if (lastIdx > 0) {
+      nextVideo = videos[lastIdx - 1];
+    } else if (lastIdx === 0) {
+      nextVideo = videos[videos.length - 1];
+    }
+  }
+
+  const videoUrl = nextVideo.url || `https://www.tiktok.com/@${handle}/video/${nextVideo.videoId}`;
+
+  const [meta, directUrl] = await Promise.all([
+    getVideoMetadata(videoUrl).catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] })),
+    getDirectVideoUrl(videoUrl),
+  ]);
+
+  const title = meta.title || nextVideo.title || handle;
+  const caption = generateCaption(title, meta.description, meta.tags);
+  await postVideoUrlToFacebook(page.fbPageId, pageToken, title, caption, directUrl);
+
+  return { postedVideoId: nextVideo.videoId };
+}
+
+// ---------------------------------------------------------------------------
+// Main per-page orchestrator
+// ---------------------------------------------------------------------------
 
 async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): Promise<void> {
   const [account] = await db
@@ -223,75 +352,86 @@ async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): 
     return;
   }
 
-  // Resolve channel ID
-  const identity = page.sourceIdentity!;
-  let channelId: string | null = null;
+  const pageToken = await getPageAccessToken(page.fbPageId, account.accessToken);
 
-  if (identity.startsWith("http")) {
-    const match = identity.match(/channel\/([^/?&]+)/) ?? identity.match(/\?.*c=([^&]+)/);
-    channelId = match?.[1] ?? null;
+  let postedVideoId: string;
+
+  const source = page.sourceType ?? "youtube";
+  logger.info({ pageId: page.id, source, identity: page.sourceIdentity }, "Page automation: posting next video");
+
+  if (source === "youtube") {
+    ({ postedVideoId } = await postNextYouTubeVideo(page, pageToken));
+  } else if (source === "instagram") {
+    ({ postedVideoId } = await postNextInstagramVideo(page, pageToken));
+  } else if (source === "tiktok") {
+    ({ postedVideoId } = await postNextTikTokVideo(page, pageToken));
   } else {
-    channelId = await fetchChannelIdFromHandle(identity);
+    throw new Error(`Unknown source type: ${source}`);
   }
 
-  if (!channelId) {
-    logger.warn({ pageId: page.id, identity }, "Page automation: could not resolve YouTube channel");
-    return;
-  }
+  await db
+    .update(facebookPagesTable)
+    .set({
+      lastPostedYtVideoId: postedVideoId,
+      lastPostedAt: new Date(),
+      totalPosted: page.totalPosted + 1,
+    })
+    .where(eq(facebookPagesTable.id, page.id));
 
-  const videos = await fetchChannelVideos(channelId);
-  if (!videos.length) {
-    logger.warn({ pageId: page.id, channelId }, "Page automation: no videos found on channel");
-    return;
-  }
+  logger.info({ pageId: page.id, source, postedVideoId }, "Page automation: posted successfully");
+}
 
-  // Pick the next video after the last posted one
-  const lastPostedId = page.lastPostedYtVideoId;
-  let nextVideo = videos[0];
+// ---------------------------------------------------------------------------
+// Scheduler — runs every 60 s, checks all active pages with fixed time slots
+// ---------------------------------------------------------------------------
 
-  if (lastPostedId) {
-    const lastIdx = videos.findIndex((v) => v.videoId === lastPostedId);
-    if (lastIdx > 0) {
-      nextVideo = videos[lastIdx - 1]; // RSS is newest-first, post in order
-    }
-    // If lastPostedId is the newest (idx=0), wrap to the oldest or skip
-    if (lastIdx === 0) {
-      logger.info({ pageId: page.id }, "Page automation: all recent videos already posted, reposting oldest");
-      nextVideo = videos[videos.length - 1];
-    }
-  }
+const triggeredSlots = new Map<string, string>(); // `${pageId}:${slot}` → HH:MM when last fired
 
-  const ytUrl = `https://www.youtube.com/watch?v=${nextVideo.videoId}`;
-
-  // Get richer metadata if available from yt-dlp
-  let metadata = { title: nextVideo.title, description: nextVideo.description, tags: [] as string[] };
+export async function runPageAutomation(): Promise<void> {
   try {
-    const ytMeta = await getYouTubeMetadata(ytUrl);
-    if (ytMeta.title) metadata = ytMeta;
-  } catch {}
+    // Fetch ALL active pages with fixed schedule (any source type)
+    const activePages = await db
+      .select()
+      .from(facebookPagesTable)
+      .where(
+        and(
+          eq(facebookPagesTable.automationEnabled, true),
+          eq(facebookPagesTable.scheduleLogic, "fixed"),
+          eq(facebookPagesTable.status, "active"),
+        ),
+      );
 
-  const caption = generateCaption(metadata.title, metadata.description, metadata.tags);
+    if (!activePages.length) return;
 
-  logger.info({ pageId: page.id, videoId: nextVideo.videoId, ytUrl, caption: caption.slice(0, 80) }, "Page automation: posting video");
+    for (const page of activePages) {
+      if (!page.sourceIdentity?.trim()) continue;
 
-  try {
-    await postYouTubeVideoToPage(page.fbPageId, account.accessToken, ytUrl, caption);
+      const slots: string[] = Array.isArray(page.timeSlots) ? page.timeSlots : [];
+      if (!slots.length) continue;
 
-    await db
-      .update(facebookPagesTable)
-      .set({
-        lastPostedYtVideoId: nextVideo.videoId,
-        lastPostedAt: new Date(),
-        totalPosted: page.totalPosted + 1,
-      })
-      .where(eq(facebookPagesTable.id, page.id));
+      const timezone = page.timezone || "UTC";
+      const dueSlot = slots.find((slot) => timeSlotDue(slot, timezone));
+      if (!dueSlot) continue;
 
-    logger.info({ pageId: page.id, videoId: nextVideo.videoId }, "Page automation: posted successfully");
+      const dedupeKey = `${page.id}:${dueSlot}`;
+      const currentHHMM = getCurrentHHMM(timezone);
+      if (triggeredSlots.get(dedupeKey) === currentHHMM) continue;
+      triggeredSlots.set(dedupeKey, currentHHMM);
+
+      logger.info(
+        { pageId: page.id, source: page.sourceType, slot: dueSlot, timezone },
+        "Page automation: time slot due, posting",
+      );
+
+      postPageNextVideo(page).catch((err) => {
+        logger.error({ pageId: page.id, source: page.sourceType, err: err.message }, "Page automation post failed");
+        db.update(facebookPagesTable)
+          .set({ totalFailed: page.totalFailed + 1 })
+          .where(eq(facebookPagesTable.id, page.id))
+          .catch(() => {});
+      });
+    }
   } catch (err: any) {
-    await db
-      .update(facebookPagesTable)
-      .set({ totalFailed: page.totalFailed + 1 })
-      .where(eq(facebookPagesTable.id, page.id));
-    throw err;
+    logger.error({ err: err.message }, "Page automation scheduler error");
   }
 }
