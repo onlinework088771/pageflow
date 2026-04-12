@@ -208,6 +208,64 @@ export default function UploadScheduler() {
     }
   }
 
+  async function handleScheduleAndPost() {
+    if (!form.title.trim()) {
+      toast({ title: "Title required", description: "Please enter a video title.", variant: "destructive" });
+      return;
+    }
+    if (form.selectedPageIds.length === 0) {
+      toast({ title: "Select pages", description: "Choose at least one Facebook page.", variant: "destructive" });
+      return;
+    }
+    if (!videoFile && !form.videoUrl.trim()) {
+      toast({ title: "Video required", description: "Upload a video file or paste a video URL.", variant: "destructive" });
+      return;
+    }
+
+    const scheduledAt = new Date().toISOString();
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("title", form.title);
+      formData.append("pageIds", JSON.stringify(form.selectedPageIds));
+      formData.append("scheduledAt", scheduledAt);
+      formData.append("timezone", form.timezone);
+      if (form.videoUrl.trim()) formData.append("videoUrl", form.videoUrl.trim());
+      if (videoFile) formData.append("video", videoFile);
+
+      const resp = await authFetch(apiUrl("/scheduled-videos"), {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to create post");
+      }
+
+      const newVideo = await resp.json();
+      setScheduledVideos((prev) => [newVideo, ...prev]);
+      setForm({ title: "", selectedPageIds: [], date: "", time: "", timezone: "America/New_York", videoUrl: "" });
+      setVideoFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      toast({ title: "Posting now...", description: "Your video is being posted to the selected pages." });
+
+      const postResp = await authFetch(apiUrl(`/scheduled-videos/${newVideo.id}/post-now`), { method: "POST" });
+      if (postResp.ok) {
+        setScheduledVideos((prev) =>
+          prev.map((v) => (v.id === newVideo.id ? { ...v, status: "processing" } : v)),
+        );
+        setTimeout(fetchScheduledVideos, 5000);
+        setTimeout(fetchScheduledVideos, 20000);
+      }
+    } catch (err: any) {
+      toast({ title: "Failed to post", description: err.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleDelete(id: string) {
     try {
       const resp = await authFetch(apiUrl(`/scheduled-videos/${id}`), { method: "DELETE" });
@@ -381,19 +439,22 @@ export default function UploadScheduler() {
                 )}
               </div>
 
-              <Button className="w-full" onClick={handleSchedule} disabled={uploading}>
-                {uploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Scheduling...
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Schedule Video
-                  </>
-                )}
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={handleSchedule} disabled={uploading}>
+                  {uploading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Scheduling...</>
+                  ) : (
+                    <><Calendar className="h-4 w-4 mr-2" />Schedule</>
+                  )}
+                </Button>
+                <Button onClick={handleScheduleAndPost} disabled={uploading}>
+                  {uploading ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Posting...</>
+                  ) : (
+                    <><Zap className="h-4 w-4 mr-2" />Post Now</>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
