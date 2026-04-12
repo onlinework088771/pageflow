@@ -7,6 +7,7 @@ import FormData from "form-data";
 import { db, scheduledVideosTable, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
 import { eq, and, lte } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { generateCaption } from "./page-automation";
 
 const execFileAsync = promisify(execFile);
 const FB_API = "https://graph.facebook.com/v19.0";
@@ -14,6 +15,30 @@ const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
 
 function isYouTubeUrl(url: string): boolean {
   return /youtube\.com|youtu\.be/.test(url);
+}
+
+/**
+ * Extract full metadata from a YouTube video using yt-dlp.
+ * Returns title, description, and tags for caption generation.
+ */
+async function getYouTubeMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
+  try {
+    logger.info({ url }, "Extracting YouTube metadata via yt-dlp");
+    const { stdout } = await execFileAsync(
+      YT_DLP_PATH,
+      ["--dump-json", "--no-playlist", "--no-warnings", url],
+      { timeout: 30_000 },
+    );
+    const data = JSON.parse(stdout.trim());
+    return {
+      title: data.title ?? "",
+      description: data.description ?? "",
+      tags: Array.isArray(data.tags) ? data.tags : [],
+    };
+  } catch (err: any) {
+    logger.warn({ url, err: err.message }, "yt-dlp --dump-json failed, skipping metadata");
+    return { title: "", description: "", tags: [] };
+  }
 }
 
 /**
@@ -76,6 +101,7 @@ async function uploadVideoViaUrl(
   pageToken: string,
   title: string,
   videoUrl: string,
+  description?: string,
 ): Promise<string> {
   logger.info({ fbPageId, videoUrl: videoUrl.slice(0, 80) }, "Uploading video to Facebook via URL");
   const res = await axios.post(
@@ -85,7 +111,7 @@ async function uploadVideoViaUrl(
       params: {
         file_url: videoUrl,
         title,
-        description: title,
+        description: description ?? title,
         access_token: pageToken,
       },
       timeout: 120_000,
@@ -102,12 +128,13 @@ async function uploadVideoViaFile(
   pageToken: string,
   title: string,
   videoFilePath: string,
+  description?: string,
 ): Promise<string> {
   logger.info({ fbPageId, videoFilePath }, "Uploading video to Facebook as binary");
   const form = new FormData();
   form.append("source", fs.createReadStream(videoFilePath));
   form.append("title", title);
-  form.append("description", title);
+  form.append("description", description ?? title);
   form.append("access_token", pageToken);
 
   const res = await axios.post(`${FB_API}/${fbPageId}/videos`, form, {
@@ -123,20 +150,32 @@ async function postVideoToPage(
   fbPageId: string,
   pageToken: string,
   title: string,
-  opts: { localFilePath?: string; videoUrl?: string; originalUrl?: string },
+  opts: { localFilePath?: string; videoUrl?: string; originalUrl?: string; description?: string },
 ): Promise<string> {
-  const { localFilePath, videoUrl, originalUrl } = opts;
+  const { localFilePath, videoUrl, originalUrl, description } = opts;
 
   // Local file → binary upload (fastest for files already on disk)
   if (localFilePath && fs.existsSync(localFilePath)) {
-    return uploadVideoViaFile(fbPageId, pageToken, title, localFilePath);
+    return uploadVideoViaFile(fbPageId, pageToken, title, localFilePath, description);
   }
 
-  // YouTube URL → extract CDN stream URL, pass to Facebook
+  // YouTube URL → extract metadata + CDN stream URL, pass to Facebook
   if (originalUrl && isYouTubeUrl(originalUrl)) {
     try {
-      const directUrl = await getYouTubeDirectUrl(originalUrl);
-      return await uploadVideoViaUrl(fbPageId, pageToken, title, directUrl);
+      // Run metadata extraction and URL extraction in parallel
+      const [directUrl, metadata] = await Promise.all([
+        getYouTubeDirectUrl(originalUrl),
+        getYouTubeMetadata(originalUrl),
+      ]);
+
+      // Build caption from real metadata if we don't already have one
+      const effectiveCaption = description
+        || (metadata.title
+          ? generateCaption(metadata.title, metadata.description, metadata.tags)
+          : title);
+      const effectiveTitle = metadata.title || title;
+
+      return await uploadVideoViaUrl(fbPageId, pageToken, effectiveTitle, directUrl, effectiveCaption);
     } catch (err: any) {
       logger.warn({ err: err.message }, "YouTube direct URL failed, falling back to download");
       // Fallback: download the file then binary-upload
@@ -145,8 +184,7 @@ async function postVideoToPage(
       const tmpFile = path.join(tmpDir, `yt_fallback_${Date.now()}.mp4`);
       try {
         await downloadYouTubeVideo(originalUrl, tmpFile);
-        const result = await uploadVideoViaFile(fbPageId, pageToken, title, tmpFile);
-        return result;
+        return await uploadVideoViaFile(fbPageId, pageToken, title, tmpFile, description);
       } finally {
         try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
       }
@@ -155,7 +193,7 @@ async function postVideoToPage(
 
   // Direct video URL (MP4 CDN link, etc.) → pass to Facebook directly
   if (videoUrl) {
-    return uploadVideoViaUrl(fbPageId, pageToken, title, videoUrl);
+    return uploadVideoViaUrl(fbPageId, pageToken, title, videoUrl, description);
   }
 
   throw new Error("No video source available (no file, no URL)");
@@ -185,6 +223,9 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
   const localFilePath =
     localVideoPath && fs.existsSync(localVideoPath) ? localVideoPath : undefined;
 
+  // Use stored description if available, otherwise it will be auto-generated for YouTube URLs
+  const storedDescription = (video as any).description ?? undefined;
+
   let postedCount = 0;
   const errors: string[] = [];
 
@@ -211,6 +252,7 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
           localFilePath,
           videoUrl,
           originalUrl: videoUrl,
+          description: storedDescription,
         });
         postedCount++;
 

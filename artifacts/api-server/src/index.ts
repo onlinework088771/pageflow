@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runScheduler } from "./services/facebook-poster";
+import { runPageAutomation } from "./services/page-automation";
 
 const rawPort = process.env["PORT"];
 
@@ -33,11 +34,20 @@ app.listen(port, (err) => {
   const publicBaseUrl = getPublicBaseUrl();
   logger.info({ publicBaseUrl }, "Scheduler starting");
 
+  // Manual upload scheduler — runs every 10s
   setInterval(() => {
     runScheduler(publicBaseUrl).catch((e) =>
       logger.error({ err: e.message }, "Scheduler error"),
     );
   }, 10_000);
 
+  // Page automation scheduler — runs every 60s, checks fixed-time slots
+  setInterval(() => {
+    runPageAutomation().catch((e) =>
+      logger.error({ err: e.message }, "Page automation error"),
+    );
+  }, 60_000);
+
   runScheduler(publicBaseUrl).catch(() => {});
+  runPageAutomation().catch(() => {});
 });

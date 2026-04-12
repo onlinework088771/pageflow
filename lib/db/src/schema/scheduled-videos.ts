@@ -6,6 +6,7 @@ export const scheduledVideosTable = pgTable("scheduled_videos", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  description: text("description"),
   videoUrl: text("video_url"),
   videoPath: text("video_path"),
   thumbnailUrl: text("thumbnail_url"),
@@ -24,6 +25,7 @@ export type ScheduledVideo = typeof scheduledVideosTable.$inferSelect;
 export const ScheduledVideoSchema = z.object({
   id: z.string(),
   title: z.string(),
+  description: z.string().optional(),
   videoUrl: z.string().optional(),
   videoPath: z.string().optional(),
   thumbnailUrl: z.string().optional(),

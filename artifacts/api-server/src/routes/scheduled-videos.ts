@@ -40,6 +40,7 @@ function serializeVideo(v: typeof scheduledVideosTable.$inferSelect) {
   return {
     id: String(v.id),
     title: v.title,
+    description: v.description ?? undefined,
     videoUrl: v.videoUrl ?? undefined,
     videoPath: v.videoPath ?? undefined,
     thumbnailUrl: v.thumbnailUrl ?? undefined,
@@ -65,7 +66,7 @@ router.get("/scheduled-videos", async (req, res): Promise<void> => {
 
 router.post("/scheduled-videos", upload.single("video"), async (req, res): Promise<void> => {
   try {
-    const { title, pageIds, scheduledAt, timezone, videoUrl } = req.body;
+    const { title, description, pageIds, scheduledAt, timezone, videoUrl } = req.body;
 
     if (!title) {
       res.status(400).json({ error: "Title is required" });
@@ -109,6 +110,7 @@ router.post("/scheduled-videos", upload.single("video"), async (req, res): Promi
       .values({
         userId,
         title,
+        description: description || null,
         pageIds: parsedPageIds,
         scheduledAt: scheduledDate,
         timezone: timezone || "UTC",

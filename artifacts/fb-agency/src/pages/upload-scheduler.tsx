@@ -40,6 +40,7 @@ const TIMEZONES = [
 interface ScheduledVideo {
   id: string;
   title: string;
+  description?: string;
   videoUrl?: string;
   videoPath?: string;
   thumbnailUrl?: string;
@@ -94,6 +95,7 @@ export default function UploadScheduler() {
 
   const [form, setForm] = useState({
     title: "",
+    description: "",
     selectedPageIds: [] as string[],
     date: "",
     time: "",
@@ -181,6 +183,7 @@ export default function UploadScheduler() {
     try {
       const formData = new FormData();
       formData.append("title", form.title);
+      if (form.description.trim()) formData.append("description", form.description.trim());
       formData.append("pageIds", JSON.stringify(form.selectedPageIds));
       formData.append("scheduledAt", scheduledAt);
       formData.append("timezone", form.timezone);
@@ -199,7 +202,7 @@ export default function UploadScheduler() {
 
       const newVideo = await resp.json();
       setScheduledVideos((prev) => [newVideo, ...prev]);
-      setForm({ title: "", selectedPageIds: [], date: "", time: "", timezone: "America/New_York", videoUrl: "" });
+      setForm({ title: "", description: "", selectedPageIds: [], date: "", time: "", timezone: "America/New_York", videoUrl: "" });
       setVideoFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast({ title: "Video scheduled!", description: `"${newVideo.title}" will post to ${newVideo.pageIds.length} page(s).` });
@@ -229,6 +232,7 @@ export default function UploadScheduler() {
     try {
       const formData = new FormData();
       formData.append("title", form.title);
+      if (form.description.trim()) formData.append("description", form.description.trim());
       formData.append("pageIds", JSON.stringify(form.selectedPageIds));
       formData.append("scheduledAt", scheduledAt);
       formData.append("timezone", form.timezone);
@@ -247,7 +251,7 @@ export default function UploadScheduler() {
 
       const newVideo = await resp.json();
       setScheduledVideos((prev) => [newVideo, ...prev]);
-      setForm({ title: "", selectedPageIds: [], date: "", time: "", timezone: "America/New_York", videoUrl: "" });
+      setForm({ title: "", description: "", selectedPageIds: [], date: "", time: "", timezone: "America/New_York", videoUrl: "" });
       setVideoFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
@@ -324,6 +328,20 @@ export default function UploadScheduler() {
                   placeholder="Enter a title for this video..."
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Caption / Description
+                  <span className="text-muted-foreground font-normal text-xs ml-1.5">(optional)</span>
+                </Label>
+                <textarea
+                  rows={3}
+                  placeholder={"Your post caption with #hashtags\n\nFor YouTube URLs, caption is auto-generated from title + tags if left empty."}
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
                 />
               </div>
 
@@ -500,6 +518,9 @@ export default function UploadScheduler() {
                             <p className="font-semibold text-sm truncate">{v.title}</p>
                             <StatusBadge status={v.status} />
                           </div>
+                          {v.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{v.description}</p>
+                          )}
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                             <Clock className="h-3 w-3" />
                             <span>{formatScheduledAt(v.scheduledAt, v.timezone)}</span>

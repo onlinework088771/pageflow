@@ -33,11 +33,6 @@ const TIMEZONES = [
   "Asia/Kolkata", "Australia/Sydney",
 ];
 
-const TIME_PRESETS = [
-  "06:00", "07:00", "08:00", "09:00", "10:00", "11:00",
-  "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
-  "18:00", "19:00", "20:00", "21:00", "22:00",
-];
 
 const SOURCE_ICON: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-4 w-4" />,
@@ -470,52 +465,70 @@ export default function PageDetail() {
                         </Select>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label>Time Slots</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Set specific times for posts (used with Fixed schedule logic).
-                        </p>
-                        <div className="flex flex-wrap gap-2 min-h-[36px]">
-                          {af.timeSlots.map((slot) => (
-                            <Badge key={slot} variant="secondary" className="gap-1 text-sm py-1">
-                              {slot}
-                              <button
+                      {af.scheduleLogic === "fixed" && (
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5" />
+                              Exact Posting Times
+                            </Label>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Videos will be posted at exactly these times in the selected timezone. Add up to 10 time slots.
+                            </p>
+                          </div>
+
+                          {af.timeSlots.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {af.timeSlots.map((slot) => (
+                                <div
+                                  key={slot}
+                                  className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border bg-muted/40 text-sm font-mono"
+                                >
+                                  <span className="font-semibold">{slot}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!automationForm) initAutomationForm();
+                                      handleRemoveSlot(slot);
+                                    }}
+                                    className="text-muted-foreground hover:text-destructive transition-colors"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center h-16 rounded-lg border-2 border-dashed text-sm text-muted-foreground">
+                              No time slots — add at least one below
+                            </div>
+                          )}
+
+                          {af.timeSlots.length < 10 && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="time"
+                                value={newSlot}
+                                onChange={(e) => setNewSlot(e.target.value)}
+                                className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm font-mono focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => {
                                   if (!automationForm) initAutomationForm();
-                                  handleRemoveSlot(slot);
+                                  handleAddSlot();
                                 }}
-                                className="hover:text-destructive transition-colors"
+                                disabled={!newSlot}
+                                className="gap-1"
                               >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
+                                <Plus className="h-3.5 w-3.5" />
+                                Add Time
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex gap-2">
-                          <Select value={newSlot} onValueChange={setNewSlot}>
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {TIME_PRESETS.map((t) => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (!automationForm) initAutomationForm();
-                              handleAddSlot();
-                            }}
-                            className="gap-1"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            Add
-                          </Button>
-                        </div>
-                      </div>
+                      )}
 
                       {automationForm && (
                         <div className="flex justify-end gap-2 pt-2 border-t">

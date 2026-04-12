@@ -26,6 +26,7 @@ export const facebookPagesTable = pgTable("facebook_pages", {
   totalPosted: integer("total_posted").notNull().default(0),
   totalPending: integer("total_pending").notNull().default(0),
   totalFailed: integer("total_failed").notNull().default(0),
+  lastPostedYtVideoId: text("last_posted_yt_video_id"),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
