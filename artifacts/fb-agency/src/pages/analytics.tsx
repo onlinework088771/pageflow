@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Layout } from "@/components/layout";
-import { BarChart2, Users, Eye, ThumbsUp, TrendingUp, FileText, ArrowLeft, RefreshCw, ChevronDown } from "lucide-react";
+import { BarChart2, Users, Eye, ThumbsUp, TrendingUp, FileText, ArrowLeft, RefreshCw, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,7 @@ interface AnalyticsData {
     totalEngagement: number;
     pageViews: number;
     postsCount: number;
+    videosCount: number;
   };
   charts: {
     impressions: { date: string; value: number }[];
@@ -260,7 +261,7 @@ export default function Analytics() {
                     <StatCard icon={ThumbsUp} label={`Engagement (${range}d)`} value={formatNumber(analytics.summary.totalEngagement)} color="bg-orange-500" />
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <Card className="border-0 shadow-sm">
                       <CardContent className="p-4 flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-pink-100 dark:bg-pink-950 flex items-center justify-center">
@@ -289,8 +290,19 @@ export default function Analytics() {
                           <FileText className="w-4 h-4 text-amber-600" />
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground">Recent Posts</p>
+                          <p className="text-xs text-muted-foreground">Total Posts</p>
                           <p className="text-lg font-bold">{analytics.summary.postsCount}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-sm">
+                      <CardContent className="p-4 flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center">
+                          <Video className="w-4 h-4 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total Videos</p>
+                          <p className="text-lg font-bold">{analytics.summary.videosCount}</p>
                         </div>
                       </CardContent>
                     </Card>

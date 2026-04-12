@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, lt, asc } from "drizzle-orm";
+import { eq, and, lt, asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import axios from "axios";
 import { db, agencySettingsTable, magicLinksTable } from "@workspace/db";
@@ -32,15 +32,24 @@ function serializeSettings(s: typeof agencySettingsTable.$inferSelect) {
   };
 }
 
-async function ensureAgencySettings() {
-  const existing = await db.select().from(agencySettingsTable).orderBy(asc(agencySettingsTable.id)).limit(1);
+async function ensureAgencySettings(userId: number) {
+  const existing = await db
+    .select()
+    .from(agencySettingsTable)
+    .where(eq(agencySettingsTable.userId, userId))
+    .orderBy(asc(agencySettingsTable.id))
+    .limit(1);
   if (existing.length > 0) return existing[0];
-  const [created] = await db.insert(agencySettingsTable).values({ agencyName: "My Agency" }).returning();
+  const [created] = await db
+    .insert(agencySettingsTable)
+    .values({ userId, agencyName: "My Agency" })
+    .returning();
   return created;
 }
 
 router.get("/agency/settings", async (req, res): Promise<void> => {
-  const settings = await ensureAgencySettings();
+  const userId = req.user!.userId;
+  const settings = await ensureAgencySettings(userId);
   res.json(GetAgencySettingsResponse.parse(serializeSettings(settings)));
 });
 
@@ -50,17 +59,22 @@ router.put("/agency/settings", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const settings = await ensureAgencySettings();
+  const userId = req.user!.userId;
+  const settings = await ensureAgencySettings(userId);
   const updates: Record<string, unknown> = {};
   if (parsed.data.agencyName != null) updates.agencyName = parsed.data.agencyName;
   if (parsed.data.privacyPolicyUrl != null) updates.privacyPolicyUrl = parsed.data.privacyPolicyUrl;
-  const [updated] = await db.update(agencySettingsTable).set(updates).where(eq(agencySettingsTable.id, settings.id)).returning();
+  const [updated] = await db
+    .update(agencySettingsTable)
+    .set(updates)
+    .where(and(eq(agencySettingsTable.id, settings.id), eq(agencySettingsTable.userId, userId)))
+    .returning();
   res.json(UpdateAgencySettingsResponse.parse(serializeSettings(updated)));
 });
 
-// DELETE /agency/settings — permanently resets all Facebook app credentials to defaults
 router.delete("/agency/settings", async (req, res): Promise<void> => {
-  const settings = await ensureAgencySettings();
+  const userId = req.user!.userId;
+  const settings = await ensureAgencySettings(userId);
   const [reset] = await db
     .update(agencySettingsTable)
     .set({
@@ -72,9 +86,9 @@ router.delete("/agency/settings", async (req, res): Promise<void> => {
       setupStep: 1,
       updatedAt: new Date(),
     })
-    .where(eq(agencySettingsTable.id, settings.id))
+    .where(and(eq(agencySettingsTable.id, settings.id), eq(agencySettingsTable.userId, userId)))
     .returning();
-  logger.info({ id: settings.id }, "Agency settings reset");
+  logger.info({ id: settings.id, userId }, "Agency settings reset");
   res.json(ResetAgencySettingsResponse.parse(serializeSettings(reset)));
 });
 
@@ -84,16 +98,20 @@ router.post("/agency/app-config", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const settings = await ensureAgencySettings();
+  const userId = req.user!.userId;
+  const settings = await ensureAgencySettings(userId);
   const updates: Record<string, unknown> = { setupStep: parsed.data.step };
   if (parsed.data.appId != null) updates.appId = parsed.data.appId;
   if (parsed.data.appSecret != null) updates.appSecret = parsed.data.appSecret;
   if (parsed.data.privacyPolicyUrl != null) updates.privacyPolicyUrl = parsed.data.privacyPolicyUrl;
-  const [updated] = await db.update(agencySettingsTable).set(updates).where(eq(agencySettingsTable.id, settings.id)).returning();
+  const [updated] = await db
+    .update(agencySettingsTable)
+    .set(updates)
+    .where(and(eq(agencySettingsTable.id, settings.id), eq(agencySettingsTable.userId, userId)))
+    .returning();
   res.json(SetupFacebookAppResponse.parse(serializeSettings(updated)));
 });
 
-// POST /agency/verify-credentials — verifies App ID + Secret with Facebook Graph API
 router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
   const parsed = VerifyFacebookCredentialsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -102,9 +120,9 @@ router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
   }
 
   const { appId, appSecret } = parsed.data;
+  const userId = req.user!.userId;
 
   try {
-    // Call Facebook Graph API to verify the credentials
     const verifyRes = await axios.get(`https://graph.facebook.com/v19.0/${appId}`, {
       params: {
         access_token: `${appId}|${appSecret}`,
@@ -113,9 +131,9 @@ router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
     });
 
     const appData = verifyRes.data;
-    logger.info({ appId, appName: appData.name }, "Facebook app credentials verified");
+    logger.info({ appId, appName: appData.name, userId }, "Facebook app credentials verified");
 
-    const settings = await ensureAgencySettings();
+    const settings = await ensureAgencySettings(userId);
     const [updated] = await db
       .update(agencySettingsTable)
       .set({
@@ -126,12 +144,12 @@ router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
         setupStep: 5,
         agencyName: appData.name ?? settings.agencyName,
       })
-      .where(eq(agencySettingsTable.id, settings.id))
+      .where(and(eq(agencySettingsTable.id, settings.id), eq(agencySettingsTable.userId, userId)))
       .returning();
 
     res.json(GetAgencySettingsResponse.parse(serializeSettings(updated)));
   } catch (err: unknown) {
-    logger.warn({ err, appId }, "Facebook app credentials verification failed");
+    logger.warn({ err, appId, userId }, "Facebook app credentials verification failed");
     const msg =
       (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ??
       "Invalid App ID or App Secret. Please check your credentials.";
@@ -139,21 +157,19 @@ router.post("/agency/verify-credentials", async (req, res): Promise<void> => {
   }
 });
 
-// POST /agency/magic-link — generates a short-lived magic link token for cross-browser FB connection
 router.post("/agency/magic-link", async (req, res): Promise<void> => {
-  const settings = await ensureAgencySettings();
+  const userId = req.user!.userId;
+  const settings = await ensureAgencySettings(userId);
   if (!settings.appId) {
     res.status(400).json({ error: "Facebook App not configured. Complete the BYOC setup first." });
     return;
   }
 
-  // Clean up expired tokens
   await db.delete(magicLinksTable).where(eq(magicLinksTable.used, true));
 
   const token = randomUUID();
-  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
-  const userId = req.user!.userId;
   await db.insert(magicLinksTable).values({ userId, token, expiresAt });
 
   const origin = `${req.protocol}://${req.get("host")}`;

@@ -58,9 +58,9 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 ## Database Schema
 
 - `users` — agency users (email, password_hash, name, agency_name, role)
-- `agency_settings` — single-row agency config (BYOC app credentials, setup progress)
-- `facebook_accounts` — connected Facebook user accounts (with OAuth access tokens)
-- `facebook_pages` — managed Facebook pages (with automation settings)
+- `agency_settings` — per-user agency config (BYOC app credentials, setup progress); `userId` FK ensures each user has their own Facebook App credentials
+- `facebook_accounts` — connected Facebook user accounts (with OAuth access tokens); `userId` FK scopes all accounts to the owning user; composite unique index on `(userId, fbUserId)`
+- `facebook_pages` — managed Facebook pages (with automation settings); user-scoped via `accountId` → `facebook_accounts.userId`
 - `token_balance` — single-row token balance
 - `token_transactions` — token purchase/usage history
 - `automation_logs` — automation action logs (type, message, page, status)

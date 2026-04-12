@@ -145,8 +145,13 @@ router.get("/pages/:pageId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.pageId, 10);
-  const [page] = await db.select().from(facebookPagesTable).where(eq(facebookPagesTable.id, id));
+  const accountIds = await getUserAccountIds(userId);
+  const whereClause = accountIds.length
+    ? and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds))
+    : eq(facebookPagesTable.id, -1);
+  const [page] = await db.select().from(facebookPagesTable).where(whereClause);
   if (!page) {
     res.status(404).json({ error: "Page not found" });
     return;
@@ -165,7 +170,14 @@ router.patch("/pages/:pageId", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.pageId, 10);
+  const accountIds = await getUserAccountIds(userId);
+  if (!accountIds.length) {
+    res.status(404).json({ error: "Page not found" });
+    return;
+  }
+
   const updates: Record<string, unknown> = {};
   if (parsed.data.automationEnabled != null) {
     updates.automationEnabled = parsed.data.automationEnabled;
@@ -175,7 +187,11 @@ router.patch("/pages/:pageId", async (req, res): Promise<void> => {
   if (parsed.data.postingFrequency != null) updates.postingFrequency = parsed.data.postingFrequency;
   if (parsed.data.status != null) updates.status = parsed.data.status;
 
-  const [page] = await db.update(facebookPagesTable).set(updates).where(eq(facebookPagesTable.id, id)).returning();
+  const [page] = await db
+    .update(facebookPagesTable)
+    .set(updates)
+    .where(and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds)))
+    .returning();
   if (!page) {
     res.status(404).json({ error: "Page not found" });
     return;
@@ -194,7 +210,14 @@ router.patch("/pages/:pageId/automation", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.pageId, 10);
+  const accountIds = await getUserAccountIds(userId);
+  if (!accountIds.length) {
+    res.status(404).json({ error: "Page not found" });
+    return;
+  }
+
   const updates: Record<string, unknown> = {};
   if (parsed.data.postsPerDay != null) updates.postsPerDay = parsed.data.postsPerDay;
   if (parsed.data.scheduleLogic != null) updates.scheduleLogic = parsed.data.scheduleLogic;
@@ -205,7 +228,11 @@ router.patch("/pages/:pageId/automation", async (req, res): Promise<void> => {
     updates.status = parsed.data.automationEnabled ? "active" : "paused";
   }
 
-  const [page] = await db.update(facebookPagesTable).set(updates).where(eq(facebookPagesTable.id, id)).returning();
+  const [page] = await db
+    .update(facebookPagesTable)
+    .set(updates)
+    .where(and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds)))
+    .returning();
   if (!page) {
     res.status(404).json({ error: "Page not found" });
     return;
@@ -224,10 +251,18 @@ router.patch("/pages/:pageId/source", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.pageId, 10);
-  const [page] = await db.update(facebookPagesTable)
+  const accountIds = await getUserAccountIds(userId);
+  if (!accountIds.length) {
+    res.status(404).json({ error: "Page not found" });
+    return;
+  }
+
+  const [page] = await db
+    .update(facebookPagesTable)
     .set({ sourceType: parsed.data.sourceType, sourceIdentity: parsed.data.sourceIdentity })
-    .where(eq(facebookPagesTable.id, id))
+    .where(and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds)))
     .returning();
   if (!page) {
     res.status(404).json({ error: "Page not found" });
@@ -242,8 +277,18 @@ router.delete("/pages/:pageId", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  const userId = req.user!.userId;
   const id = parseInt(params.data.pageId, 10);
-  const [page] = await db.delete(facebookPagesTable).where(eq(facebookPagesTable.id, id)).returning();
+  const accountIds = await getUserAccountIds(userId);
+  if (!accountIds.length) {
+    res.status(404).json({ error: "Page not found" });
+    return;
+  }
+
+  const [page] = await db
+    .delete(facebookPagesTable)
+    .where(and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds)))
+    .returning();
   if (!page) {
     res.status(404).json({ error: "Page not found" });
     return;

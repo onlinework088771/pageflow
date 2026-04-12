@@ -95,7 +95,7 @@ router.get("/analytics/pages/:pageId", async (req, res): Promise<void> => {
 
     const pageToken = await getPageToken(page.fbPageId, account.accessToken);
 
-    const [insightsRes, postsRes, videoCountRes] = await Promise.allSettled([
+    const [insightsRes, postsRes, videosRes] = await Promise.allSettled([
       axios.get(`${FB_API}/${page.fbPageId}/insights`, {
         params: {
           metric: [
@@ -116,13 +116,17 @@ router.get("/analytics/pages/:pageId", async (req, res): Promise<void> => {
       axios.get(`${FB_API}/${page.fbPageId}/posts`, {
         params: {
           fields: "id,message,created_time,attachments,likes.summary(true),comments.summary(true),shares",
-          limit: 20,
+          limit: 100,
           access_token: pageToken,
         },
         timeout: 15_000,
       }),
       axios.get(`${FB_API}/${page.fbPageId}/videos`, {
-        params: { fields: "id", limit: 1, access_token: pageToken },
+        params: {
+          fields: "id,title,created_time,likes.summary(true),comments.summary(true)",
+          limit: 100,
+          access_token: pageToken,
+        },
         timeout: 15_000,
       }),
     ]);
@@ -148,6 +152,11 @@ router.get("/analytics/pages/:pageId", async (req, res): Promise<void> => {
           hasVideo: !!p.attachments?.data?.find((a: any) => a.type === "video_autoplay" || a.type === "video_inline"),
         }))
       : [];
+
+    const videosData = videosRes.status === "fulfilled"
+      ? (videosRes.value.data?.data ?? [])
+      : [];
+    const videosCount = videosData.length;
 
     function sumLatest(values: { value: number; end_time: string }[]): number {
       return values.reduce((acc, v) => acc + (v.value || 0), 0);
@@ -188,6 +197,7 @@ router.get("/analytics/pages/:pageId", async (req, res): Promise<void> => {
         totalEngagement: sumLatest(engagementValues),
         pageViews: sumLatest(viewValues),
         postsCount: posts.length,
+        videosCount,
       },
       charts: {
         impressions: buildTimeSeries(impressionValues),

@@ -1,9 +1,11 @@
 import { pgTable, text, serial, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const agencySettingsTable = pgTable("agency_settings", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
   agencyName: text("agency_name").notNull().default("My Agency"),
   appId: text("app_id"),
   appSecret: text("app_secret"),

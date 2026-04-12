@@ -30,7 +30,11 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
     return;
   }
 
-  const [settings] = await db.select().from(agencySettingsTable).limit(1);
+  const [settings] = await db
+    .select()
+    .from(agencySettingsTable)
+    .where(eq(agencySettingsTable.userId, userId))
+    .limit(1);
 
   if (!settings?.appId) {
     const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
@@ -70,19 +74,26 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
   }
 
   try {
-    const [settings] = await db.select().from(agencySettingsTable).limit(1);
-    if (!settings?.appId || !settings?.appSecret) {
-      res.redirect(`${frontendBase}/accounts?fb_error=app_not_configured`);
-      return;
-    }
-
-    // Decode state to get userId
+    // Decode state to get userId first so we can fetch user-scoped settings
     let userId: number | null = null;
     try {
       const decoded = JSON.parse(Buffer.from(state, "base64").toString());
       userId = decoded.userId;
     } catch {
       res.redirect(`${frontendBase}/accounts?fb_error=invalid_state`);
+      return;
+    }
+
+    const [settings] = userId
+      ? await db
+          .select()
+          .from(agencySettingsTable)
+          .where(eq(agencySettingsTable.userId, userId))
+          .limit(1)
+      : await db.select().from(agencySettingsTable).limit(1);
+
+    if (!settings?.appId || !settings?.appSecret) {
+      res.redirect(`${frontendBase}/accounts?fb_error=app_not_configured`);
       return;
     }
 
@@ -216,7 +227,14 @@ router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
     return;
   }
 
-  const [settings] = await db.select().from(agencySettingsTable).limit(1);
+  const [settings] = link.userId
+    ? await db
+        .select()
+        .from(agencySettingsTable)
+        .where(eq(agencySettingsTable.userId, link.userId))
+        .limit(1)
+    : await db.select().from(agencySettingsTable).limit(1);
+
   if (!settings?.appId) {
     res.redirect(`${frontendBase}/accounts?fb_error=app_not_configured`);
     return;
@@ -258,7 +276,24 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
   }
 
   try {
-    const [settings] = await db.select().from(agencySettingsTable).limit(1);
+    // Decode userId from state to fetch user-scoped settings
+    let magicUserIdForSettings: number | null = null;
+    try {
+      const { state: stateParam } = req.query as Record<string, string>;
+      if (stateParam) {
+        const decoded = JSON.parse(Buffer.from(stateParam, "base64").toString());
+        magicUserIdForSettings = decoded.userId ?? null;
+      }
+    } catch {}
+
+    const [settings] = magicUserIdForSettings
+      ? await db
+          .select()
+          .from(agencySettingsTable)
+          .where(eq(agencySettingsTable.userId, magicUserIdForSettings))
+          .limit(1)
+      : await db.select().from(agencySettingsTable).limit(1);
+
     if (!settings?.appId || !settings?.appSecret) {
       res.redirect(`${frontendBase}/fb-connect?fb_error=app_not_configured`);
       return;
