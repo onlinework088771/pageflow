@@ -2,10 +2,11 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetOverviewStats, getGetOverviewStatsQueryKey } from "@workspace/api-client-react";
 import {
-  Activity, LayoutDashboard, Users, Files, Settings,
-  LogOut, Coins, ShieldCheck, AlertTriangle, Menu, X,
-  ChevronRight, Zap, Upload, BarChart2,
+  LayoutDashboard, Users, Files, Settings,
+  LogOut, Coins, Menu, X,
+  ChevronRight, Upload, BarChart2,
 } from "lucide-react";
+import { PageFlowLogo } from "@/components/pageflow-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,16 +73,8 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
 
             <div className="flex items-center gap-6 lg:gap-8 min-w-0">
-              <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-primary rounded-xl blur-sm opacity-40 group-hover:opacity-60 transition-opacity" />
-                  <div className="relative w-8 h-8 bg-primary rounded-xl flex items-center justify-center shadow-md">
-                    <Zap className="h-4 w-4 text-primary-foreground fill-current" />
-                  </div>
-                </div>
-                <span className="text-lg font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  PageFlow
-                </span>
+              <Link href="/" className="flex items-center shrink-0 group">
+                <PageFlowLogo size="sm" className="opacity-95 group-hover:opacity-100 transition-opacity" />
               </Link>
 
               <nav className="hidden md:flex items-center gap-0.5">
