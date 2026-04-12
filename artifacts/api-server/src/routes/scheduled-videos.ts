@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { db, scheduledVideosTable, facebookPagesTable } from "@workspace/db";
+import { db, scheduledVideosTable } from "@workspace/db";
 import { ScheduledVideoSchema } from "@workspace/db";
+import { executeScheduledPost } from "../services/facebook-poster";
 
 const router: IRouter = Router();
 
@@ -117,6 +118,63 @@ router.post("/scheduled-videos", upload.single("video"), async (req, res): Promi
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to schedule video" });
   }
+});
+
+router.post("/scheduled-videos/:id/post-now", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const [video] = await db
+    .select()
+    .from(scheduledVideosTable)
+    .where(eq(scheduledVideosTable.id, id));
+
+  if (!video) {
+    res.status(404).json({ error: "Scheduled video not found" });
+    return;
+  }
+
+  if (video.status === "processing") {
+    res.status(409).json({ error: "Already processing" });
+    return;
+  }
+
+  if (video.status === "posted") {
+    res.status(409).json({ error: "Already posted" });
+    return;
+  }
+
+  const domain = process.env["REPLIT_DEV_DOMAIN"] ?? process.env["REPL_SLUG"];
+  const publicBaseUrl = domain ? `https://${domain}` : undefined;
+
+  executeScheduledPost(id, publicBaseUrl).catch((err) => {
+    console.error("Post-now error:", err.message);
+  });
+
+  res.json({ message: "Posting started", id: String(id) });
+});
+
+router.get("/scheduled-videos/:id/status", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const [video] = await db
+    .select()
+    .from(scheduledVideosTable)
+    .where(eq(scheduledVideosTable.id, id));
+
+  if (!video) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  res.json(serializeVideo(video));
 });
 
 router.delete("/scheduled-videos/:id", async (req, res): Promise<void> => {

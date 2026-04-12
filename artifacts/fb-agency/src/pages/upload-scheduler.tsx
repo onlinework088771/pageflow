@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe } from "lucide-react";
+import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe, Zap } from "lucide-react";
 import { getAuthToken } from "@/contexts/auth-context";
 
 const TIMEZONES = [
@@ -90,6 +90,7 @@ export default function UploadScheduler() {
 
   const [scheduledVideos, setScheduledVideos] = useState<ScheduledVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(true);
+  const [postingNow, setPostingNow] = useState<Set<string>>(new Set());
 
   const [form, setForm] = useState({
     title: "",
@@ -118,7 +119,32 @@ export default function UploadScheduler() {
 
   useEffect(() => {
     fetchScheduledVideos();
+    const interval = setInterval(fetchScheduledVideos, 10_000);
+    return () => clearInterval(interval);
   }, [fetchScheduledVideos]);
+
+  async function handlePostNow(id: string) {
+    setPostingNow((prev) => new Set(prev).add(id));
+    try {
+      const resp = await authFetch(apiUrl(`/scheduled-videos/${id}/post-now`), { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed to post");
+      toast({ title: "Posting started!", description: "The video is being posted to Facebook now. Status will update shortly." });
+      setScheduledVideos((prev) =>
+        prev.map((v) => (v.id === id ? { ...v, status: "processing" } : v)),
+      );
+      setTimeout(fetchScheduledVideos, 5000);
+      setTimeout(fetchScheduledVideos, 15000);
+    } catch (err: any) {
+      toast({ title: "Post failed", description: err.message, variant: "destructive" });
+    } finally {
+      setPostingNow((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
 
   function togglePage(pageId: string) {
     setForm((f) => ({
@@ -427,19 +453,46 @@ export default function UploadScheduler() {
                             )}
                           </div>
                           {v.errorMessage && (
-                            <p className="text-xs text-destructive mt-1">{v.errorMessage}</p>
+                            <p className="text-xs text-destructive mt-2 bg-destructive/10 rounded px-2 py-1">{v.errorMessage}</p>
+                          )}
+                          {v.status === "posted" && (
+                            <p className="text-xs text-green-600 mt-1">
+                              Posted to {v.postedCount} page{v.postedCount !== 1 ? "s" : ""}
+                            </p>
                           )}
                         </div>
-                        {v.status === "pending" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
-                            onClick={() => handleDelete(v.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex flex-col gap-1.5 flex-shrink-0 items-end">
+                          {(v.status === "pending" || v.status === "failed") && (
+                            <Button
+                              size="sm"
+                              variant={v.status === "failed" ? "outline" : "default"}
+                              className="h-7 text-xs gap-1 whitespace-nowrap"
+                              disabled={postingNow.has(v.id) || v.status === "processing"}
+                              onClick={() => handlePostNow(v.id)}
+                            >
+                              {postingNow.has(v.id) ? (
+                                <><Loader2 className="h-3 w-3 animate-spin" />Posting...</>
+                              ) : (
+                                <><Zap className="h-3 w-3" />Post Now</>
+                              )}
+                            </Button>
+                          )}
+                          {v.status === "processing" && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Posting...
+                            </span>
+                          )}
+                          {(v.status === "pending" || v.status === "failed") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDelete(v.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
