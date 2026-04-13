@@ -1,0 +1,51 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pageflow
+      POSTGRES_USER: pageflow
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pageflow -d pageflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgresql://pageflow:${DB_PASSWORD}@postgres:5432/pageflow
+      JWT_SECRET: ${JWT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      NODE_ENV: production
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: artifacts/fb-agency/Dockerfile
+      args:
+        - VITE_BASE_PATH=/
+        - VITE_PORT=3000
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-80}:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  uploads:
