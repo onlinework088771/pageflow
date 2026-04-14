@@ -8,6 +8,7 @@ import { db, scheduledVideosTable, facebookPagesTable, facebookAccountsTable } f
 import { eq, and, lte } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { generateCaption } from "./page-automation";
+import { deleteAfterPublish } from "./cleanup-service";
 
 const execFileAsync = promisify(execFile);
 const FB_API = "https://graph.facebook.com/v19.0";
@@ -271,6 +272,10 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
       .update(scheduledVideosTable)
       .set({ status: finalStatus, postedCount, errorMessage: errorMessage ?? null })
       .where(eq(scheduledVideosTable.id, videoId));
+
+    if (finalStatus === "posted" && video.videoPath) {
+      await deleteAfterPublish(video.videoPath);
+    }
   } catch (err: any) {
     await db
       .update(scheduledVideosTable)

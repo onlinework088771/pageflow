@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { runScheduler } from "./services/facebook-poster";
 import { runPageAutomation } from "./services/page-automation";
+import { runCleanupJob } from "./services/cleanup-service";
 
 const rawPort = process.env["PORT"];
 const port = rawPort ? Number(rawPort) : 8080;
@@ -44,6 +45,14 @@ app.listen(port, (err) => {
     );
   }, 60_000);
 
+  // Video cleanup job — runs every 1 hour, removes old published/orphan uploads
+  setInterval(() => {
+    runCleanupJob().catch((e) =>
+      logger.error({ err: e.message }, "Cleanup job error"),
+    );
+  }, 60 * 60 * 1000);
+
   runScheduler(publicBaseUrl).catch(() => {});
   runPageAutomation().catch(() => {});
+  runCleanupJob().catch(() => {});
 });
