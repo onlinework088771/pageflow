@@ -8,7 +8,7 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY lib/ ./lib/
 COPY artifacts/fb-agency/ ./artifacts/fb-agency/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 ARG VITE_BASE_PATH=/
 ARG VITE_PORT=3000
