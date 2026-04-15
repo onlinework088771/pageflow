@@ -42,7 +42,8 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
     return;
   }
 
-  const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/callback`;
+  const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  const callbackUrl = `${baseUrl}/api/auth/facebook/callback`;
   const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
   const state = Buffer.from(JSON.stringify({ userId })).toString("base64");
 
@@ -97,7 +98,7 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
       return;
     }
 
-    const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/callback`;
+    const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/facebook/callback`;
 
     // Exchange code for access token
     const tokenRes = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
@@ -244,7 +245,7 @@ router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
   await db.update(magicLinksTable).set({ used: true }).where(eq(magicLinksTable.id, link.id));
 
   // Use the dedicated magic-link callback URL
-  const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/magic-callback`;
+  const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/facebook/magic-callback`;
   const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
   const state = Buffer.from(JSON.stringify({ magic: true, userId: link.userId })).toString("base64");
 
@@ -299,7 +300,7 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
       return;
     }
 
-    const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/facebook/magic-callback`;
+    const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/facebook/magic-callback`;
 
     // Exchange code for access token
     const tokenRes = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
