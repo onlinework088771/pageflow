@@ -15,6 +15,20 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+      target: builder
+    working_dir: /app
+    command: pnpm --filter @workspace/db run push
+    environment:
+      DATABASE_URL: postgresql://pageflow:${DB_PASSWORD}@postgres:5432/pageflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -27,11 +41,15 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       NODE_ENV: production
+      AUTO_DELETE: ${AUTO_DELETE:-true}
+      DELETE_AFTER_HOURS: ${DELETE_AFTER_HOURS:-48}
     volumes:
       - uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:
