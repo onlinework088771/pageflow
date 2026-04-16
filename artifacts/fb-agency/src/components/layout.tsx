@@ -17,8 +17,8 @@ import { useQueryClient } from "@tanstack/react-query";
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/accounts", label: "FB Accounts", icon: Users },
-  { href: "/pages", label: "Pages", icon: Files },
-  { href: "/upload", label: "Upload", icon: Upload },
+  { href: "/pages", label: "Page Automation", icon: Files },
+  { href: "/upload", label: "Video Scheduler", icon: Upload },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

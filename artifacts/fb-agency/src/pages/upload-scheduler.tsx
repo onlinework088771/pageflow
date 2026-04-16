@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
-import { useListPages } from "@workspace/api-client-react";
+import { useListPages, useListAccounts } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe, Zap } from "lucide-react";
+import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe, Zap, User, ChevronRight } from "lucide-react";
 import { getAuthToken } from "@/contexts/auth-context";
 
 const TIMEZONES = [
@@ -87,8 +87,10 @@ function StatusBadge({ status }: { status: ScheduledVideo["status"] }) {
 
 export default function UploadScheduler() {
   const { toast } = useToast();
-  const { data: pages, isLoading: pagesLoading } = useListPages({});
+  const { data: accounts, isLoading: accountsLoading } = useListAccounts({});
+  const { data: allPages, isLoading: pagesLoading } = useListPages({});
 
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [scheduledVideos, setScheduledVideos] = useState<ScheduledVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [postingNow, setPostingNow] = useState<Set<string>>(new Set());
@@ -157,6 +159,33 @@ export default function UploadScheduler() {
         ? f.selectedPageIds.filter((id) => id !== pageId)
         : [...f.selectedPageIds, pageId],
     }));
+  }
+
+  const accountPages = selectedAccountId
+    ? (allPages ?? []).filter((p) => p.accountId === selectedAccountId && (p.status === "active" || p.status === "paused"))
+    : [];
+
+  const allAccountPagesSelected =
+    accountPages.length > 0 && accountPages.every((p) => form.selectedPageIds.includes(p.id));
+
+  function toggleSelectAll() {
+    if (allAccountPagesSelected) {
+      setForm((f) => ({
+        ...f,
+        selectedPageIds: f.selectedPageIds.filter((id) => !accountPages.some((p) => p.id === id)),
+      }));
+    } else {
+      const newIds = accountPages.map((p) => p.id);
+      setForm((f) => ({
+        ...f,
+        selectedPageIds: [...new Set([...f.selectedPageIds, ...newIds])],
+      }));
+    }
+  }
+
+  function handleSelectAccount(accountId: string) {
+    setSelectedAccountId(accountId);
+    setForm((f) => ({ ...f, selectedPageIds: [] }));
   }
 
   async function handleSchedule() {
@@ -298,10 +327,8 @@ export default function UploadScheduler() {
   }
 
   function getPageName(pageId: string) {
-    return pages?.find((p) => p.id === pageId)?.name ?? `Page ${pageId}`;
+    return allPages?.find((p) => p.id === pageId)?.name ?? `Page ${pageId}`;
   }
-
-  const activePagesOnly = pages?.filter((p) => p.status === "active" || p.status === "paused") ?? [];
 
   return (
     <Layout>
@@ -423,41 +450,115 @@ export default function UploadScheduler() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Post to Pages</Label>
-                {pagesLoading ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
-                  </div>
-                ) : activePagesOnly.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-2">No pages found. Connect a Facebook account first.</p>
-                ) : (
-                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1 border rounded-lg p-2">
-                    {activePagesOnly.map((page) => (
-                      <div
-                        key={page.id}
-                        className={`flex items-center gap-3 p-2 rounded-md cursor-pointer hover:bg-muted/50 transition-colors ${
-                          form.selectedPageIds.includes(page.id) ? "bg-primary/5 border border-primary/20" : ""
-                        }`}
-                        onClick={() => togglePage(page.id)}
-                      >
-                        <Checkbox
-                          checked={form.selectedPageIds.includes(page.id)}
-                          onCheckedChange={() => togglePage(page.id)}
-                        />
-                        <Avatar className="h-7 w-7">
-                          <AvatarImage src={page.profilePicture ?? undefined} />
-                          <AvatarFallback className="text-[10px]">
-                            {page.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium truncate flex-1">{page.name}</span>
+
+                {/* Step 1: Select Account */}
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Step 1 — Select Account</p>
+                  {accountsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}
+                    </div>
+                  ) : !accounts || accounts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">No accounts connected. Go to FB Accounts first.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {accounts.filter((a) => a.status === "connected").map((account) => {
+                        const isSelected = selectedAccountId === account.id;
+                        return (
+                          <div
+                            key={account.id}
+                            onClick={() => handleSelectAccount(account.id)}
+                            className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/8 shadow-sm"
+                                : "border-border hover:border-primary/40 hover:bg-muted/40"
+                            }`}
+                          >
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarImage src={account.profilePicture ?? undefined} />
+                              <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                                {account.name.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold truncate">{account.name}</p>
+                              <p className="text-xs text-muted-foreground">{account.pagesCount} page(s)</p>
+                            </div>
+                            {isSelected ? (
+                              <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Select Pages */}
+                {selectedAccountId && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Step 2 — Select Pages</p>
+                    {pagesLoading ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
                       </div>
-                    ))}
+                    ) : accountPages.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-2">No active pages for this account.</p>
+                    ) : (
+                      <div className="border rounded-lg overflow-hidden">
+                        {/* Select All */}
+                        <div
+                          onClick={toggleSelectAll}
+                          className="flex items-center gap-3 px-3 py-2.5 bg-muted/40 border-b cursor-pointer hover:bg-muted/60 transition-colors"
+                        >
+                          <Checkbox
+                            checked={allAccountPagesSelected}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                          <span className="text-sm font-semibold flex-1">Select All Pages</span>
+                          <Badge variant="outline" className="text-[10px]">{accountPages.length}</Badge>
+                        </div>
+                        {/* Page list */}
+                        <div className="max-h-44 overflow-y-auto">
+                          {accountPages.map((page) => (
+                            <div
+                              key={page.id}
+                              className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40 transition-colors ${
+                                form.selectedPageIds.includes(page.id) ? "bg-primary/5" : ""
+                              }`}
+                              onClick={() => togglePage(page.id)}
+                            >
+                              <Checkbox
+                                checked={form.selectedPageIds.includes(page.id)}
+                                onCheckedChange={() => togglePage(page.id)}
+                              />
+                              <Avatar className="h-6 w-6 shrink-0">
+                                <AvatarImage src={page.profilePicture ?? undefined} />
+                                <AvatarFallback className="text-[9px]">
+                                  {page.name.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm truncate flex-1">{page.name}</span>
+                              {page.followersCount ? (
+                                <span className="text-xs text-muted-foreground shrink-0">{page.followersCount.toLocaleString()}</span>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {form.selectedPageIds.length > 0 && (
+                      <p className="text-xs text-primary font-medium">{form.selectedPageIds.length} page(s) selected</p>
+                    )}
                   </div>
                 )}
-                {form.selectedPageIds.length > 0 && (
-                  <p className="text-xs text-muted-foreground">{form.selectedPageIds.length} page(s) selected</p>
+
+                {!selectedAccountId && accounts && accounts.length > 0 && (
+                  <p className="text-xs text-muted-foreground italic">Select an account above to choose pages.</p>
                 )}
               </div>
 
