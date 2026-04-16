@@ -172,7 +172,7 @@ router.post("/agency/magic-link", async (req, res): Promise<void> => {
 
   await db.insert(magicLinksTable).values({ userId, token, expiresAt });
 
-  const origin = `${req.protocol}://${req.get("host")}`;
+  const origin = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
   const url = `${origin}/api/auth/facebook/magic?token=${token}`;
 
   res.json(GenerateMagicLinkResponse.parse({ token, url, expiresAt: expiresAt.toISOString() }));
