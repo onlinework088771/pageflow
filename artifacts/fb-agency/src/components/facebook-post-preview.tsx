@@ -34,6 +34,7 @@ export function FacebookPostPreview({
       return () => URL.revokeObjectURL(url);
     } else {
       setObjectUrl(null);
+      return undefined;
     }
   }, [videoFile]);
 
