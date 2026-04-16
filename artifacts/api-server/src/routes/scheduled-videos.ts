@@ -183,6 +183,46 @@ router.get("/scheduled-videos/:id/status", async (req, res): Promise<void> => {
   res.json(serializeVideo(video));
 });
 
+router.put("/scheduled-videos/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+
+  const userId = req.user!.userId;
+  const [existing] = await db
+    .select()
+    .from(scheduledVideosTable)
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)));
+
+  if (!existing) { res.status(404).json({ error: "Not found" }); return; }
+  if (existing.status !== "pending" && existing.status !== "failed") {
+    res.status(409).json({ error: "Only pending or failed videos can be edited" });
+    return;
+  }
+
+  const { scheduledAt, timezone, pageIds } = req.body;
+  const updates: Partial<typeof scheduledVideosTable.$inferInsert> = {};
+
+  if (scheduledAt) {
+    const d = new Date(scheduledAt);
+    if (isNaN(d.getTime())) { res.status(400).json({ error: "Invalid date" }); return; }
+    updates.scheduledAt = d;
+  }
+  if (timezone) updates.timezone = timezone;
+  if (pageIds) {
+    try {
+      updates.pageIds = typeof pageIds === "string" ? JSON.parse(pageIds) : pageIds;
+    } catch { res.status(400).json({ error: "Invalid pageIds" }); return; }
+  }
+
+  const [updated] = await db
+    .update(scheduledVideosTable)
+    .set({ ...updates, status: "pending" })
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)))
+    .returning();
+
+  res.json(serializeVideo(updated));
+});
+
 router.delete("/scheduled-videos/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {

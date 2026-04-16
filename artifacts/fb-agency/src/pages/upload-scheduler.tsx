@@ -11,32 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe, Zap, User, ChevronRight } from "lucide-react";
-import { getAuthToken } from "@/contexts/auth-context";
+import { Upload, Calendar, Clock, Video, CheckCircle, XCircle, Loader2, Globe, Zap, ChevronRight } from "lucide-react";
 import { FacebookPostPreview } from "@/components/facebook-post-preview";
-
-const TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Toronto",
-  "America/Vancouver",
-  "America/Sao_Paulo",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Europe/Moscow",
-  "Asia/Dubai",
-  "Asia/Kolkata",
-  "Asia/Bangkok",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "Asia/Seoul",
-  "Australia/Sydney",
-  "Pacific/Auckland",
-];
+import { ScheduleManagement } from "@/components/schedule-management";
+import { apiUrl, authFetch, TIMEZONES } from "@/components/schedule-management-utils";
 
 interface ScheduledVideo {
   id: string;
@@ -54,37 +32,6 @@ interface ScheduledVideo {
   createdAt: string;
 }
 
-function apiUrl(path: string) {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  return `${base}/api${path}`;
-}
-
-async function authFetch(url: string, options: RequestInit = {}) {
-  const token = getAuthToken();
-  return fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-}
-
-function StatusBadge({ status }: { status: ScheduledVideo["status"] }) {
-  const configs: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
-    pending: { label: "Scheduled", variant: "secondary", icon: <Clock className="h-3 w-3" /> },
-    processing: { label: "Posting...", variant: "default", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
-    posted: { label: "Posted", variant: "outline", icon: <CheckCircle className="h-3 w-3 text-green-500" /> },
-    failed: { label: "Failed", variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
-  };
-  const cfg = configs[status] ?? configs.pending;
-  return (
-    <Badge variant={cfg.variant} className="flex items-center gap-1">
-      {cfg.icon}
-      {cfg.label}
-    </Badge>
-  );
-}
 
 export default function UploadScheduler() {
   const { toast } = useToast();
@@ -604,112 +551,19 @@ export default function UploadScheduler() {
           </Card>
         </div>
 
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Scheduled Videos</h2>
-              <Badge variant="secondary">{scheduledVideos.length} scheduled</Badge>
-            </div>
-
-            {loadingVideos ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-              </div>
-            ) : scheduledVideos.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Video className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="font-medium text-muted-foreground">No scheduled videos yet</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Use the form to upload and schedule your first video.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {scheduledVideos.map((v) => (
-                  <Card key={v.id} className="overflow-hidden">
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className="h-14 w-20 rounded-md bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {v.thumbnailUrl ? (
-                            <img src={v.thumbnailUrl} alt={v.title} className="h-full w-full object-cover" />
-                          ) : (
-                            <Play className="h-5 w-5 text-muted-foreground" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-semibold text-sm truncate">{v.title}</p>
-                            <StatusBadge status={v.status} />
-                          </div>
-                          {v.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{v.description}</p>
-                          )}
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                            <Clock className="h-3 w-3" />
-                            <span>{formatScheduledAt(v.scheduledAt, v.timezone)}</span>
-                            <span className="text-muted-foreground/60">({v.timezone})</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {v.pageIds.slice(0, 3).map((pid) => (
-                              <Badge key={pid} variant="outline" className="text-[10px] px-1.5 py-0">
-                                {getPageName(pid)}
-                              </Badge>
-                            ))}
-                            {v.pageIds.length > 3 && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                +{v.pageIds.length - 3} more
-                              </Badge>
-                            )}
-                          </div>
-                          {v.errorMessage && (
-                            <p className="text-xs text-destructive mt-2 bg-destructive/10 rounded px-2 py-1">{v.errorMessage}</p>
-                          )}
-                          {v.status === "posted" && (
-                            <p className="text-xs text-green-600 mt-1">
-                              Posted to {v.postedCount} page{v.postedCount !== 1 ? "s" : ""}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1.5 flex-shrink-0 items-end">
-                          {(v.status === "pending" || v.status === "failed") && (
-                            <Button
-                              size="sm"
-                              variant={v.status === "failed" ? "outline" : "default"}
-                              className="h-7 text-xs gap-1 whitespace-nowrap"
-                              disabled={postingNow.has(v.id) || v.status === "processing"}
-                              onClick={() => handlePostNow(v.id)}
-                            >
-                              {postingNow.has(v.id) ? (
-                                <><Loader2 className="h-3 w-3 animate-spin" />Posting...</>
-                              ) : (
-                                <><Zap className="h-3 w-3" />Post Now</>
-                              )}
-                            </Button>
-                          )}
-                          {v.status === "processing" && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Loader2 className="h-3 w-3 animate-spin" /> Posting...
-                            </span>
-                          )}
-                          {(v.status === "pending" || v.status === "failed") && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDelete(v.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-        </div>
+        <ScheduleManagement
+          videos={scheduledVideos}
+          loading={loadingVideos}
+          postingNow={postingNow}
+          onPostNow={handlePostNow}
+          onDelete={handleDelete}
+          onUpdated={(updated) =>
+            setScheduledVideos((prev) =>
+              prev.map((v) => (v.id === updated.id ? updated : v))
+            )
+          }
+          getPageName={getPageName}
+        />
       </div>
     </Layout>
   );
