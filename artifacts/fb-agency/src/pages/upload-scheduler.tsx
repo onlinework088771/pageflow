@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Calendar, Clock, Trash2, Video, CheckCircle, XCircle, Loader2, Play, Globe, Zap, User, ChevronRight } from "lucide-react";
 import { getAuthToken } from "@/contexts/auth-context";
+import { FacebookPostPreview } from "@/components/facebook-post-preview";
 
 const TIMEZONES = [
   "UTC",
@@ -340,8 +341,8 @@ export default function UploadScheduler() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <Card className="lg:col-span-2">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Upload className="h-4 w-4 text-primary" />
@@ -581,7 +582,29 @@ export default function UploadScheduler() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-3 space-y-4">
+          <Card className="flex flex-col">
+            <CardContent className="flex-1 flex flex-col pt-5 pb-4">
+              <FacebookPostPreview
+                title={form.title}
+                caption={form.description}
+                videoFile={videoFile}
+                videoUrl={form.videoUrl}
+                pageName={
+                  form.selectedPageIds.length > 0
+                    ? (allPages?.find((p) => p.id === form.selectedPageIds[0])?.name ?? "Your Page Name")
+                    : accounts?.find((a) => a.id === selectedAccountId)?.name ?? "Your Page Name"
+                }
+                pageAvatar={
+                  form.selectedPageIds.length > 0
+                    ? (allPages?.find((p) => p.id === form.selectedPageIds[0])?.profilePicture ?? undefined)
+                    : undefined
+                }
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Scheduled Videos</h2>
               <Badge variant="secondary">{scheduledVideos.length} scheduled</Badge>
@@ -686,7 +709,6 @@ export default function UploadScheduler() {
                 ))}
               </div>
             )}
-          </div>
         </div>
       </div>
     </Layout>
