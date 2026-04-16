@@ -160,39 +160,43 @@ async function postVideoToPage(
     return uploadVideoViaFile(fbPageId, pageToken, title, localFilePath, description);
   }
 
-  // YouTube URL → extract metadata + CDN stream URL, pass to Facebook
+  // YouTube URL → ALWAYS download first then binary-upload.
+  // We do NOT use file_url with YouTube because:
+  //   1. YouTube CDN URLs returned by yt-dlp are signed and expire within seconds
+  //   2. Facebook's servers cannot authenticate with YouTube's CDN
+  //   3. file_url with YouTube consistently fails in production
   if (originalUrl && isYouTubeUrl(originalUrl)) {
+    logger.info({ originalUrl: originalUrl.slice(0, 80) }, "YouTube URL: fetching metadata + downloading video");
+
+    // Get metadata first (optional enrichment, non-blocking)
+    const metadata = await getYouTubeMetadata(originalUrl).catch(() => ({
+      title: "", description: "", tags: [] as string[],
+    }));
+
+    const effectiveTitle = metadata.title || title;
+    const effectiveCaption = description
+      || (metadata.title
+        ? generateCaption(metadata.title, metadata.description, metadata.tags)
+        : title);
+
+    // Download to temp file
+    const tmpDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const tmpFile = path.join(tmpDir, `yt_dl_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
+
     try {
-      // Run metadata extraction and URL extraction in parallel
-      const [directUrl, metadata] = await Promise.all([
-        getYouTubeDirectUrl(originalUrl),
-        getYouTubeMetadata(originalUrl),
-      ]);
-
-      // Build caption from real metadata if we don't already have one
-      const effectiveCaption = description
-        || (metadata.title
-          ? generateCaption(metadata.title, metadata.description, metadata.tags)
-          : title);
-      const effectiveTitle = metadata.title || title;
-
-      return await uploadVideoViaUrl(fbPageId, pageToken, effectiveTitle, directUrl, effectiveCaption);
-    } catch (err: any) {
-      logger.warn({ err: err.message }, "YouTube direct URL failed, falling back to download");
-      // Fallback: download the file then binary-upload
-      const tmpDir = path.join(process.cwd(), "uploads");
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-      const tmpFile = path.join(tmpDir, `yt_fallback_${Date.now()}.mp4`);
-      try {
-        await downloadYouTubeVideo(originalUrl, tmpFile);
-        return await uploadVideoViaFile(fbPageId, pageToken, title, tmpFile, description);
-      } finally {
-        try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
+      await downloadYouTubeVideo(originalUrl, tmpFile);
+      if (!fs.existsSync(tmpFile) || fs.statSync(tmpFile).size === 0) {
+        throw new Error("yt-dlp download produced empty file");
       }
+      logger.info({ tmpFile, sizeBytes: fs.statSync(tmpFile).size }, "YouTube video downloaded, uploading to Facebook");
+      return await uploadVideoViaFile(fbPageId, pageToken, effectiveTitle, tmpFile, effectiveCaption);
+    } finally {
+      try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
     }
   }
 
-  // Direct video URL (MP4 CDN link, etc.) → pass to Facebook directly
+  // Non-YouTube direct video URL (e.g. MP4 CDN link) → pass via URL to Facebook
   if (videoUrl) {
     return uploadVideoViaUrl(fbPageId, pageToken, title, videoUrl, description);
   }

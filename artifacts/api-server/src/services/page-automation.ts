@@ -1,6 +1,8 @@
 import axios from "axios";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import fs from "fs";
+import path from "path";
 import FormData from "form-data";
 import { db, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -65,7 +67,7 @@ export function generateCaption(title: string, description: string, tags?: strin
 }
 
 // ---------------------------------------------------------------------------
-// yt-dlp helpers — work for YouTube, Instagram, TikTok
+// yt-dlp helpers — download video to temp file then upload
 // ---------------------------------------------------------------------------
 
 async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
@@ -87,21 +89,38 @@ async function getVideoMetadata(url: string): Promise<{ title: string; descripti
   }
 }
 
-async function getDirectVideoUrl(url: string): Promise<string> {
-  const { stdout } = await execFileAsync(
+/**
+ * Download a video to a temp file using yt-dlp.
+ * Works for YouTube, Instagram, TikTok and any yt-dlp-supported source.
+ * Returns the temp file path — caller MUST delete it after use.
+ */
+async function downloadVideoToTempFile(url: string, label = "auto"): Promise<string> {
+  const tmpDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+  const tmpFile = path.join(tmpDir, `${label}_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
+
+  logger.info({ url: url.slice(0, 80), tmpFile }, "page-automation: downloading video");
+
+  await execFileAsync(
     YT_DLP_PATH,
     [
-      "--get-url",
       "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best",
+      "--merge-output-format", "mp4",
+      "--output", tmpFile,
       "--no-playlist",
       "--no-warnings",
+      "--quiet",
       url,
     ],
-    { timeout: 30_000 },
+    { timeout: 300_000 },  // 5 min for page automation downloads
   );
-  const directUrl = stdout.trim().split("\n")[0];
-  if (!directUrl) throw new Error("yt-dlp returned no direct URL");
-  return directUrl;
+
+  if (!fs.existsSync(tmpFile) || fs.statSync(tmpFile).size === 0) {
+    throw new Error(`yt-dlp download produced no output for: ${url.slice(0, 80)}`);
+  }
+
+  return tmpFile;
 }
 
 /**
@@ -190,27 +209,55 @@ async function getPageAccessToken(fbPageId: string, userToken: string): Promise<
   return res.data?.access_token ?? userToken;
 }
 
-async function postVideoUrlToFacebook(
+/**
+ * Upload a video to Facebook using binary multipart.
+ * This is the ONLY upload strategy used in page automation.
+ * file_url is NOT used because YouTube/TikTok/IG CDN URLs require
+ * authentication headers and expire within seconds.
+ */
+async function uploadVideoFileTofacebook(
   fbPageId: string,
   pageToken: string,
   title: string,
   caption: string,
-  directUrl: string,
+  filePath: string,
 ): Promise<string> {
-  const res = await axios.post(
-    `${FB_API}/${fbPageId}/videos`,
-    null,
-    {
-      params: {
-        file_url: directUrl,
-        title,
-        description: caption,
-        access_token: pageToken,
-      },
-      timeout: 120_000,
-    },
-  );
+  logger.info({ fbPageId, filePath }, "page-automation: uploading video to Facebook (binary)");
+
+  const form = new FormData();
+  form.append("source", fs.createReadStream(filePath));
+  form.append("title", title);
+  form.append("description", caption);
+  form.append("access_token", pageToken);
+
+  const res = await axios.post(`${FB_API}/${fbPageId}/videos`, form, {
+    headers: form.getHeaders(),
+    timeout: 300_000,
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+  });
+
   return res.data?.id ?? "unknown";
+}
+
+/**
+ * Download a video URL to a temp file and upload it to Facebook.
+ * Handles cleanup automatically on success or failure.
+ */
+async function downloadAndUploadToFacebook(
+  fbPageId: string,
+  pageToken: string,
+  videoUrl: string,
+  title: string,
+  caption: string,
+  label = "auto",
+): Promise<void> {
+  const tmpFile = await downloadVideoToTempFile(videoUrl, label);
+  try {
+    await uploadVideoFileTofacebook(fbPageId, pageToken, title, caption, tmpFile);
+  } finally {
+    try { if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile); } catch {}
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -250,16 +297,19 @@ async function postNextYouTubeVideo(
 
   const ytUrl = `https://www.youtube.com/watch?v=${nextVideo.videoId}`;
 
-  // Get richer metadata from yt-dlp
+  // Get richer metadata from yt-dlp (optional, fallback to RSS data)
   let meta = { title: nextVideo.title, description: nextVideo.description, tags: [] as string[] };
   try {
     const m = await getVideoMetadata(ytUrl);
-    if (m.title) meta = m;
+    if (m.title) meta = { ...meta, ...m };
   } catch {}
 
-  const caption = generateCaption(meta.title, meta.description, meta.tags);
-  const directUrl = await getDirectVideoUrl(ytUrl);
-  await postVideoUrlToFacebook(page.fbPageId, pageToken, meta.title || nextVideo.title, caption, directUrl);
+  const title = meta.title || nextVideo.title;
+  const caption = generateCaption(title, meta.description, meta.tags);
+
+  // Download video file and upload to Facebook via binary multipart
+  // NOTE: We do NOT use file_url because YouTube CDN signed URLs expire in seconds
+  await downloadAndUploadToFacebook(page.fbPageId, pageToken, ytUrl, title, caption, "yt");
 
   return { postedVideoId: nextVideo.videoId };
 }
@@ -288,15 +338,13 @@ async function postNextInstagramVideo(
 
   const videoUrl = nextVideo.url || `https://www.instagram.com/reel/${nextVideo.videoId}/`;
 
-  // Get metadata + direct stream URL
-  const [meta, directUrl] = await Promise.all([
-    getVideoMetadata(videoUrl).catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] })),
-    getDirectVideoUrl(videoUrl),
-  ]);
+  const meta = await getVideoMetadata(videoUrl)
+    .catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] }));
 
   const title = meta.title || nextVideo.title || handle;
   const caption = generateCaption(title, meta.description, meta.tags);
-  await postVideoUrlToFacebook(page.fbPageId, pageToken, title, caption, directUrl);
+
+  await downloadAndUploadToFacebook(page.fbPageId, pageToken, videoUrl, title, caption, "ig");
 
   return { postedVideoId: nextVideo.videoId };
 }
@@ -325,14 +373,13 @@ async function postNextTikTokVideo(
 
   const videoUrl = nextVideo.url || `https://www.tiktok.com/@${handle}/video/${nextVideo.videoId}`;
 
-  const [meta, directUrl] = await Promise.all([
-    getVideoMetadata(videoUrl).catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] })),
-    getDirectVideoUrl(videoUrl),
-  ]);
+  const meta = await getVideoMetadata(videoUrl)
+    .catch(() => ({ title: nextVideo.title || handle, description: "", tags: [] as string[] }));
 
   const title = meta.title || nextVideo.title || handle;
   const caption = generateCaption(title, meta.description, meta.tags);
-  await postVideoUrlToFacebook(page.fbPageId, pageToken, title, caption, directUrl);
+
+  await downloadAndUploadToFacebook(page.fbPageId, pageToken, videoUrl, title, caption, "tt");
 
   return { postedVideoId: nextVideo.videoId };
 }
