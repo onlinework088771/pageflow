@@ -4,7 +4,7 @@ import { useGetOverviewStats, getGetOverviewStatsQueryKey } from "@workspace/api
 import {
   LayoutDashboard, Users, Files, Settings,
   LogOut, Coins, Menu, X,
-  ChevronRight, Upload, BarChart2,
+  ChevronRight, Upload, BarChart2, Layers,
 } from "lucide-react";
 import { PageFlowLogo } from "@/components/pageflow-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -18,6 +18,7 @@ const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/accounts", label: "FB Accounts", icon: Users },
   { href: "/pages", label: "Page Automation", icon: Files },
+  { href: "/page-management", label: "Page Management", icon: Layers },
   { href: "/upload", label: "Video Scheduler", icon: Upload },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/settings", label: "Settings", icon: Settings },

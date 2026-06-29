@@ -11,6 +11,7 @@ import automationLogsRouter from "./automation-logs";
 import scheduledVideosRouter from "./scheduled-videos";
 import youtubeRouter from "./youtube";
 import analyticsRouter from "./analytics";
+import postManagerRouter from "./post-manager";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -30,5 +31,6 @@ router.use(requireAuth, automationLogsRouter);
 router.use(requireAuth, scheduledVideosRouter);
 router.use(requireAuth, youtubeRouter);
 router.use(requireAuth, analyticsRouter);
+router.use(requireAuth, postManagerRouter);
 
 export default router;

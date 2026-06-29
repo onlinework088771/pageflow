@@ -16,6 +16,7 @@ import FbConnect from "@/pages/fb-connect";
 import Settings from "@/pages/settings";
 import UploadScheduler from "@/pages/upload-scheduler";
 import Analytics from "@/pages/analytics";
+import PageManagement from "@/pages/page-management";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,9 @@ function Router() {
       </Route>
       <Route path="/analytics">
         <ProtectedRoute component={Analytics} />
+      </Route>
+      <Route path="/page-management">
+        <ProtectedRoute component={PageManagement} />
       </Route>
       <Route component={NotFound} />
     </Switch>
