@@ -1,104 +1,180 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
-import { BarChart2, Users, Eye, ThumbsUp, TrendingUp, FileText, ArrowLeft, RefreshCw, Video } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/auth-context";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart2, Users, Eye, ThumbsUp, TrendingUp, FileText,
+  ChevronRight, RefreshCw, AlertCircle, Video, Heart,
+  MessageCircle, Share2, Clock, Calendar, Star, ArrowDown,
+  PlayCircle, Activity, Zap, Globe, BookOpen,
+} from "lucide-react";
+import {
+  LineChart, Line, AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
+  ResponsiveContainer, Legend,
 } from "recharts";
-import { motion, AnimatePresence } from "framer-motion";
 
-const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") + "/api";
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-function apiUrl(path: string) {
-  return `${API_BASE}${path}`;
+interface AnalyticsAccount {
+  id: string;
+  fbUserId: string;
+  name: string;
+  email: string | null;
+  profilePicture: string | null;
+  status: string;
+  pagesCount: number;
+  connectedAt: string;
 }
 
 interface AnalyticsPage {
   id: string;
   fbPageId: string;
   name: string;
-  category?: string;
-  profilePicture?: string;
+  category: string | null;
+  profilePicture: string | null;
   followersCount: number;
   accountId: string;
   accountName: string;
-  accountPicture?: string;
+}
+
+interface Post {
+  id: string;
+  message: string;
+  createdTime: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  reactions: number;
+  engagement: number;
+  hasVideo: boolean;
+  hasImage: boolean;
+  thumbnail: string | null;
 }
 
 interface AnalyticsData {
   page: {
-    id: string;
-    fbPageId: string;
-    name: string;
-    category?: string;
-    profilePicture?: string;
-    followersCount: number;
+    id: string; fbPageId: string; name: string; category: string | null;
+    profilePicture: string | null; fans: number; followers: number;
   };
   summary: {
-    followers: number;
-    totalImpressions: number;
-    uniqueReach: number;
-    engagedUsers: number;
-    totalEngagement: number;
-    pageViews: number;
-    postsCount: number;
-    videosCount: number;
+    followers: number; fans: number; newFans: number; lostFans: number;
+    impressions: number; organicImpressions: number; paidImpressions: number;
+    reach: number; engagedUsers: number; engagement: number; pageViews: number;
+    videoViews: number; watchTimeMinutes: number; reelViews: number;
+    totalPosts: number; totalVideos: number; totalReels: number;
+    publishedToday: number; publishedThisWeek: number; publishedThisMonth: number;
+    totalReactions: number; totalComments: number; totalShares: number; totalLikes: number;
   };
   charts: {
     impressions: { date: string; value: number }[];
-    uniqueReach: { date: string; value: number }[];
+    reach: { date: string; value: number }[];
     engagement: { date: string; value: number }[];
     followers: { date: string; value: number }[];
+    videoViews: { date: string; value: number }[];
+    fanAdds: { date: string; value: number }[];
   };
-  recentPosts: {
-    id: string;
-    message: string;
-    createdTime: string;
-    likes: number;
-    comments: number;
-    shares: number;
-    hasVideo: boolean;
-  }[];
+  recentPosts: Post[];
+  bestPost: Post | null;
+  worstPost: Post | null;
+  fetchedAt: string;
+  fromCache?: boolean;
 }
 
-function formatNumber(n: number): string {
+type ViewMode = "accounts" | "pages" | "dashboard";
+type RangeOption = "today" | "yesterday" | "7" | "28" | "90" | "custom";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API  = `${BASE}/api`;
+
+async function authFetch(url: string): Promise<Response> {
+  const token = localStorage.getItem("pf_auth_token");
+  return fetch(url, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+}
+
+function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return String(n);
+  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
+  return String(n ?? 0);
 }
 
-function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function fmtDate(s: string): string {
+  try { return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+  catch { return s; }
+}
+
+function fmtDateTime(s: string): string {
+  try { return new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
+  catch { return s; }
+}
+
+function buildQueryString(option: RangeOption, customFrom: string, customTo: string): string {
+  if (option === "custom" && customFrom && customTo) {
+    const since = Math.floor(new Date(customFrom).getTime() / 1000);
+    const until = Math.floor(new Date(customTo + "T23:59:59").getTime() / 1000);
+    return `since=${since}&until=${until}`;
+  }
+  return `range=${option}`;
+}
+
+const RANGE_LABELS: Record<RangeOption, string> = {
+  today: "Today", yesterday: "Yesterday",
+  "7": "7 Days", "28": "28 Days", "90": "90 Days", custom: "Custom",
+};
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function ChartTip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-popover border rounded-xl shadow-xl p-3 text-sm min-w-[130px]">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.name} style={{ color: p.color }} className="font-medium">
+          {p.name}: <span className="text-foreground">{fmt(p.value)}</span>
+        </p>
+      ))}
+    </div>
+  );
 }
 
 function StatCard({
-  icon: Icon, label, value, color, loading,
+  icon: Icon, label, value, sub, color, loading,
 }: {
-  icon: React.ElementType;
-  label: string;
-  value: string;
-  color: string;
-  loading?: boolean;
+  icon: React.ElementType; label: string; value: string;
+  sub?: string; color: string; loading?: boolean;
 }) {
   return (
-    <Card className="border-0 shadow-sm bg-card/80 backdrop-blur">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{label}</p>
+    <Card className="shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">{label}</p>
             {loading ? (
-              <Skeleton className="h-8 w-24 mt-1" />
+              <Skeleton className="h-7 w-20 mt-1.5" />
             ) : (
-              <p className="text-2xl font-bold tracking-tight">{value}</p>
+              <p className="text-2xl font-bold tracking-tight mt-0.5">{value}</p>
             )}
+            {sub && !loading && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
           </div>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-            <Icon className="w-5 h-5 text-white" />
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+            <Icon className="w-4 h-4 text-white" />
           </div>
         </div>
       </CardContent>
@@ -106,436 +182,660 @@ function StatCard({
   );
 }
 
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+function SmallStatCard({
+  icon: Icon, label, value, iconColor, loading,
+}: {
+  icon: React.ElementType; label: string; value: string | number; iconColor: string; loading?: boolean;
+}) {
   return (
-    <div className="bg-popover border rounded-xl shadow-xl p-3 text-sm min-w-[120px]">
-      <p className="font-semibold text-foreground mb-1">{label}</p>
-      {payload.map((p: any) => (
-        <p key={p.name} style={{ color: p.color }} className="font-medium">
-          {p.name}: <span className="text-foreground">{formatNumber(p.value)}</span>
-        </p>
-      ))}
+    <div className="flex items-center gap-3 p-3 rounded-xl border bg-card">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+        <Icon className="w-3.5 h-3.5 text-white" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        {loading ? <Skeleton className="h-5 w-12 mt-0.5" /> : <p className="font-bold text-sm">{value}</p>}
+      </div>
     </div>
   );
 }
 
+function PostCard({ post, label, icon: Icon, iconColor }: { post: Post; label: string; icon: React.ElementType; iconColor: string }) {
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className={`px-4 py-2 flex items-center gap-2 text-xs font-semibold ${iconColor} border-b`}>
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <div className="p-4 space-y-3">
+        {post.thumbnail && (
+          <img src={post.thumbnail} alt="" className="w-full h-32 object-cover rounded-lg" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+        )}
+        <p className="text-sm line-clamp-3 text-foreground/90">
+          {post.message || <span className="italic text-muted-foreground">No text</span>}
+        </p>
+        <p className="text-xs text-muted-foreground">{fmtDateTime(post.createdTime)}</p>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1 border-t">
+          <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{fmt(post.reactions)}</span>
+          <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{fmt(post.comments)}</span>
+          <span className="flex items-center gap-1"><Share2 className="w-3 h-3" />{fmt(post.shares)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChartCard({ title, children, noData }: { title: string; children: React.ReactNode; noData?: boolean }) {
+  return (
+    <Card className="shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {noData ? (
+          <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+        ) : children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Breadcrumb({ account, page, onAccount, onPage }: {
+  account?: AnalyticsAccount | null; page?: AnalyticsPage | null;
+  onAccount: () => void; onPage: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
+      <button onClick={onAccount} className="hover:text-foreground font-medium transition-colors">Analytics</button>
+      {account && (
+        <>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <button
+            onClick={page ? onPage : undefined}
+            className={`font-medium transition-colors ${page ? "hover:text-foreground" : "text-foreground cursor-default"}`}
+          >
+            {account.name}
+          </button>
+        </>
+      )}
+      {page && (
+        <>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-foreground font-medium">{page.name}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PermissionErrorBanner({ message }: { message: string }) {
+  const isPermError = message.includes("permission") || message.includes("(#10)") || message.includes("pages_read_engagement");
+  return (
+    <div className={`flex flex-col gap-3 p-4 rounded-xl border ${isPermError ? "border-yellow-500/30 bg-yellow-500/5" : "border-destructive/30 bg-destructive/5"}`}>
+      <div className="flex items-start gap-3">
+        <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isPermError ? "text-yellow-600" : "text-destructive"}`} />
+        <div>
+          <p className={`text-sm font-semibold ${isPermError ? "text-yellow-700" : "text-destructive"}`}>
+            {isPermError ? "Missing Facebook Permission" : "Failed to Load Analytics"}
+          </p>
+          <p className={`text-xs mt-1 ${isPermError ? "text-yellow-600" : "text-destructive/80"}`}>
+            {isPermError
+              ? `${message} — Go to FB Accounts and click "Reconnect Facebook Account" to grant all required permissions.`
+              : message}
+          </p>
+        </div>
+      </div>
+      {isPermError && (
+        <a
+          href={`${BASE}/accounts`}
+          className="inline-flex items-center gap-1.5 text-xs font-medium h-8 px-3 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white transition-colors w-fit"
+        >
+          Go to FB Accounts → Reconnect
+        </a>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
+
 export default function Analytics() {
-  const { token } = useAuth();
   const { toast } = useToast();
-  const [pages, setPages] = useState<AnalyticsPage[]>([]);
-  const [loadingPages, setLoadingPages] = useState(false);
-  const [pagesLoaded, setPagesLoaded] = useState(false);
-  const [selectedPage, setSelectedPage] = useState<AnalyticsPage | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
-  const [range, setRange] = useState("7");
 
-  const loadPages = useCallback(async () => {
-    setLoadingPages(true);
-    try {
-      const res = await fetch(apiUrl("/analytics/pages"), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  // Navigation state
+  const [view, setView]                     = useState<ViewMode>("accounts");
+  const [selectedAccount, setSelectedAccount] = useState<AnalyticsAccount | null>(null);
+  const [selectedPage, setSelectedPage]     = useState<AnalyticsPage | null>(null);
+
+  // Date range state
+  const [rangeOption, setRangeOption]   = useState<RangeOption>("7");
+  const [customFrom, setCustomFrom]     = useState("");
+  const [customTo, setCustomTo]         = useState("");
+  const [showCustom, setShowCustom]     = useState(false);
+
+  // Analytics refresh key (increment to force refetch)
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  function goAccounts() { setView("accounts"); setSelectedAccount(null); setSelectedPage(null); }
+  function goPages(acc: AnalyticsAccount) { setSelectedAccount(acc); setView("pages"); setSelectedPage(null); }
+  function goDashboard(pg: AnalyticsPage) { setSelectedPage(pg); setView("dashboard"); }
+
+  function handleRangeChange(opt: RangeOption) {
+    setRangeOption(opt);
+    setShowCustom(opt === "custom");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Data queries
+  // ---------------------------------------------------------------------------
+
+  const accountsQuery = useQuery({
+    queryKey: ["analytics-accounts"],
+    queryFn: async () => {
+      const res = await authFetch(`${API}/analytics/accounts`);
+      if (!res.ok) throw new Error("Failed to load accounts");
+      return res.json() as Promise<AnalyticsAccount[]>;
+    },
+    staleTime: 60_000,
+  });
+
+  const pagesQuery = useQuery({
+    queryKey: ["analytics-pages", selectedAccount?.id],
+    queryFn: async () => {
+      const res = await authFetch(`${API}/analytics/accounts/${selectedAccount!.id}/pages`);
       if (!res.ok) throw new Error("Failed to load pages");
-      const data = await res.json();
-      setPages(data);
-      setPagesLoaded(true);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    } finally {
-      setLoadingPages(false);
-    }
-  }, [token, toast]);
+      return res.json() as Promise<AnalyticsPage[]>;
+    },
+    enabled: !!selectedAccount,
+    staleTime: 60_000,
+  });
 
-  const loadAnalytics = useCallback(async (page: AnalyticsPage, days: string) => {
-    setLoadingAnalytics(true);
-    setAnalytics(null);
-    try {
-      const res = await fetch(apiUrl(`/analytics/pages/${page.id}?range=${days}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const analyticsQueryKey = [
+    "analytics-dashboard", selectedPage?.id, rangeOption,
+    rangeOption === "custom" ? customFrom : "", rangeOption === "custom" ? customTo : "",
+    refreshKey,
+  ];
+
+  const analyticsQuery = useQuery({
+    queryKey: analyticsQueryKey,
+    queryFn: async () => {
+      const qs = buildQueryString(rangeOption, customFrom, customTo);
+      const res = await authFetch(`${API}/analytics/pages/${selectedPage!.id}?${qs}`);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to load analytics");
+        const err = await res.json().catch(() => ({ error: "Failed to load analytics" }));
+        throw Object.assign(new Error(err.error || "Failed to load analytics"), { permissionError: err.permissionError });
       }
-      const data = await res.json();
-      setAnalytics(data);
-    } catch (err: any) {
-      toast({ title: "Analytics Error", description: err.message, variant: "destructive" });
-    } finally {
-      setLoadingAnalytics(false);
-    }
-  }, [token, toast]);
+      return res.json() as Promise<AnalyticsData>;
+    },
+    enabled: !!selectedPage && view === "dashboard",
+    staleTime: 55_000,
+    retry: false,
+  });
 
-  function handleSelectPage(page: AnalyticsPage) {
-    setSelectedPage(page);
-    loadAnalytics(page, range);
+  const data     = analyticsQuery.data;
+  const loading  = analyticsQuery.isLoading;
+  const error    = analyticsQuery.error as (Error & { permissionError?: boolean }) | null;
+
+  // ---------------------------------------------------------------------------
+  // Render: Accounts view
+  // ---------------------------------------------------------------------------
+
+  if (view === "accounts") {
+    const accounts = accountsQuery.data ?? [];
+    const loadingAcc = accountsQuery.isLoading;
+
+    return (
+      <Layout>
+        <div className="flex flex-col gap-6">
+          <div className="flex items-end justify-between flex-wrap gap-3">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+              <p className="text-muted-foreground mt-1">Real-time Facebook insights from the Graph API.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => accountsQuery.refetch()} disabled={loadingAcc} className="gap-2">
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingAcc ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {loadingAcc ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-xl" />)}
+            </div>
+          ) : accountsQuery.error ? (
+            <PermissionErrorBanner message={(accountsQuery.error as Error).message} />
+          ) : !accounts.length ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="bg-primary/10 p-4 rounded-full mb-4">
+                <BarChart2 className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-bold mb-1">No Facebook Accounts Connected</h3>
+              <p className="text-muted-foreground max-w-sm">Connect a Facebook account in FB Accounts to start viewing analytics.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {accounts.map((acc) => (
+                <Card
+                  key={acc.id}
+                  className="cursor-pointer hover:shadow-md hover:border-primary/40 transition-all group"
+                  onClick={() => goPages(acc)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Avatar className="h-12 w-12 border shadow-sm flex-shrink-0">
+                        <AvatarImage src={acc.profilePicture ?? undefined} />
+                        <AvatarFallback className="bg-blue-500/10 text-blue-600 font-bold">
+                          {acc.name.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">{acc.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{acc.email ?? "No email"}</p>
+                        <Badge className="mt-1 text-[10px] bg-blue-500/10 text-blue-600 border-blue-500/20">
+                          {acc.pagesCount} page{acc.pagesCount !== 1 ? "s" : ""}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <span className="text-xs text-muted-foreground">Click to view pages</span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </Layout>
+    );
   }
 
-  function handleRangeChange(newRange: string) {
-    setRange(newRange);
-    if (selectedPage) loadAnalytics(selectedPage, newRange);
+  // ---------------------------------------------------------------------------
+  // Render: Pages view
+  // ---------------------------------------------------------------------------
+
+  if (view === "pages") {
+    const pages = pagesQuery.data ?? [];
+    const loadingPg = pagesQuery.isLoading;
+
+    return (
+      <Layout>
+        <div className="flex flex-col gap-6">
+          <Breadcrumb account={selectedAccount} onAccount={goAccounts} onPage={() => {}} />
+
+          <div className="flex items-end justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">{selectedAccount!.name}</h2>
+              <p className="text-muted-foreground mt-0.5">Select a page to view its live analytics.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => pagesQuery.refetch()} disabled={loadingPg} className="gap-2">
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingPg ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {loadingPg ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-44 rounded-xl" />)}
+            </div>
+          ) : pagesQuery.error ? (
+            <PermissionErrorBanner message={(pagesQuery.error as Error).message} />
+          ) : !pages.length ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="bg-primary/10 p-4 rounded-full mb-4">
+                <Users className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="text-lg font-bold mb-1">No Pages Found</h3>
+              <p className="text-muted-foreground max-w-sm">Sync pages for this account from FB Accounts → Sync Pages.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pages.map((pg) => (
+                <Card
+                  key={pg.id}
+                  className="cursor-pointer hover:shadow-md hover:border-primary/40 transition-all group"
+                  onClick={() => goDashboard(pg)}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-3 mb-4">
+                      <Avatar className="h-12 w-12 border shadow-sm flex-shrink-0">
+                        <AvatarImage src={pg.profilePicture ?? undefined} />
+                        <AvatarFallback className="font-bold">{pg.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm leading-tight line-clamp-1">{pg.name}</p>
+                        {pg.category && <p className="text-xs text-muted-foreground mt-0.5">{pg.category}</p>}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+                      <div className="text-center p-2 rounded-lg bg-muted/40">
+                        <p className="text-base font-bold text-primary">{fmt(pg.followersCount)}</p>
+                        <p className="text-muted-foreground mt-0.5">Followers</p>
+                      </div>
+                      <div className="text-center p-2 rounded-lg bg-muted/40">
+                        <p className="text-base font-bold">{pg.fbPageId}</p>
+                        <p className="text-muted-foreground mt-0.5 truncate text-[10px]">Page ID</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <BarChart2 className="w-3 h-3" />View Analytics
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </Layout>
+    );
   }
 
-  const groupedPages = pages.reduce((acc, p) => {
-    const key = p.accountId;
-    if (!acc[key]) acc[key] = { accountName: p.accountName, accountPicture: p.accountPicture, pages: [] };
-    acc[key].pages.push(p);
-    return acc;
-  }, {} as Record<string, { accountName: string; accountPicture?: string; pages: AnalyticsPage[] }>);
+  // ---------------------------------------------------------------------------
+  // Render: Dashboard view
+  // ---------------------------------------------------------------------------
+
+  const s = data?.summary;
+
+  function RangeSelector() {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {(["today", "yesterday", "7", "28", "90", "custom"] as RangeOption[]).map((opt) => (
+            <button
+              key={opt}
+              onClick={() => handleRangeChange(opt)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                rangeOption === opt
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+              }`}
+            >
+              {RANGE_LABELS[opt]}
+            </button>
+          ))}
+        </div>
+        {showCustom && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="h-8 text-xs w-36"
+            />
+            <span className="text-xs text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="h-8 text-xs w-36"
+            />
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              disabled={!customFrom || !customTo}
+              onClick={() => setRefreshKey((k) => k + 1)}
+            >
+              Apply
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        <AnimatePresence mode="wait">
-          {selectedPage && analytics ? (
-            <motion.div
-              key="detail"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.25 }}
-            >
-              {/* Analytics Detail View */}
-              <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedPage(null)} className="gap-1">
-                    <ArrowLeft className="w-4 h-4" /> Back
-                  </Button>
-                  {selectedPage.profilePicture ? (
-                    <img src={selectedPage.profilePicture} alt="" className="w-9 h-9 rounded-xl object-cover" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <BarChart2 className="w-4 h-4 text-primary" />
-                    </div>
+      <div className="flex flex-col gap-5">
+        {/* Header */}
+        <Breadcrumb account={selectedAccount} page={selectedPage} onAccount={goAccounts} onPage={() => setView("pages")} />
+
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12 border shadow-sm flex-shrink-0">
+              <AvatarImage src={selectedPage!.profilePicture ?? undefined} />
+              <AvatarFallback className="font-bold">{selectedPage!.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-xl font-bold leading-tight">{selectedPage!.name}</h2>
+              {selectedPage!.category && <p className="text-sm text-muted-foreground">{selectedPage!.category}</p>}
+              {data?.fromCache && <p className="text-[10px] text-muted-foreground">Cached · refreshes every 60s</p>}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loading}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Range selector */}
+        <RangeSelector />
+
+        {/* Permission / generic error */}
+        {error && !loading && (
+          <PermissionErrorBanner message={error.message} />
+        )}
+
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
+            </div>
+          </div>
+        )}
+
+        {data && !loading && (
+          <>
+            {/* ---- Primary stat cards ---- */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <StatCard icon={Users}       label="Followers"      value={fmt(s!.followers)}            color="bg-blue-500" />
+              <StatCard icon={Heart}       label="Page Fans"      value={fmt(s!.fans)}                 color="bg-pink-500" />
+              <StatCard icon={TrendingUp}  label="New Fans"       value={fmt(s!.newFans)}              sub={`-${fmt(s!.lostFans)} lost`} color="bg-emerald-500" />
+              <StatCard icon={Eye}         label="Impressions"    value={fmt(s!.impressions)}          sub={`${fmt(s!.organicImpressions)} organic`} color="bg-violet-500" />
+              <StatCard icon={Globe}       label="Unique Reach"   value={fmt(s!.reach)}                color="bg-cyan-500" />
+              <StatCard icon={Activity}    label="Engagement"     value={fmt(s!.engagement)}           color="bg-orange-500" />
+              <StatCard icon={Users}       label="Engaged Users"  value={fmt(s!.engagedUsers)}         color="bg-indigo-500" />
+              <StatCard icon={BookOpen}    label="Page Views"     value={fmt(s!.pageViews)}            color="bg-slate-500" />
+              <StatCard icon={Video}       label="Video Views"    value={fmt(s!.videoViews)}           color="bg-purple-500" />
+              <StatCard icon={PlayCircle}  label="Reel Views"     value={fmt(s!.reelViews)}            color="bg-fuchsia-500" />
+              <StatCard icon={Clock}       label="Watch Time"     value={`${fmt(s!.watchTimeMinutes)}m`} color="bg-teal-500" />
+              <StatCard icon={Zap}         label="Reactions"      value={fmt(s!.totalReactions)}       color="bg-yellow-500" />
+              <StatCard icon={MessageCircle} label="Comments"     value={fmt(s!.totalComments)}        color="bg-rose-500" />
+              <StatCard icon={Share2}      label="Shares"         value={fmt(s!.totalShares)}          color="bg-sky-500" />
+              <StatCard icon={FileText}    label="Total Posts"    value={fmt(s!.totalPosts)}           color="bg-gray-500" />
+              <StatCard icon={Video}       label="Total Videos"   value={`${fmt(s!.totalVideos)} · ${fmt(s!.totalReels)} reels`} color="bg-amber-500" />
+            </div>
+
+            {/* ---- Publishing counts ---- */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Posts Published</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <SmallStatCard icon={Calendar} label="Today"       value={s!.publishedToday}      iconColor="bg-green-500" />
+                <SmallStatCard icon={Calendar} label="This Week"   value={s!.publishedThisWeek}   iconColor="bg-blue-500" />
+                <SmallStatCard icon={Calendar} label="This Month"  value={s!.publishedThisMonth}  iconColor="bg-violet-500" />
+                <SmallStatCard icon={FileText}  label="Total Fetched" value={s!.totalPosts}       iconColor="bg-slate-500" />
+              </div>
+            </div>
+
+            {/* ---- Charts ---- */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ChartCard title="Impressions" noData={!data.charts.impressions.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={data.charts.impressions}>
+                    <defs>
+                      <linearGradient id="gImp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Area type="monotone" dataKey="value" name="Impressions" stroke="#7c3aed" fill="url(#gImp)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Unique Reach" noData={!data.charts.reach.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={data.charts.reach}>
+                    <defs>
+                      <linearGradient id="gReach" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Area type="monotone" dataKey="value" name="Reach" stroke="#06b6d4" fill="url(#gReach)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Post Engagement" noData={!data.charts.engagement.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={data.charts.engagement}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Bar dataKey="value" name="Engagement" fill="#f97316" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Followers (Page Fans)" noData={!data.charts.followers.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={data.charts.followers}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={45} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Line type="monotone" dataKey="value" name="Followers" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="Video Views" noData={!data.charts.videoViews.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={data.charts.videoViews}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Bar dataKey="value" name="Video Views" fill="#a855f7" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+
+              <ChartCard title="New Fans per Day" noData={!data.charts.fanAdds.length}>
+                <ResponsiveContainer width="100%" height={180}>
+                  <AreaChart data={data.charts.fanAdds}>
+                    <defs>
+                      <linearGradient id="gFans" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                    <RechartTooltip content={<ChartTip />} />
+                    <Area type="monotone" dataKey="value" name="New Fans" stroke="#10b981" fill="url(#gFans)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </div>
+
+            {/* ---- Best & Worst performing posts ---- */}
+            {(data.bestPost || data.worstPost) && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Post Performance</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {data.bestPost && (
+                    <PostCard
+                      post={data.bestPost}
+                      label="Best Performing Post"
+                      icon={Star}
+                      iconColor="bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
+                    />
                   )}
-                  <div>
-                    <h1 className="text-xl font-bold">{selectedPage.name}</h1>
-                    {selectedPage.category && (
-                      <p className="text-xs text-muted-foreground">{selectedPage.category}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-lg overflow-hidden border">
-                    {["7", "30"].map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => handleRangeChange(d)}
-                        className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                          range === d
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-background text-muted-foreground hover:bg-muted"
-                        }`}
-                      >
-                        {d}d
-                      </button>
-                    ))}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadAnalytics(selectedPage, range)}
-                    disabled={loadingAnalytics}
-                    className="gap-1"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${loadingAnalytics ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
+                  {data.worstPost && data.worstPost.id !== data.bestPost?.id && (
+                    <PostCard
+                      post={data.worstPost}
+                      label="Lowest Performing Post"
+                      icon={ArrowDown}
+                      iconColor="bg-slate-500/10 text-slate-600 border-slate-500/20"
+                    />
+                  )}
                 </div>
               </div>
+            )}
 
-              {loadingAnalytics ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {[...Array(4)].map((_, i) => (
-                    <Skeleton key={i} className="h-24 rounded-2xl" />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <StatCard icon={Users} label="Followers" value={formatNumber(analytics.summary.followers)} color="bg-blue-500" />
-                    <StatCard icon={Eye} label={`Impressions (${range}d)`} value={formatNumber(analytics.summary.totalImpressions)} color="bg-violet-500" />
-                    <StatCard icon={TrendingUp} label={`Unique Reach (${range}d)`} value={formatNumber(analytics.summary.uniqueReach)} color="bg-emerald-500" />
-                    <StatCard icon={ThumbsUp} label={`Engagement (${range}d)`} value={formatNumber(analytics.summary.totalEngagement)} color="bg-orange-500" />
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-pink-100 dark:bg-pink-950 flex items-center justify-center">
-                          <Users className="w-4 h-4 text-pink-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Engaged Users</p>
-                          <p className="text-lg font-bold">{formatNumber(analytics.summary.engagedUsers)}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-cyan-100 dark:bg-cyan-950 flex items-center justify-center">
-                          <Eye className="w-4 h-4 text-cyan-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Page Views</p>
-                          <p className="text-lg font-bold">{formatNumber(analytics.summary.pageViews)}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950 flex items-center justify-center">
-                          <FileText className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total Posts</p>
-                          <p className="text-lg font-bold">{analytics.summary.postsCount}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="border-0 shadow-sm">
-                      <CardContent className="p-4 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center">
-                          <Video className="w-4 h-4 text-indigo-600" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total Videos</p>
-                          <p className="text-lg font-bold">{analytics.summary.videosCount}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                    <Card className="border-0 shadow-sm">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                          Impressions — Last {range} Days
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {analytics.charts.impressions.length ? (
-                          <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={analytics.charts.impressions}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
-                              <YAxis tickFormatter={formatNumber} tick={{ fontSize: 11 }} width={45} />
-                              <Tooltip content={<ChartTooltip />} />
-                              <Line type="monotone" dataKey="value" name="Impressions" stroke="#7c3aed" strokeWidth={2} dot={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+            {/* ---- Latest posts ---- */}
+            {data.recentPosts.length > 0 && (
+              <Card className="shadow-sm">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Latest Posts ({data.recentPosts.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {data.recentPosts.map((post) => (
+                      <div key={post.id} className="flex items-start gap-4 px-6 py-4">
+                        {post.thumbnail && (
+                          <img
+                            src={post.thumbnail}
+                            alt=""
+                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 hidden sm:block"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
                         )}
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                          Engagement — Last {range} Days
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {analytics.charts.engagement.length ? (
-                          <ResponsiveContainer width="100%" height={200}>
-                            <BarChart data={analytics.charts.engagement}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
-                              <YAxis tickFormatter={formatNumber} tick={{ fontSize: 11 }} width={45} />
-                              <Tooltip content={<ChartTooltip />} />
-                              <Bar dataKey="value" name="Engagement" fill="#f97316" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                          Unique Reach — Last {range} Days
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {analytics.charts.uniqueReach.length ? (
-                          <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={analytics.charts.uniqueReach}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
-                              <YAxis tickFormatter={formatNumber} tick={{ fontSize: 11 }} width={45} />
-                              <Tooltip content={<ChartTooltip />} />
-                              <Line type="monotone" dataKey="value" name="Unique Reach" stroke="#10b981" strokeWidth={2} dot={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-sm">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                          Followers Growth — Last {range} Days
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {analytics.charts.followers.length ? (
-                          <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={analytics.charts.followers}>
-                              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                              <XAxis dataKey="date" tickFormatter={formatDate} tick={{ fontSize: 11 }} />
-                              <YAxis tickFormatter={formatNumber} tick={{ fontSize: 11 }} width={50} />
-                              <Tooltip content={<ChartTooltip />} />
-                              <Line type="monotone" dataKey="value" name="Followers" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        ) : (
-                          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {analytics.recentPosts.length > 0 && (
-                    <Card className="border-0 shadow-sm">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                          Recent Posts
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {analytics.recentPosts.map((post) => (
-                            <div key={post.id} className="flex items-start justify-between gap-4 py-3 border-b last:border-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm line-clamp-2 text-foreground/90">
-                                  {post.message || <span className="text-muted-foreground italic">No text</span>}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {new Date(post.createdTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                  {post.hasVideo && <Badge variant="outline" className="ml-2 text-[10px] py-0">Video</Badge>}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
-                                <span title="Likes">👍 {post.likes}</span>
-                                <span title="Comments">💬 {post.comments}</span>
-                                <span title="Shares">↗ {post.shares}</span>
-                              </div>
-                            </div>
-                          ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[10px] text-muted-foreground">{fmtDateTime(post.createdTime)}</span>
+                            {post.hasVideo && <Badge variant="outline" className="text-[10px] py-0 h-4">Video</Badge>}
+                            {post.hasImage && !post.hasVideo && <Badge variant="outline" className="text-[10px] py-0 h-4">Image</Badge>}
+                          </div>
+                          <p className="text-sm line-clamp-2 text-foreground/90">
+                            {post.message || <span className="italic text-muted-foreground">No text</span>}
+                          </p>
                         </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              key="list"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.25 }}
-            >
-              {/* Page Selection View */}
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-                  <p className="text-sm text-muted-foreground mt-0.5">Real-time Facebook page insights from the Graph API</p>
-                </div>
-                <Button onClick={loadPages} disabled={loadingPages} className="gap-2">
-                  <RefreshCw className={`w-4 h-4 ${loadingPages ? "animate-spin" : ""}`} />
-                  {pagesLoaded ? "Refresh" : "Load Pages"}
-                </Button>
-              </div>
-
-              {!pagesLoaded && (
-                <div className="text-center py-20 text-muted-foreground">
-                  <BarChart2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-base font-medium">Select a page to view analytics</p>
-                  <p className="text-sm mt-1">Click "Load Pages" to see your connected Facebook pages</p>
-                </div>
-              )}
-
-              {loadingPages && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[...Array(6)].map((_, i) => (
-                    <Skeleton key={i} className="h-32 rounded-2xl" />
-                  ))}
-                </div>
-              )}
-
-              {pagesLoaded && !loadingPages && pages.length === 0 && (
-                <div className="text-center py-20 text-muted-foreground">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-base font-medium">No pages found</p>
-                  <p className="text-sm mt-1">Connect a Facebook account with pages to see analytics</p>
-                </div>
-              )}
-
-              {pagesLoaded && !loadingPages && Object.entries(groupedPages).map(([accountId, group]) => (
-                <div key={accountId} className="mb-8">
-                  <div className="flex items-center gap-2.5 mb-4">
-                    {group.accountPicture ? (
-                      <img src={group.accountPicture} alt="" className="w-7 h-7 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Users className="w-3.5 h-3.5 text-primary" />
+                        <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground flex-shrink-0">
+                          <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{fmt(post.reactions)}</span>
+                          <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{fmt(post.comments)}</span>
+                          <span className="flex items-center gap-1"><Share2 className="w-3 h-3" />{fmt(post.shares)}</span>
+                        </div>
                       </div>
-                    )}
-                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{group.accountName}</h2>
-                    <Badge variant="secondary" className="text-xs">{group.pages.length} page{group.pages.length !== 1 ? "s" : ""}</Badge>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {group.pages.map((page) => (
-                      <motion.div
-                        key={page.id}
-                        whileHover={{ scale: 1.01 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                      >
-                        <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer bg-card/80 backdrop-blur overflow-hidden">
-                          <CardContent className="p-5">
-                            <div className="flex items-start gap-3 mb-4">
-                              {page.profilePicture ? (
-                                <img src={page.profilePicture} alt="" className="w-11 h-11 rounded-xl object-cover flex-shrink-0" />
-                              ) : (
-                                <div className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center flex-shrink-0">
-                                  <BarChart2 className="w-5 h-5 text-blue-600" />
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm leading-tight truncate">{page.name}</p>
-                                {page.category && <p className="text-xs text-muted-foreground mt-0.5">{page.category}</p>}
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  <span className="font-semibold text-foreground">{formatNumber(page.followersCount)}</span> followers
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              className="w-full gap-2"
-                              onClick={() => handleSelectPage(page)}
-                            >
-                              <BarChart2 className="w-3.5 h-3.5" />
-                              View Analytics
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                </CardContent>
+              </Card>
+            )}
+
+            <p className="text-xs text-muted-foreground text-center">
+              Last fetched: {new Date(data.fetchedAt).toLocaleTimeString()} · Data from Facebook Graph API v19.0
+            </p>
+          </>
+        )}
       </div>
     </Layout>
   );
