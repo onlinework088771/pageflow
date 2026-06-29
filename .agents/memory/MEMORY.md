@@ -1,0 +1,2 @@
+- [PageFlow Dev Rules](pageflow-dev-rules.md) — permanent golden rules for all PageFlow work: stability first, no rewrites, explain before coding, preserve all existing functionality.
+- [PageFlow Architecture](pageflow-architecture.md) — full codebase map: monorepo layout, backend services, DB schema, frontend routes, OAuth flow, env vars.

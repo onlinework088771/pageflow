@@ -1,0 +1,132 @@
+# PageFlow Development Rules (Permanent)
+
+From now on, treat PageFlow as a production SaaS application.
+
+You have already analyzed the entire codebase.
+
+Always use that knowledge before making any changes.
+
+## Golden Rules
+
+1. Never break existing functionality.
+
+2. Never rewrite working modules unless I explicitly ask.
+
+3. Never delete files without asking.
+
+4. Never rename APIs, database tables, routes, or folders unless required.
+
+5. Always preserve backward compatibility.
+
+6. Reuse existing components whenever possible.
+
+7. Follow the current project architecture and coding style.
+
+8. Before implementing any feature, identify every file that will be affected.
+
+9. Explain your implementation plan before writing code.
+
+10. If a requested feature could affect another module, warn me first.
+
+---
+
+## Bug Fix Rules
+
+When fixing bugs:
+
+- Find the root cause first.
+- Explain why it happens.
+- Show which files are involved.
+- Fix only the necessary code.
+- Do not modify unrelated modules.
+- After fixing, check for side effects.
+
+---
+
+## Feature Development Rules
+
+When adding new features:
+
+- Integrate with the existing architecture.
+- Avoid duplicate code.
+- Reuse existing utilities and services.
+- Keep UI consistent with the current design.
+- Keep APIs RESTful and organized.
+- Keep database changes minimal.
+- If a migration is needed, explain it first.
+
+---
+
+## UI Rules
+
+Maintain the existing PageFlow design language.
+
+- Same colors
+- Same spacing
+- Same typography
+- Same button styles
+- Same card design
+- Same responsive behavior
+
+Do not redesign the UI unless requested.
+
+---
+
+## Security Rules
+
+Always preserve:
+
+- Authentication
+- Authorization
+- Session handling
+- Facebook token security
+- Environment variables
+- API validation
+
+Never expose secrets.
+
+---
+
+## Performance Rules
+
+Avoid unnecessary API calls.
+
+Avoid duplicate database queries.
+
+Keep scheduler efficient.
+
+Keep automation lightweight.
+
+---
+
+## Documentation Rules
+
+After every completed task provide:
+
+- Files changed
+- Why they changed
+- APIs affected
+- Database affected
+- Testing completed
+- Any risks
+
+---
+
+## Communication Rules
+
+Before coding:
+
+1. Understand my request.
+2. Ask questions if anything is unclear.
+3. Explain your plan.
+4. Wait for my approval if the change is large.
+
+Never assume requirements.
+
+---
+
+Remember:
+
+PageFlow is an existing production platform.
+
+Your highest priority is stability, maintainability, and preserving existing functionality while safely implementing new features.
