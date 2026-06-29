@@ -17,6 +17,7 @@ import Settings from "@/pages/settings";
 import UploadScheduler from "@/pages/upload-scheduler";
 import Analytics from "@/pages/analytics";
 import PageManagement from "@/pages/page-management";
+import ScheduleManager from "@/pages/schedule-manager";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,9 @@ function Router() {
       </Route>
       <Route path="/page-management">
         <ProtectedRoute component={PageManagement} />
+      </Route>
+      <Route path="/schedule">
+        <ProtectedRoute component={ScheduleManager} />
       </Route>
       <Route component={NotFound} />
     </Switch>

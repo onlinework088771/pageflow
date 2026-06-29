@@ -199,9 +199,11 @@ router.put("/scheduled-videos/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const { scheduledAt, timezone, pageIds } = req.body;
+  const { scheduledAt, timezone, pageIds, title, description } = req.body;
   const updates: Partial<typeof scheduledVideosTable.$inferInsert> = {};
 
+  if (title !== undefined) updates.title = String(title).trim();
+  if (description !== undefined) updates.description = description ? String(description).trim() : null;
   if (scheduledAt) {
     const d = new Date(scheduledAt);
     if (isNaN(d.getTime())) { res.status(400).json({ error: "Invalid date" }); return; }
@@ -221,6 +223,34 @@ router.put("/scheduled-videos/:id", async (req, res): Promise<void> => {
     .returning();
 
   res.json(serializeVideo(updated));
+});
+
+router.post("/scheduled-videos/:id/duplicate", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const userId = req.user!.userId;
+  const [original] = await db
+    .select()
+    .from(scheduledVideosTable)
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)));
+  if (!original) { res.status(404).json({ error: "Not found" }); return; }
+  const newScheduledAt = new Date(original.scheduledAt instanceof Date ? original.scheduledAt.getTime() : Number(original.scheduledAt));
+  newScheduledAt.setDate(newScheduledAt.getDate() + 1);
+  const [copy] = await db
+    .insert(scheduledVideosTable)
+    .values({
+      userId,
+      title: `${original.title} (Copy)`,
+      description: original.description,
+      pageIds: original.pageIds,
+      scheduledAt: newScheduledAt,
+      timezone: original.timezone,
+      videoPath: original.videoPath,
+      videoUrl: original.videoUrl,
+      status: "pending",
+    })
+    .returning();
+  res.status(201).json(serializeVideo(copy));
 });
 
 router.delete("/scheduled-videos/:id", async (req, res): Promise<void> => {
