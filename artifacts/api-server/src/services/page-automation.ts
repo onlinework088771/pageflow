@@ -4,7 +4,12 @@ import { promisify } from "util";
 import fs from "fs";
 import path from "path";
 import FormData from "form-data";
-import { db, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
+import {
+  db,
+  facebookPagesTable,
+  facebookAccountsTable,
+  automationLogsTable,
+} from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { parseStringPromise } from "xml2js";
@@ -12,6 +17,34 @@ import { parseStringPromise } from "xml2js";
 const execFileAsync = promisify(execFile);
 const FB_API = "https://graph.facebook.com/v19.0";
 const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
+
+// ---------------------------------------------------------------------------
+// Automation log writer
+// ---------------------------------------------------------------------------
+
+async function logAutomation(
+  status: "success" | "error" | "info",
+  type: string,
+  message: string,
+  pageId?: number,
+  pageName?: string,
+  accountId?: number,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.insert(automationLogsTable).values({
+      type,
+      message,
+      pageId: pageId ?? null,
+      pageName: pageName ?? null,
+      accountId: accountId ?? null,
+      status,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    });
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Failed to write automation log");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Timezone-aware time matching
@@ -35,6 +68,14 @@ function getCurrentHHMM(timezone: string): string {
 
 function timeSlotDue(slot: string, timezone: string): boolean {
   return getCurrentHHMM(timezone) === slot;
+}
+
+/**
+ * Get the number of hours since the last post, or Infinity if never posted.
+ */
+function hoursSinceLastPost(lastPostedAt: Date | null | undefined): number {
+  if (!lastPostedAt) return Infinity;
+  return (Date.now() - new Date(lastPostedAt).getTime()) / (1000 * 60 * 60);
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +241,36 @@ async function fetchYouTubeRssVideos(
 // ---------------------------------------------------------------------------
 // Facebook helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Detect if an Axios error is a Facebook token expiry / permission error.
+ */
+function isFacebookAuthError(err: any): boolean {
+  const fbCode = err?.response?.data?.error?.code;
+  const fbSubCode = err?.response?.data?.error?.error_subcode;
+  const fbType = err?.response?.data?.error?.type;
+  // OAuthException with code 190 = expired/invalid token
+  // Code 200-299 = permission errors
+  return (
+    fbType === "OAuthException" ||
+    fbCode === 190 ||
+    fbSubCode === 463 ||
+    fbSubCode === 467 ||
+    (typeof fbCode === "number" && fbCode >= 200 && fbCode < 300)
+  );
+}
+
+async function markAccountExpired(accountId: number): Promise<void> {
+  try {
+    await db
+      .update(facebookAccountsTable)
+      .set({ status: "expired" })
+      .where(eq(facebookAccountsTable.id, accountId));
+    logger.warn({ accountId }, "Facebook account marked as expired due to token failure");
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Failed to mark account expired");
+  }
+}
 
 async function getPageAccessToken(fbPageId: string, userToken: string): Promise<string> {
   const res = await axios.get(`${FB_API}/${fbPageId}`, {
@@ -396,10 +467,43 @@ async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): 
 
   if (!account) {
     logger.warn({ pageId: page.id }, "Page automation: account not found");
+    await logAutomation(
+      "error",
+      "automation",
+      `Account not found for page "${page.name}"`,
+      page.id,
+      page.name,
+      page.accountId,
+    );
     return;
   }
 
-  const pageToken = await getPageAccessToken(page.fbPageId, account.accessToken);
+  // Check if account token is already marked expired — skip early
+  if (account.status === "expired") {
+    logger.warn({ pageId: page.id, accountId: account.id }, "Page automation: account token expired, skipping");
+    return;
+  }
+
+  let pageToken: string;
+  try {
+    pageToken = await getPageAccessToken(page.fbPageId, account.accessToken);
+  } catch (err: any) {
+    const msg = err?.response?.data?.error?.message ?? err.message;
+    logger.error({ pageId: page.id, err: msg }, "Page automation: failed to get page token");
+    if (isFacebookAuthError(err)) {
+      await markAccountExpired(account.id);
+      await logAutomation(
+        "error",
+        "automation",
+        `Facebook token expired for page "${page.name}" — please reconnect your account`,
+        page.id,
+        page.name,
+        account.id,
+        { fbError: msg },
+      );
+    }
+    throw err;
+  }
 
   let postedVideoId: string;
 
@@ -425,59 +529,184 @@ async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): 
     })
     .where(eq(facebookPagesTable.id, page.id));
 
+  await logAutomation(
+    "success",
+    "automation",
+    `Successfully posted video to "${page.name}" from ${source}`,
+    page.id,
+    page.name,
+    account.id,
+    { source, videoId: postedVideoId },
+  );
+
   logger.info({ pageId: page.id, source, postedVideoId }, "Page automation: posted successfully");
 }
 
 // ---------------------------------------------------------------------------
-// Scheduler — runs every 60 s, checks all active pages with fixed time slots
+// Fixed schedule — runs every 60 s, checks time slots
 // ---------------------------------------------------------------------------
 
 const triggeredSlots = new Map<string, string>(); // `${pageId}:${slot}` → HH:MM when last fired
 
-export async function runPageAutomation(): Promise<void> {
-  try {
-    // Fetch ALL active pages with fixed schedule (any source type)
-    const activePages = await db
-      .select()
-      .from(facebookPagesTable)
-      .where(
-        and(
-          eq(facebookPagesTable.automationEnabled, true),
-          eq(facebookPagesTable.scheduleLogic, "fixed"),
-          eq(facebookPagesTable.status, "active"),
-        ),
+async function runFixedSchedule(): Promise<void> {
+  const activePages = await db
+    .select()
+    .from(facebookPagesTable)
+    .where(
+      and(
+        eq(facebookPagesTable.automationEnabled, true),
+        eq(facebookPagesTable.scheduleLogic, "fixed"),
+        eq(facebookPagesTable.status, "active"),
+      ),
+    );
+
+  if (!activePages.length) return;
+
+  for (const page of activePages) {
+    if (!page.sourceIdentity?.trim()) {
+      logger.warn({ pageId: page.id }, "Page automation (fixed): skipping — no sourceIdentity configured");
+      continue;
+    }
+
+    const slots: string[] = Array.isArray(page.timeSlots) ? page.timeSlots : [];
+    if (!slots.length) {
+      logger.warn({ pageId: page.id }, "Page automation (fixed): skipping — no time slots configured");
+      continue;
+    }
+
+    const timezone = page.timezone || "UTC";
+    const dueSlot = slots.find((slot) => timeSlotDue(slot, timezone));
+    if (!dueSlot) continue;
+
+    const dedupeKey = `${page.id}:${dueSlot}`;
+    const currentHHMM = getCurrentHHMM(timezone);
+    if (triggeredSlots.get(dedupeKey) === currentHHMM) continue;
+    triggeredSlots.set(dedupeKey, currentHHMM);
+
+    logger.info(
+      { pageId: page.id, source: page.sourceType, slot: dueSlot, timezone },
+      "Page automation (fixed): time slot due, posting",
+    );
+
+    postPageNextVideo(page).catch(async (err) => {
+      const msg = err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
+      logger.error({ pageId: page.id, source: page.sourceType, err: msg }, "Page automation (fixed) post failed");
+
+      // Check for auth errors and mark account expired
+      if (isFacebookAuthError(err)) {
+        const [account] = await db
+          .select()
+          .from(facebookAccountsTable)
+          .where(eq(facebookAccountsTable.id, page.accountId));
+        if (account) await markAccountExpired(account.id);
+      }
+
+      await logAutomation(
+        "error",
+        "automation",
+        `Failed to post to "${page.name}": ${msg}`,
+        page.id,
+        page.name,
+        page.accountId,
+        { source: page.sourceType, slot: dueSlot, error: msg },
       );
 
-    if (!activePages.length) return;
+      db.update(facebookPagesTable)
+        .set({ totalFailed: page.totalFailed + 1 })
+        .where(eq(facebookPagesTable.id, page.id))
+        .catch(() => {});
+    });
+  }
+}
 
-    for (const page of activePages) {
-      if (!page.sourceIdentity?.trim()) continue;
+// ---------------------------------------------------------------------------
+// Random schedule — posts evenly spaced throughout the day based on postsPerDay
+// ---------------------------------------------------------------------------
 
-      const slots: string[] = Array.isArray(page.timeSlots) ? page.timeSlots : [];
-      if (!slots.length) continue;
+// In-memory set to prevent double-triggering the same page within the same polling cycle
+const randomInProgress = new Set<number>();
 
-      const timezone = page.timezone || "UTC";
-      const dueSlot = slots.find((slot) => timeSlotDue(slot, timezone));
-      if (!dueSlot) continue;
+async function runRandomSchedule(): Promise<void> {
+  const activePages = await db
+    .select()
+    .from(facebookPagesTable)
+    .where(
+      and(
+        eq(facebookPagesTable.automationEnabled, true),
+        eq(facebookPagesTable.scheduleLogic, "random"),
+        eq(facebookPagesTable.status, "active"),
+      ),
+    );
 
-      const dedupeKey = `${page.id}:${dueSlot}`;
-      const currentHHMM = getCurrentHHMM(timezone);
-      if (triggeredSlots.get(dedupeKey) === currentHHMM) continue;
-      triggeredSlots.set(dedupeKey, currentHHMM);
+  if (!activePages.length) return;
 
-      logger.info(
-        { pageId: page.id, source: page.sourceType, slot: dueSlot, timezone },
-        "Page automation: time slot due, posting",
-      );
+  for (const page of activePages) {
+    if (!page.sourceIdentity?.trim()) {
+      logger.warn({ pageId: page.id }, "Page automation (random): skipping — no sourceIdentity configured");
+      continue;
+    }
 
-      postPageNextVideo(page).catch((err) => {
-        logger.error({ pageId: page.id, source: page.sourceType, err: err.message }, "Page automation post failed");
+    // Prevent concurrent execution for the same page
+    if (randomInProgress.has(page.id)) continue;
+
+    const postsPerDay = page.postsPerDay > 0 ? page.postsPerDay : 1;
+    // Minimum interval between posts in hours
+    const minIntervalHours = 24 / postsPerDay;
+    const hoursElapsed = hoursSinceLastPost(page.lastPostedAt);
+
+    if (hoursElapsed < minIntervalHours) continue;
+
+    logger.info(
+      { pageId: page.id, source: page.sourceType, hoursElapsed, minIntervalHours },
+      "Page automation (random): interval elapsed, posting",
+    );
+
+    randomInProgress.add(page.id);
+
+    postPageNextVideo(page)
+      .catch(async (err) => {
+        const msg = err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
+        logger.error({ pageId: page.id, source: page.sourceType, err: msg }, "Page automation (random) post failed");
+
+        if (isFacebookAuthError(err)) {
+          const [account] = await db
+            .select()
+            .from(facebookAccountsTable)
+            .where(eq(facebookAccountsTable.id, page.accountId));
+          if (account) await markAccountExpired(account.id);
+        }
+
+        await logAutomation(
+          "error",
+          "automation",
+          `Failed to post to "${page.name}": ${msg}`,
+          page.id,
+          page.name,
+          page.accountId,
+          { source: page.sourceType, scheduleLogic: "random", error: msg },
+        );
+
         db.update(facebookPagesTable)
           .set({ totalFailed: page.totalFailed + 1 })
           .where(eq(facebookPagesTable.id, page.id))
           .catch(() => {});
+      })
+      .finally(() => {
+        randomInProgress.delete(page.id);
       });
-    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main scheduler entry point — runs every 60 s
+// ---------------------------------------------------------------------------
+
+export async function runPageAutomation(): Promise<void> {
+  try {
+    await Promise.allSettled([
+      runFixedSchedule(),
+      runRandomSchedule(),
+    ]);
   } catch (err: any) {
     logger.error({ err: err.message }, "Page automation scheduler error");
   }

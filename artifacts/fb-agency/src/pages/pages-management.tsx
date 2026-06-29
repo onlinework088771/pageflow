@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
   useListPages, getListPagesQueryKey,
-  useCreatePage, useDeletePage, useUpdatePage,
+  useCreatePage,
+  useUpdatePage,
   useListAccounts, getListAccountsQueryKey,
   useGetAccountAvailablePages, getGetAccountAvailablePagesQueryKey,
 } from "@workspace/api-client-react";
@@ -16,11 +17,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Plus, Search, Files, Users, TrendingUp, Clock, ChevronRight,
+  Plus, Search, Zap, TrendingUp, Clock, ChevronRight,
   Instagram, Youtube, Globe, Trash2, MoreHorizontal, X,
+  Calendar, CheckCircle2, XCircle, AlertCircle, RefreshCw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -40,10 +46,16 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
   tiktok: <Globe className="h-4 w-4" />,
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+};
+
 type Step = 1 | 2;
 
 const defaultStep2 = {
-  sourceType: "instagram" as "instagram" | "youtube" | "tiktok",
+  sourceType: "youtube" as "instagram" | "youtube" | "tiktok",
   sourceIdentity: "",
   postsPerDay: 3,
   scheduleLogic: "fixed" as "fixed" | "random",
@@ -51,28 +63,115 @@ const defaultStep2 = {
   timeSlots: [] as string[],
 };
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return "Never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function getNextScheduledPost(
+  timeSlots: string[],
+  timezone: string,
+  scheduleLogic: string,
+  postsPerDay: number,
+  lastPostedAt?: string | null,
+): string {
+  if (scheduleLogic === "random") {
+    if (!lastPostedAt) return "Soon";
+    const intervalHours = 24 / (postsPerDay > 0 ? postsPerDay : 1);
+    const nextMs = new Date(lastPostedAt).getTime() + intervalHours * 3600 * 1000;
+    const diffMins = Math.round((nextMs - Date.now()) / 60000);
+    if (diffMins <= 0) return "Soon";
+    if (diffMins < 60) return `In ${diffMins}m`;
+    return `In ${Math.round(diffMins / 60)}h`;
+  }
+
+  if (!timeSlots.length) return "No schedule";
+
+  try {
+    const nowInTz = new Date(
+      new Date().toLocaleString("en-US", { timeZone: timezone }),
+    );
+    const nowMins = nowInTz.getHours() * 60 + nowInTz.getMinutes();
+
+    const slotMins = timeSlots
+      .map((s) => {
+        const [h, m] = s.split(":").map(Number);
+        return h * 60 + m;
+      })
+      .sort((a, b) => a - b);
+
+    const nextSlotMins = slotMins.find((m) => m > nowMins) ?? slotMins[0];
+    const diffMins = nextSlotMins > nowMins
+      ? nextSlotMins - nowMins
+      : 24 * 60 - nowMins + nextSlotMins;
+
+    if (diffMins < 60) return `In ${diffMins}m`;
+    return `In ${Math.round(diffMins / 60)}h`;
+  } catch {
+    return timeSlots[0] ?? "—";
+  }
+}
+
+function validateSourceIdentity(type: string, identity: string): string | null {
+  const val = identity.trim();
+  if (!val) return "Source handle or URL is required";
+  if (type === "youtube") {
+    if (!val.startsWith("@") && !val.startsWith("http") && !val.startsWith("UC")) {
+      return "YouTube: enter @channel, a channel URL, or a Channel ID (starts with UC)";
+    }
+  } else if (type === "instagram") {
+    if (!val.startsWith("@") && !val.startsWith("http")) {
+      return "Instagram: enter @username or a profile URL";
+    }
+  } else if (type === "tiktok") {
+    if (!val.startsWith("@") && !val.startsWith("http")) {
+      return "TikTok: enter @username or a profile URL";
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 export default function PagesManagement() {
   const [, navigate] = useLocation();
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [search, setSearch] = useState("");
 
   const { data: pages, isLoading } = useListPages(
-    { status: statusFilter },
-    { query: { queryKey: getListPagesQueryKey({ status: statusFilter }) } }
+    { status: "all" },
+    { query: { queryKey: getListPagesQueryKey({ status: "all" }) } }
   );
   const { data: accounts } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
 
   const createPage = useCreatePage();
-  const deletePage = useDeletePage();
   const updatePage = useUpdatePage();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  // Wizard state
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState<Step>(1);
   const [step1, setStep1] = useState({ accountId: "", fbPageId: "" });
   const [step2, setStep2] = useState(defaultStep2);
-  const [newWizardSlot, setNewWizardSlot] = useState("");
+  const [newWizardSlot, setNewWizardSlot] = useState("09:00");
+  const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
+
+  // Remove automation confirmation
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data: accountPages } = useGetAccountAvailablePages(
     step1.accountId,
@@ -81,10 +180,28 @@ export default function PagesManagement() {
 
   const selectedPage = accountPages?.find((p) => p.fbPageId === step1.fbPageId);
 
+  // Only show pages that have automation configured
+  const automatedPages = (pages ?? []).filter((p) => p.automationEnabled);
+
+  const filtered = automatedPages.filter((p) => {
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || p.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const activeCount = automatedPages.filter((p) => p.status === "active").length;
+  const pausedCount = automatedPages.filter((p) => p.status === "paused").length;
+
+  // ---------------------------------------------------------------------------
+  // Wizard helpers
+  // ---------------------------------------------------------------------------
+
   function resetWizard() {
     setStep(1);
     setStep1({ accountId: "", fbPageId: "" });
     setStep2(defaultStep2);
+    setStep2Errors({});
+    setNewWizardSlot("09:00");
   }
 
   function handleWizardOpen() {
@@ -93,15 +210,39 @@ export default function PagesManagement() {
   }
 
   function handleNext() {
-    if (!step1.accountId || !step1.fbPageId) {
-      toast({ title: "Please select an account and a page", variant: "destructive" });
+    if (!step1.accountId) {
+      toast({ title: "Please select a Facebook account", variant: "destructive" });
+      return;
+    }
+    if (!step1.fbPageId) {
+      toast({ title: "Please select a Facebook page", variant: "destructive" });
       return;
     }
     setStep(2);
   }
 
+  function validateStep2(): boolean {
+    const errors: Record<string, string> = {};
+
+    const sourceErr = validateSourceIdentity(step2.sourceType, step2.sourceIdentity);
+    if (sourceErr) errors.sourceIdentity = sourceErr;
+
+    if (step2.scheduleLogic === "fixed" && step2.timeSlots.length === 0) {
+      errors.timeSlots = "Add at least one posting time for Fixed schedule";
+    }
+
+    if (step2.postsPerDay < 1 || step2.postsPerDay > 20) {
+      errors.postsPerDay = "Posts per day must be between 1 and 20";
+    }
+
+    setStep2Errors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   function handleCreate() {
     if (!selectedPage) return;
+    if (!validateStep2()) return;
+
     createPage.mutate(
       {
         data: {
@@ -110,7 +251,7 @@ export default function PagesManagement() {
           category: selectedPage.category,
           accountId: step1.accountId,
           sourceType: step2.sourceType,
-          sourceIdentity: step2.sourceIdentity,
+          sourceIdentity: step2.sourceIdentity.trim(),
           postsPerDay: step2.postsPerDay,
           scheduleLogic: step2.scheduleLogic,
           timezone: step2.timezone,
@@ -120,11 +261,13 @@ export default function PagesManagement() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListPagesQueryKey() });
-          toast({ title: "Page added successfully" });
+          queryClient.invalidateQueries({ queryKey: getGetAccountAvailablePagesQueryKey(step1.accountId) });
+          toast({ title: "Automation configured successfully" });
           setWizardOpen(false);
         },
-        onError: () => {
-          toast({ title: "Failed to add page", variant: "destructive" });
+        onError: (err: any) => {
+          const msg = err?.response?.data?.error ?? "Failed to add automation";
+          toast({ title: msg, variant: "destructive" });
         },
       }
     );
@@ -132,25 +275,18 @@ export default function PagesManagement() {
 
   function handleWizardAddSlot() {
     if (!newWizardSlot) return;
-    if (step2.timeSlots.includes(newWizardSlot)) return;
+    if (step2.timeSlots.includes(newWizardSlot)) {
+      toast({ title: "This time slot is already added", variant: "destructive" });
+      return;
+    }
     if (step2.timeSlots.length >= 10) return;
     setStep2((s) => ({ ...s, timeSlots: [...s.timeSlots, newWizardSlot].sort() }));
-    setNewWizardSlot("");
+    setStep2Errors((e) => ({ ...e, timeSlots: "" }));
+    setNewWizardSlot("09:00");
   }
 
   function handleWizardRemoveSlot(slot: string) {
     setStep2((s) => ({ ...s, timeSlots: s.timeSlots.filter((t) => t !== slot) }));
-  }
-
-  function formatSlotInTz(slot: string, tz: string) {
-    try {
-      const [h, m] = slot.split(":").map(Number);
-      const d = new Date();
-      d.setHours(h, m, 0, 0);
-      return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: tz }).format(d);
-    } catch {
-      return slot;
-    }
   }
 
   function handleToggle(id: string, enabled: boolean) {
@@ -159,57 +295,69 @@ export default function PagesManagement() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListPagesQueryKey() });
+          toast({ title: enabled ? "Automation enabled" : "Automation paused" });
+        },
+        onError: () => {
+          toast({ title: "Failed to update automation", variant: "destructive" });
         },
       }
     );
   }
 
-  function handleDelete(id: string) {
-    if (!confirm("Remove this page from management?")) return;
-    deletePage.mutate(
-      { pageId: id },
+  function handleRemoveAutomation(id: string, name: string) {
+    setRemoveTarget({ id, name });
+  }
+
+  function confirmRemoveAutomation() {
+    if (!removeTarget) return;
+    updatePage.mutate(
+      { pageId: removeTarget.id, data: { automationEnabled: false } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListPagesQueryKey() });
-          toast({ title: "Page removed" });
+          // Also invalidate available-pages so this page reappears in the wizard
+          queryClient.invalidateQueries({ queryKey: ["getAccountAvailablePages"] });
+          toast({ title: `Automation removed for "${removeTarget.name}"` });
+          setRemoveTarget(null);
+        },
+        onError: () => {
+          toast({ title: "Failed to remove automation", variant: "destructive" });
         },
       }
     );
   }
 
-  const filtered = (pages ?? []).filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const active = pages?.filter((p) => p.status === "active").length ?? 0;
-  const paused = pages?.filter((p) => p.status === "paused").length ?? 0;
-  const total = pages?.length ?? 0;
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <Layout>
       <div className="flex flex-col gap-8">
+        {/* Header */}
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pages</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Page Automation</h1>
             <p className="text-muted-foreground mt-1">
-              Manage and automate your Facebook pages.
+              Manage your automated Facebook page posting schedules.
             </p>
           </div>
           <Button onClick={handleWizardOpen} className="gap-2">
             <Plus className="h-4 w-4" />
-            Add Page
+            Add Automation
           </Button>
         </div>
 
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6 flex items-center gap-4">
               <div className="p-3 bg-primary/10 rounded-xl">
-                <Files className="h-5 w-5 text-primary" />
+                <Zap className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "—" : total}</p>
-                <p className="text-sm text-muted-foreground">Total Pages</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : automatedPages.length}</p>
+                <p className="text-sm text-muted-foreground">Total Automations</p>
               </div>
             </CardContent>
           </Card>
@@ -219,7 +367,7 @@ export default function PagesManagement() {
                 <TrendingUp className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "—" : active}</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : activeCount}</p>
                 <p className="text-sm text-muted-foreground">Active</p>
               </div>
             </CardContent>
@@ -230,18 +378,19 @@ export default function PagesManagement() {
                 <Clock className="h-5 w-5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{isLoading ? "—" : paused}</p>
+                <p className="text-2xl font-bold">{isLoading ? "—" : pausedCount}</p>
                 <p className="text-sm text-muted-foreground">Paused</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Filters */}
         <div className="flex items-center justify-between gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search pages..."
+              placeholder="Search automations..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -256,139 +405,196 @@ export default function PagesManagement() {
           </Tabs>
         </div>
 
+        {/* Content */}
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-48 rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-64 rounded-xl" />
             ))}
           </div>
         ) : !filtered.length ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-primary/10 p-4 rounded-full mb-4">
-              <Files className="h-8 w-8 text-primary" />
+              <Zap className="h-8 w-8 text-primary" />
             </div>
-            <h3 className="text-lg font-bold mb-1">No Pages Found</h3>
+            <h3 className="text-lg font-bold mb-1">
+              {search || statusFilter !== "all" ? "No automations match your filter" : "No automations configured"}
+            </h3>
             <p className="text-muted-foreground max-w-sm mb-6">
-              {search
-                ? "No pages match your search."
-                : statusFilter === "all"
-                ? "You haven't added any pages yet."
-                : `No ${statusFilter} pages.`}
+              {search || statusFilter !== "all"
+                ? "Try changing your search or filter."
+                : "Click 'Add Automation' to start automatically posting videos from YouTube, Instagram, or TikTok to your Facebook pages."}
             </p>
             {!search && statusFilter === "all" && (
               <Button onClick={handleWizardOpen} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Add First Page
+                Add First Automation
               </Button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((page) => (
-              <Card
-                key={page.id}
-                className="group relative cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/pages/${page.id}`)}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12 border shadow-sm">
-                        <AvatarImage src={page.profilePicture} />
-                        <AvatarFallback className="text-sm font-bold">
-                          {page.name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-semibold text-sm leading-tight line-clamp-1">{page.name}</p>
-                        <p className="text-xs text-muted-foreground">{page.category || "Facebook Page"}</p>
-                        {(page.followersCount ?? 0) > 0 && (
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Users className="h-3 w-3" />
-                            {(page.followersCount ?? 0).toLocaleString()} followers
-                          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filtered.map((page) => {
+              const nextPost = getNextScheduledPost(
+                page.timeSlots ?? [],
+                page.timezone,
+                page.scheduleLogic,
+                page.postsPerDay,
+                page.lastPostedAt,
+              );
+
+              return (
+                <Card
+                  key={page.id}
+                  className="group relative hover:shadow-md transition-shadow"
+                >
+                  <CardContent className="p-5 space-y-4">
+                    {/* Page header */}
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                        onClick={() => navigate(`/pages/${page.id}`)}
+                      >
+                        <Avatar className="h-11 w-11 border shadow-sm flex-shrink-0">
+                          <AvatarImage src={page.profilePicture} />
+                          <AvatarFallback className="text-sm font-bold">
+                            {page.name.substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm leading-tight line-clamp-1">{page.name}</p>
+                          <p className="text-xs text-muted-foreground">{page.category || "Facebook Page"}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        {page.status === "active" ? (
+                          <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-[11px]">Active</Badge>
+                        ) : page.status === "paused" ? (
+                          <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-[11px]">Paused</Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[11px]">Error</Badge>
                         )}
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => navigate(`/pages/${page.id}`)}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Edit Settings
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleRemoveAutomation(page.id, page.name)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remove Automation
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(page.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Remove Page
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center mb-4 bg-muted/40 rounded-lg p-2">
-                    <div>
-                      <p className="text-sm font-bold text-green-600">{page.totalPosted}</p>
-                      <p className="text-[10px] text-muted-foreground">Posted</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-blue-600">{page.totalPending}</p>
-                      <p className="text-[10px] text-muted-foreground">Pending</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-red-500">{page.totalFailed}</p>
-                      <p className="text-[10px] text-muted-foreground">Failed</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {page.status === "active" ? (
-                        <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-[11px]">
-                          Active
-                        </Badge>
-                      ) : page.status === "paused" ? (
-                        <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-[11px]">
-                          Paused
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="text-[11px]">
-                          Error
-                        </Badge>
-                      )}
-                      {page.sourceType && (
-                        <span className="text-muted-foreground">
-                          {SOURCE_ICONS[page.sourceType]}
+                    {/* Source info */}
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border">
+                      <span className="text-muted-foreground flex-shrink-0">
+                        {page.sourceType ? SOURCE_ICONS[page.sourceType] : <Globe className="h-4 w-4" />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-medium">
+                          {page.sourceType ? SOURCE_LABELS[page.sourceType] : "No source"}
                         </span>
-                      )}
+                        {page.sourceIdentity && (
+                          <span className="text-xs text-muted-foreground ml-1.5 truncate block">
+                            {page.sourceIdentity}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {page.postsPerDay}×/day
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                      <Switch
-                        checked={page.automationEnabled}
-                        onCheckedChange={(c) => handleToggle(page.id, c)}
-                        disabled={updatePage.isPending}
-                      />
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+
+                    {/* Schedule info */}
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-muted-foreground mb-0.5">Schedule</p>
+                        <p className="font-medium capitalize">
+                          {page.scheduleLogic === "fixed" ? "Fixed Times" : "Random"}
+                          {" · "}{page.timezone}
+                        </p>
+                        {page.scheduleLogic === "fixed" && page.timeSlots && page.timeSlots.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {page.timeSlots.slice(0, 4).map((s) => (
+                              <span key={s} className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono">
+                                {s}
+                              </span>
+                            ))}
+                            {page.timeSlots.length > 4 && (
+                              <span className="text-muted-foreground text-[10px]">+{page.timeSlots.length - 4} more</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div>
+                          <p className="text-muted-foreground mb-0.5">Last Post</p>
+                          <p className="font-medium">{formatRelativeTime(page.lastPostedAt)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground mb-0.5">Next Post</p>
+                          <p className="font-medium text-primary">{page.status === "active" ? nextPost : "Paused"}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+
+                    {/* Stats + toggle */}
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 text-xs text-green-600">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="font-semibold">{page.totalPosted}</span>
+                          <span className="text-muted-foreground">posted</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-red-500">
+                          <XCircle className="h-3.5 w-3.5" />
+                          <span className="font-semibold">{page.totalFailed}</span>
+                          <span className="text-muted-foreground">failed</span>
+                        </div>
+                      </div>
+                      <div
+                        className="flex items-center gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Switch
+                          checked={page.status === "active"}
+                          onCheckedChange={(c) => handleToggle(page.id, c)}
+                          disabled={updatePage.isPending}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Add Automation Wizard                                               */}
+      {/* ------------------------------------------------------------------ */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="flex items-center gap-1">
@@ -427,9 +633,12 @@ export default function PagesManagement() {
 
               {step1.accountId && (
                 <div className="space-y-2">
-                  <Label>Page to Manage</Label>
+                  <Label>Page to Automate</Label>
                   {!accountPages?.length ? (
-                    <p className="text-sm text-muted-foreground py-2">No pages found for this account.</p>
+                    <div className="flex items-center gap-2 py-4 px-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>No available pages — all pages for this account are already automated, or the account has no pages.</span>
+                    </div>
                   ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                       {accountPages.map((p) => (
@@ -442,7 +651,7 @@ export default function PagesManagement() {
                           }`}
                           onClick={() => setStep1((s) => ({ ...s, fbPageId: p.fbPageId }))}
                         >
-                          <Avatar className="h-9 w-9">
+                          <Avatar className="h-9 w-9 flex-shrink-0">
                             <AvatarImage src={p.profilePicture} />
                             <AvatarFallback className="text-xs">{p.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
@@ -470,9 +679,10 @@ export default function PagesManagement() {
             </div>
           ) : (
             <div className="space-y-4 py-2">
+              {/* Selected page preview */}
               {selectedPage && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border">
-                  <Avatar className="h-9 w-9">
+                  <Avatar className="h-9 w-9 flex-shrink-0">
                     <AvatarImage src={selectedPage.profilePicture} />
                     <AvatarFallback className="text-xs">{selectedPage.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                   </Avatar>
@@ -483,20 +693,30 @@ export default function PagesManagement() {
                 </div>
               )}
 
+              {/* Content source + posts per day */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Content Source</Label>
                   <Select
                     value={step2.sourceType}
-                    onValueChange={(v: any) => setStep2((s) => ({ ...s, sourceType: v }))}
+                    onValueChange={(v: any) => {
+                      setStep2((s) => ({ ...s, sourceType: v, sourceIdentity: "" }));
+                      setStep2Errors((e) => ({ ...e, sourceIdentity: "" }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="instagram">Instagram</SelectItem>
-                      <SelectItem value="youtube">YouTube</SelectItem>
-                      <SelectItem value="tiktok">TikTok</SelectItem>
+                      <SelectItem value="youtube">
+                        <span className="flex items-center gap-2"><Youtube className="h-4 w-4" />YouTube</span>
+                      </SelectItem>
+                      <SelectItem value="instagram">
+                        <span className="flex items-center gap-2"><Instagram className="h-4 w-4" />Instagram</span>
+                      </SelectItem>
+                      <SelectItem value="tiktok">
+                        <span className="flex items-center gap-2"><Globe className="h-4 w-4" />TikTok</span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -507,39 +727,72 @@ export default function PagesManagement() {
                     min={1}
                     max={20}
                     value={step2.postsPerDay}
-                    onChange={(e) => setStep2((s) => ({ ...s, postsPerDay: parseInt(e.target.value) || 1 }))}
+                    onChange={(e) => {
+                      setStep2((s) => ({ ...s, postsPerDay: parseInt(e.target.value) || 1 }));
+                      setStep2Errors((er) => ({ ...er, postsPerDay: "" }));
+                    }}
+                    className={step2Errors.postsPerDay ? "border-destructive" : ""}
                   />
+                  {step2Errors.postsPerDay && (
+                    <p className="text-xs text-destructive">{step2Errors.postsPerDay}</p>
+                  )}
                 </div>
               </div>
 
+              {/* Source identity */}
               <div className="space-y-2">
-                <Label>Source Handle / URL</Label>
+                <Label>
+                  {step2.sourceType === "youtube"
+                    ? "YouTube Channel Handle or URL"
+                    : step2.sourceType === "instagram"
+                    ? "Instagram Username or URL"
+                    : "TikTok Username or URL"}
+                </Label>
                 <Input
                   placeholder={
-                    step2.sourceType === "instagram"
-                      ? "@username"
-                      : step2.sourceType === "youtube"
-                      ? "@channel or URL"
-                      : "@tiktok_handle"
+                    step2.sourceType === "youtube"
+                      ? "@YourChannel or https://youtube.com/@channel"
+                      : step2.sourceType === "instagram"
+                      ? "@username or https://instagram.com/username"
+                      : "@username or https://tiktok.com/@username"
                   }
                   value={step2.sourceIdentity}
-                  onChange={(e) => setStep2((s) => ({ ...s, sourceIdentity: e.target.value }))}
+                  onChange={(e) => {
+                    setStep2((s) => ({ ...s, sourceIdentity: e.target.value }));
+                    setStep2Errors((er) => ({ ...er, sourceIdentity: "" }));
+                  }}
+                  className={step2Errors.sourceIdentity ? "border-destructive" : ""}
                 />
+                {step2Errors.sourceIdentity ? (
+                  <p className="text-xs text-destructive">{step2Errors.sourceIdentity}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {step2.sourceType === "youtube"
+                      ? "e.g. @MrBeast, https://youtube.com/@MrBeast, or UC channel ID"
+                      : step2.sourceType === "instagram"
+                      ? "e.g. @natgeo or https://instagram.com/natgeo"
+                      : "e.g. @charlidamelio or https://tiktok.com/@charlidamelio"}
+                  </p>
+                )}
               </div>
 
+              {/* Schedule logic + timezone */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Schedule Logic</Label>
                   <Select
                     value={step2.scheduleLogic}
-                    onValueChange={(v: any) => setStep2((s) => ({ ...s, scheduleLogic: v, timeSlots: [] }))}
+                    onValueChange={(v: any) => {
+                      setStep2((s) => ({ ...s, scheduleLogic: v, timeSlots: [] }));
+                      setStep2Errors((er) => ({ ...er, timeSlots: "" }));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="fixed">Fixed Times</SelectItem>
-                      <SelectItem value="random">Random within Window</SelectItem>
+                      <SelectItem value="random">Random (auto-spaced)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -561,6 +814,7 @@ export default function PagesManagement() {
                 </div>
               </div>
 
+              {/* Time slots (only for fixed schedule) */}
               {step2.scheduleLogic === "fixed" && (
                 <div className="space-y-2 rounded-lg border p-3 bg-muted/30">
                   <div>
@@ -568,13 +822,20 @@ export default function PagesManagement() {
                       <Clock className="h-3.5 w-3.5" />
                       Posting Times
                       <span className="text-muted-foreground font-normal text-xs">
-                        — shown in {step2.timezone}
+                        — in {step2.timezone}
                       </span>
                     </Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Videos will post at exactly these times. Add up to 10 slots.
                     </p>
                   </div>
+
+                  {step2Errors.timeSlots && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {step2Errors.timeSlots}
+                    </p>
+                  )}
 
                   {step2.timeSlots.length > 0 ? (
                     <div className="flex flex-wrap gap-1.5 mt-1">
@@ -583,7 +844,7 @@ export default function PagesManagement() {
                           key={slot}
                           className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-background text-xs font-mono font-semibold"
                         >
-                          {formatSlotInTz(slot, step2.timezone)}
+                          {slot}
                           <button
                             type="button"
                             onClick={() => handleWizardRemoveSlot(slot)}
@@ -622,16 +883,63 @@ export default function PagesManagement() {
                 </div>
               )}
 
+              {step2.scheduleLogic === "random" && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-400">
+                  <Calendar className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    Random mode will automatically space {step2.postsPerDay} post{step2.postsPerDay !== 1 ? "s" : ""} evenly throughout the day, posting approximately every{" "}
+                    <strong>{Math.round(24 / step2.postsPerDay)} hours</strong>.
+                  </span>
+                </div>
+              )}
+
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
                 <Button onClick={handleCreate} disabled={createPage.isPending}>
-                  {createPage.isPending ? "Adding..." : "Add Page"}
+                  {createPage.isPending ? "Saving..." : "Add Automation"}
                 </Button>
               </DialogFooter>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Remove Automation Confirmation                                       */}
+      {/* ------------------------------------------------------------------ */}
+      <AlertDialog open={!!removeTarget} onOpenChange={(open) => { if (!open) setRemoveTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Automation?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                This will stop automation for <strong>"{removeTarget?.name}"</strong> and clear its schedule.
+              </span>
+              <br />
+              <span className="text-green-700 dark:text-green-400 font-medium">
+                ✓ The Facebook page will stay connected.
+              </span>
+              <br />
+              <span className="text-green-700 dark:text-green-400 font-medium">
+                ✓ Your Facebook account tokens will NOT be revoked.
+              </span>
+              <br />
+              <span className="text-muted-foreground">
+                You can re-add automation for this page at any time.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmRemoveAutomation}
+            >
+              Remove Automation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

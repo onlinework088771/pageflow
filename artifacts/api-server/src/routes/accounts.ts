@@ -105,10 +105,16 @@ router.get("/accounts/:accountId/available-pages", async (req, res): Promise<voi
     return;
   }
 
+  // Only return pages that are NOT yet automated — prevents duplicate automation
   const pages = await db
     .select()
     .from(facebookPagesTable)
-    .where(eq(facebookPagesTable.accountId, accountId))
+    .where(
+      and(
+        eq(facebookPagesTable.accountId, accountId),
+        eq(facebookPagesTable.automationEnabled, false),
+      ),
+    )
     .orderBy(asc(facebookPagesTable.createdAt));
 
   const serialized = pages.map((p) => ({
