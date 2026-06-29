@@ -678,12 +678,57 @@ export default function PageManagement() {
             )}
 
             {/* Error state */}
-            {postsError && (
-              <div className="flex items-center gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{postsError.message}</span>
-              </div>
-            )}
+            {postsError && (() => {
+              const msg = postsError.message ?? "";
+              const isPermError =
+                msg.includes("pages_read_engagement") ||
+                msg.includes("pages_manage_posts") ||
+                msg.includes("pages_read_user_content") ||
+                msg.includes("pages_manage_metadata") ||
+                msg.includes("(#10)") ||
+                msg.includes("permission");
+
+              if (isPermError) {
+                return (
+                  <div className="flex flex-col gap-3 p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-yellow-700">Missing Facebook Permission</p>
+                        <p className="text-xs text-yellow-600 mt-0.5">
+                          {msg.includes("pages_read_engagement")
+                            ? "The \"pages_read_engagement\" permission is required to load posts."
+                            : msg.includes("pages_manage_posts")
+                            ? "The \"pages_manage_posts\" permission is required to manage posts."
+                            : msg.includes("pages_read_user_content")
+                            ? "The \"pages_read_user_content\" permission is required to read page content."
+                            : msg.includes("pages_manage_metadata")
+                            ? "The \"pages_manage_metadata\" permission is required."
+                            : "One or more required Facebook permissions are missing."}
+                        </p>
+                        <p className="text-xs text-yellow-600 mt-1">
+                          Go to <strong>FB Accounts</strong> and click{" "}
+                          <strong>Reconnect Facebook Account</strong> to grant all required permissions.
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={`${BASE}/accounts`}
+                      className="inline-flex items-center justify-center gap-2 rounded-md text-xs font-medium h-8 px-3 bg-yellow-500 hover:bg-yellow-600 text-white transition-colors w-fit"
+                    >
+                      Go to FB Accounts → Reconnect
+                    </a>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive text-sm">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{msg}</span>
+                </div>
+              );
+            })()}
 
             {/* Posts grid */}
             {postsLoading ? (

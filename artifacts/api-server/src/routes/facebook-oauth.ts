@@ -44,7 +44,7 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
 
   const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
   const callbackUrl = `${baseUrl}/api/auth/facebook/callback`;
-  const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
+  const scope = "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,pages_read_user_content,public_profile,email";
   const state = Buffer.from(JSON.stringify({ userId })).toString("base64");
 
   const authUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
@@ -53,6 +53,7 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
   authUrl.searchParams.set("scope", scope);
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("auth_type", "rerequest");
 
   res.redirect(authUrl.toString());
 });
@@ -246,7 +247,7 @@ router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
 
   // Use the dedicated magic-link callback URL
   const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/facebook/magic-callback`;
-  const scope = "pages_manage_posts,pages_read_engagement,pages_show_list,public_profile,email";
+  const scope = "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,pages_read_user_content,public_profile,email";
   const state = Buffer.from(JSON.stringify({ magic: true, userId: link.userId })).toString("base64");
 
   const authUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
@@ -255,6 +256,7 @@ router.get("/auth/facebook/magic", async (req, res): Promise<void> => {
   authUrl.searchParams.set("scope", scope);
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("response_type", "code");
+  authUrl.searchParams.set("auth_type", "rerequest");
 
   res.redirect(authUrl.toString());
 });

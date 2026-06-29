@@ -566,4 +566,62 @@ router.get("/post-manager/pages/:pageId/deletion-logs", async (req, res): Promis
   res.json(result);
 });
 
+// ---------------------------------------------------------------------------
+// GET /post-manager/accounts/:accountId/permissions
+// Check which required Facebook permissions are granted / missing
+// ---------------------------------------------------------------------------
+
+const REQUIRED_FB_PERMISSIONS = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_posts",
+  "pages_manage_metadata",
+  "pages_read_user_content",
+];
+
+router.get("/post-manager/accounts/:accountId/permissions", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
+  const accountId = parseInt(req.params.accountId, 10);
+
+  const [account] = await db
+    .select()
+    .from(facebookAccountsTable)
+    .where(and(eq(facebookAccountsTable.id, accountId), eq(facebookAccountsTable.userId, userId)));
+
+  if (!account) {
+    res.status(404).json({ error: "Account not found" });
+    return;
+  }
+
+  try {
+    const permRes = await axios.get(`${FB_API}/me/permissions`, {
+      params: { access_token: account.accessToken },
+      timeout: 10_000,
+    });
+
+    const data: { permission: string; status: string }[] = permRes.data?.data ?? [];
+    const granted = data.filter((p) => p.status === "granted").map((p) => p.permission);
+    const declined = data.filter((p) => p.status === "declined").map((p) => p.permission);
+    const missing = REQUIRED_FB_PERMISSIONS.filter(
+      (p) => !granted.includes(p)
+    );
+
+    res.json({ granted, declined, missing, required: REQUIRED_FB_PERMISSIONS });
+  } catch (err: unknown) {
+    logger.warn({ err, accountId }, "Failed to fetch FB permissions");
+    const fbErr = (err as any)?.response?.data?.error;
+    if (fbErr?.code === 190) {
+      res.json({
+        granted: [],
+        declined: [],
+        missing: REQUIRED_FB_PERMISSIONS,
+        required: REQUIRED_FB_PERMISSIONS,
+        tokenExpired: true,
+      });
+      return;
+    }
+    res.status(502).json({ error: "Failed to check permissions" });
+  }
+});
+
 export default router;
