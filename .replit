@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "postgresql-16"]
+modules = ["nodejs-20", "web"]
 
 [deployment]
 router = "application"
@@ -32,7 +32,7 @@ args = "cd lib/db && pnpm run push"
 outputType = "console"
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
 integrations = ["github:1.0.0"]
 
@@ -62,3 +62,11 @@ externalPort = 4200
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+PORT = "8080"
+NODE_ENV = "production"
+AUTO_DELETE = "true"
+DELETE_AFTER_HOURS = "48"
