@@ -53,20 +53,16 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
-    ...(process.env.REPL_ID
-      ? {}
-      : {
-          proxy: {
-            "/api": {
-              target: `http://localhost:${process.env.API_PORT ?? 8080}`,
-              changeOrigin: true,
-            },
-            "/uploads": {
-              target: `http://localhost:${process.env.API_PORT ?? 8080}`,
-              changeOrigin: true,
-            },
-          },
-        }),
+    proxy: {
+      "/api": {
+        target: `http://localhost:${process.env.API_PORT ?? 8080}`,
+        changeOrigin: true,
+      },
+      "/uploads": {
+        target: `http://localhost:${process.env.API_PORT ?? 8080}`,
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],
