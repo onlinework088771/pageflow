@@ -473,7 +473,7 @@ async function postNextTikTokVideo(
 // Main per-page orchestrator
 // ---------------------------------------------------------------------------
 
-async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): Promise<void> {
+export async function postPageNextVideo(page: typeof facebookPagesTable.$inferSelect): Promise<void> {
   const [account] = await db
     .select()
     .from(facebookAccountsTable)

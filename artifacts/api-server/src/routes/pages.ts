@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { db, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
+import { postPageNextVideo } from "../services/page-automation";
 import {
   CreatePageBody,
   UpdatePageBody,
@@ -271,6 +272,25 @@ router.patch("/pages/:pageId/source", async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdatePageSourceResponse.parse(serializePage(page)));
+});
+
+router.post("/pages/:pageId/post-now", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
+  const id = parseInt(req.params.pageId, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid page ID" }); return; }
+  const accountIds = await getUserAccountIds(userId);
+  if (!accountIds.length) { res.status(404).json({ error: "Page not found" }); return; }
+  const [page] = await db
+    .select()
+    .from(facebookPagesTable)
+    .where(and(eq(facebookPagesTable.id, id), inArray(facebookPagesTable.accountId, accountIds)));
+  if (!page) { res.status(404).json({ error: "Page not found" }); return; }
+  try {
+    await postPageNextVideo(page);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Post failed" });
+  }
 });
 
 router.delete("/pages/:pageId", async (req, res): Promise<void> => {

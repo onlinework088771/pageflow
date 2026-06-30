@@ -26,7 +26,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus, Search, Zap, TrendingUp, Clock, ChevronRight,
   Instagram, Youtube, Globe, Trash2, MoreHorizontal, X,
-  Calendar, CheckCircle2, XCircle, AlertCircle, RefreshCw,
+  Calendar, CheckCircle2, XCircle, AlertCircle, RefreshCw, SendHorizonal, Loader2,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -173,6 +173,9 @@ export default function PagesManagement() {
   // Remove automation confirmation
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
+  // Instant post state
+  const [postingNow, setPostingNow] = useState<string | null>(null);
+
   const { data: accountPages } = useGetAccountAvailablePages(
     step1.accountId,
     { query: { queryKey: getGetAccountAvailablePagesQueryKey(step1.accountId), enabled: !!step1.accountId } }
@@ -306,6 +309,25 @@ export default function PagesManagement() {
 
   function handleRemoveAutomation(id: string, name: string) {
     setRemoveTarget({ id, name });
+  }
+
+  async function handlePostNow(id: string, name: string) {
+    setPostingNow(id);
+    try {
+      const token = localStorage.getItem("pf_auth_token");
+      const res = await fetch(`/api/pages/${id}/post-now`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Post failed");
+      toast({ title: `Posted to "${name}" successfully!` });
+      queryClient.invalidateQueries({ queryKey: getListPagesQueryKey() });
+    } catch (err: any) {
+      toast({ title: "Post failed", description: err.message, variant: "destructive" });
+    } finally {
+      setPostingNow(null);
+    }
   }
 
   function confirmRemoveAutomation() {
@@ -557,7 +579,7 @@ export default function PagesManagement() {
                       </div>
                     </div>
 
-                    {/* Stats + toggle */}
+                    {/* Stats + actions */}
                     <div className="flex items-center justify-between pt-1 border-t">
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1 text-xs text-green-600">
@@ -575,6 +597,21 @@ export default function PagesManagement() {
                         className="flex items-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1.5 px-2.5"
+                          disabled={postingNow === page.id}
+                          onClick={() => handlePostNow(page.id, page.name)}
+                          title="Post next video immediately"
+                        >
+                          {postingNow === page.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <SendHorizonal className="h-3 w-3" />
+                          )}
+                          {postingNow === page.id ? "Posting…" : "Post Now"}
+                        </Button>
                         <Switch
                           checked={page.status === "active"}
                           onCheckedChange={(c) => handleToggle(page.id, c)}
