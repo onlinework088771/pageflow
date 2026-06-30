@@ -212,10 +212,15 @@ async function fetchChannelIdFromHandle(handle: string): Promise<string | null> 
       headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" },
     });
     const html = await resp.text();
-    const match = html.match(/"channelId":"(UC[a-zA-Z0-9_-]+)"/);
-    if (match) return match[1];
-    const match2 = html.match(/channel\/([^"&?\/\s]{24})/);
-    if (match2) return match2[1];
+    // Multiple patterns for resilience — YouTube changes page structure over time
+    const m1 = html.match(/"channelId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m1) return m1[1];
+    const m2 = html.match(/"externalId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m2) return m2[1];
+    const m3 = html.match(/"browseId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m3) return m3[1];
+    const m4 = html.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+    if (m4) return m4[1];
   } catch {}
   return null;
 }
@@ -344,8 +349,17 @@ async function postNextYouTubeVideo(
   // Resolve channel ID
   let channelId: string | null = null;
   if (identity.startsWith("http")) {
-    const m = identity.match(/channel\/([^/?&]+)/) ?? identity.match(/\?.*c=([^&]+)/);
-    channelId = m?.[1] ?? null;
+    // /channel/UC... or ?c=UC... style URLs
+    const m = identity.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/) ?? identity.match(/[?&]c=(UC[a-zA-Z0-9_-]+)/);
+    if (m) {
+      channelId = m[1];
+    } else {
+      // @handle style URL: https://youtube.com/@moviesamazing
+      const handleMatch = identity.match(/\/@([^/?&#]+)/);
+      if (handleMatch) {
+        channelId = await fetchChannelIdFromHandle(handleMatch[1]);
+      }
+    }
   } else {
     channelId = await fetchChannelIdFromHandle(identity);
   }
