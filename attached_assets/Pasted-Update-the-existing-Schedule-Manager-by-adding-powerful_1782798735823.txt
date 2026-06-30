@@ -1,0 +1,131 @@
+Update the existing Schedule Manager by adding powerful schedule management features without changing the current UI design.
+
+IMPORTANT:
+- Do NOT redesign the UI.
+- Do NOT change colors, layout, spacing, cards, or overall design.
+- Keep the current Schedule Manager exactly as it is.
+- Only add the following features.
+
+1. Show Schedule Range
+At the top of the Schedule Manager, display the overall schedule date range for the currently filtered schedules.
+
+Example:
+
+Schedule Range
+Apr 15, 2026 → Jul 30, 2026
+
+or
+
+Scheduled Until:
+Jul 30, 2026
+
+The displayed date should automatically update based on the current filters (Facebook Account, Selected Pages, Content Type, Status).
+
+2. Show Next Scheduled Post
+Below the schedule range, display:
+
+Next Scheduled:
+Jul 2, 2026 • 10:30 AM
+
+This should always show the nearest upcoming scheduled post based on the current filters.
+
+3. Add Edit Button
+Every schedule card must have an Edit button beside the Delete button.
+
+Current:
+[Delete]
+
+New:
+[Edit] [Delete]
+
+Use a pencil icon for Edit.
+
+4. Edit Schedule Modal
+Clicking Edit should open a clean modal without leaving the page.
+
+The modal should allow editing:
+
+- Scheduled Date
+- Scheduled Time
+- Post Title
+- Caption
+- Hashtags
+- Content Type (if applicable)
+
+Display the existing values automatically.
+
+5. Save Changes
+When Save is clicked:
+
+- Validate all fields.
+- Update the database.
+- Update the scheduler queue.
+- Refresh only the edited schedule.
+- Keep the user on the same page.
+- Do not reload the entire page.
+
+Show a success toast:
+
+"Schedule updated successfully."
+
+6. Cancel Editing
+If Cancel or Close is clicked:
+
+Discard all changes.
+
+Do not modify the schedule.
+
+7. Validation
+Prevent saving if:
+
+- Date is in the past.
+- Time is invalid.
+- Title exceeds allowed length.
+- Caption exceeds Facebook limits.
+
+Display clear validation messages.
+
+8. Auto Refresh
+After editing:
+
+- Update the Schedule Manager instantly.
+- Update Schedule Range.
+- Update Next Scheduled.
+- Update Pending/Completed counts if affected.
+
+No manual refresh required.
+
+9. Permissions
+Only allow editing for:
+
+- Pending schedules
+- Scheduled schedules
+
+Do NOT allow editing:
+
+- Completed posts
+- Failed posts
+
+For Completed or Failed items:
+
+Hide the Edit button or disable it with an explanatory tooltip.
+
+10. Performance
+Do not reload the entire schedule list after editing.
+
+Update only the modified schedule card.
+
+11. Mobile & Desktop
+The Edit modal and all new features must work perfectly on both mobile and desktop while keeping the current responsive layout.
+
+Expected Result:
+
+The Schedule Manager should now display:
+
+- Schedule Range (first scheduled date → last scheduled date)
+- Next Scheduled Date & Time
+- Edit button on editable schedule cards
+- Edit modal for changing Date, Time, Title, Caption, and Hashtags
+- Instant updates after saving
+- No UI redesign
+- Smooth and professional user experience
