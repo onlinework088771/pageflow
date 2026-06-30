@@ -177,9 +177,10 @@ interface ManagerProps {
   onRefresh: () => void;
   getPageName: (id: string) => string;
   isFiltered?: boolean;
+  filterSummary?: string[];
 }
 
-function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName, isFiltered }: ManagerProps) {
+function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName, isFiltered, filterSummary }: ManagerProps) {
   const tabs = [
     { key: "all", label: "All", statuses: ["pending", "processing", "posted", "failed"] },
     { key: "pending", label: "Pending", statuses: ["pending", "processing"] },
@@ -206,6 +207,19 @@ function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDele
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         </div>
+        {filterSummary && filterSummary.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Showing:</span>
+            {filterSummary.map((part, i) => (
+              <span key={i} className="flex items-center gap-1">
+                {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {part}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="all">
@@ -405,6 +419,27 @@ export default function UploadScheduler() {
 
   // True whenever any wizard filter is actively narrowing the list
   const managerIsFiltered = !!(selectedAccountId || selectedPageIds.length > 0 || step >= 2);
+
+  // Build the live filter summary chips: Account → Page(s) → Content Type
+  const filterSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (selectedAccountId) {
+      const acc = accounts?.find((a) => a.id === selectedAccountId);
+      if (acc) parts.push(acc.name);
+    }
+    if (selectedPageIds.length > 0) {
+      if (selectedPageIds.length === 1) {
+        const pg = allPages?.find((p) => p.id === selectedPageIds[0]);
+        if (pg) parts.push(pg.name);
+      } else {
+        parts.push(`${selectedPageIds.length} Pages`);
+      }
+    }
+    if (step >= 2) {
+      parts.push(contentType.charAt(0).toUpperCase() + contentType.slice(1));
+    }
+    return parts;
+  }, [selectedAccountId, selectedPageIds, contentType, step, accounts, allPages]);
 
   const allSelected = accountPages.length > 0 && accountPages.every((p) => selectedPageIds.includes(p.id));
 
@@ -1019,6 +1054,7 @@ export default function UploadScheduler() {
           onRefresh={fetchVideos}
           getPageName={getPageName}
           isFiltered={managerIsFiltered}
+          filterSummary={filterSummary}
         />
 
       </div>
