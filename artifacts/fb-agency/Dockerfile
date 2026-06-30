@@ -6,7 +6,7 @@ WORKDIR /app
 RUN npm install -g pnpm@10 --no-update-notifier
 
 # Copy monorepo manifests first (layer-cache friendly)
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 
 # Copy shared libraries consumed by the frontend (exported as raw TS source)
 COPY lib/ ./lib/
