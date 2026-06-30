@@ -1,0 +1,76 @@
+Add ONE new feature only.
+
+IMPORTANT:
+This is a production project.
+
+DO NOT change any existing functionality.
+DO NOT refactor existing code.
+DO NOT redesign the UI.
+DO NOT modify any existing API.
+DO NOT change scheduler logic.
+DO NOT change Facebook automation logic.
+DO NOT change upload flow.
+DO NOT change authentication.
+DO NOT change database schema unless absolutely required for this feature.
+DO NOT remove or rename anything.
+DO NOT modify any existing settings.
+Everything that currently works must continue working exactly the same.
+
+New feature:
+
+Create a new "Facebook Developer Settings" page inside Settings.
+
+The page should allow the admin to:
+
+- Change Facebook App ID
+- Change Facebook App Secret
+- (Optional) Facebook App Version if needed
+- Save securely
+
+Requirements:
+
+1. Store the App ID and App Secret securely (encrypted if possible).
+2. Never hardcode them.
+3. After saving, all future Facebook OAuth and Graph API requests must automatically use the new credentials.
+4. No Docker rebuild.
+5. No VPS login.
+6. No .env editing.
+7. No application restart required if technically possible.
+8. Existing logged-in users should continue working until their tokens expire.
+9. New logins must use the newly saved App ID and App Secret.
+10. Existing scheduled posts must not be affected.
+11. Existing database records must remain untouched.
+12. Existing Facebook pages and tokens must remain untouched.
+13. If the new App ID or Secret is invalid, show a proper validation error instead of saving.
+14. Only admins can access this page.
+15. Add a "Test Connection" button that verifies the App ID and App Secret with Facebook before allowing Save.
+16. Display the currently active App ID (mask the secret completely, e.g. ************).
+17. Keep a backup of the previous configuration so the admin can roll back if a new configuration fails.
+18. Log every Developer Settings change with timestamp (without exposing the App Secret).
+
+Before writing any code:
+
+- First inspect the existing project architecture.
+- Find the safest integration point.
+- Reuse the existing Settings system.
+- Do NOT create duplicate configuration logic.
+- Do NOT duplicate OAuth code.
+- Ensure the current production flow remains unchanged.
+
+The goal is ZERO regression.
+
+After implementation:
+
+- Verify that every existing feature still works exactly as before.
+- Test Facebook Login.
+- Test Page Loading.
+- Test Scheduling.
+- Test Publishing.
+- Test Analytics.
+- Confirm all existing functionality behaves exactly the same.
+
+Finally provide a report including:
+- Files added
+- Files modified
+- Why each change was necessary
+- Confirmation that no existing functionality was changed except adding this new feature.

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import {
   useGetAgencySettings,
@@ -110,6 +111,7 @@ export default function Settings() {
   const resetSettings = useResetAgencySettings();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const [step, setStep] = useState(1);
   const [appId, setAppId] = useState("");
@@ -580,6 +582,27 @@ export default function Settings() {
             </CardContent>
           </Card>
         )}
+
+        {/* Facebook Developer Settings quick-access card */}
+        <Card
+          className="border-primary/10 cursor-pointer hover:border-primary/30 transition-colors"
+          onClick={() => navigate("/settings/developer")}
+        >
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-md bg-primary/10 p-2">
+                <ShieldAlert className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Facebook Developer Settings</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Update App ID &amp; App Secret, test the connection, view change log and roll back if needed.
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

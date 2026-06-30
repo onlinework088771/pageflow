@@ -14,6 +14,7 @@ import PageDetail from "@/pages/page-detail";
 import FbSuccess from "@/pages/fb-success";
 import FbConnect from "@/pages/fb-connect";
 import Settings from "@/pages/settings";
+import FbDeveloperSettings from "@/pages/fb-developer-settings";
 import UploadScheduler from "@/pages/upload-scheduler";
 import Analytics from "@/pages/analytics";
 import PageManagement from "@/pages/page-management";
@@ -46,6 +47,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />
+      </Route>
+      <Route path="/settings/developer">
+        <ProtectedRoute component={FbDeveloperSettings} />
       </Route>
       <Route path="/upload">
         <ProtectedRoute component={UploadScheduler} />

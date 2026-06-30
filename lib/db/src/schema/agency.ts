@@ -13,6 +13,8 @@ export const agencySettingsTable = pgTable("agency_settings", {
   appConfigured: boolean("app_configured").notNull().default(false),
   appLive: boolean("app_live").notNull().default(false),
   setupStep: integer("setup_step").notNull().default(0),
+  backupAppId: text("backup_app_id"),
+  backupAppSecret: text("backup_app_secret"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
