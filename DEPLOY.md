@@ -114,6 +114,16 @@ git pull
 docker compose up -d --build
 ```
 
+> **First update after the multi-stage build fix:** Run with `--no-cache` once to force Docker to discard the old cached frontend image and rebuild the frontend from source:
+>
+> ```bash
+> git pull
+> docker compose build --no-cache web
+> docker compose up -d
+> ```
+>
+> Subsequent updates can use the normal `docker compose up -d --build` command.
+
 ---
 
 ## ARM64 VPS (Ampere, Graviton, Apple Silicon)
