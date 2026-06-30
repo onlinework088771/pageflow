@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetOverviewStats, getGetOverviewStatsQueryKey } from "@workspace/api-client-react";
 import {
@@ -6,6 +6,7 @@ import {
   LogOut, Coins, Menu, X,
   ChevronRight, Upload, BarChart2, Layers, CalendarClock,
 } from "lucide-react";
+import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { PageFlowLogo } from "@/components/pageflow-logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,22 @@ export function Layout({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const res = await authFetch(apiUrl("/scheduled-videos"));
+      if (!res.ok) return;
+      const videos: { status: string }[] = await res.json();
+      setPendingCount(videos.filter((v) => v.status === "pending" || v.status === "processing").length);
+    } catch { }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingCount();
+    const t = setInterval(fetchPendingCount, 30_000);
+    return () => clearInterval(t);
+  }, [fetchPendingCount]);
 
   const initials = user?.name
     ? user.name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase()
@@ -105,6 +122,11 @@ export function Layout({ children }: { children: ReactNode }) {
                       )}
                       <Icon className="h-4 w-4 relative z-10 shrink-0" />
                       <span className="relative z-10">{item.label}</span>
+                      {item.href === "/upload" && pendingCount > 0 && (
+                        <span className="relative z-10 ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 leading-none">
+                          {pendingCount > 99 ? "99+" : pendingCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -245,10 +267,16 @@ export function Layout({ children }: { children: ReactNode }) {
                         >
                           <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? "text-primary" : ""}`} />
                           <span className="flex-1">{item.label}</span>
+                          {item.href === "/upload" && pendingCount > 0 && (
+                            <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1.5 leading-none">
+                              {pendingCount > 99 ? "99+" : pendingCount}
+                            </span>
+                          )}
                           {isActive && (
                             <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                           )}
-                          {!isActive && <ChevronRight className="h-3.5 w-3.5 opacity-30" />}
+                          {!isActive && item.href !== "/upload" && <ChevronRight className="h-3.5 w-3.5 opacity-30" />}
+                          {!isActive && item.href === "/upload" && pendingCount === 0 && <ChevronRight className="h-3.5 w-3.5 opacity-30" />}
                         </Link>
                       </motion.div>
                     );
