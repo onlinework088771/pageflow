@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Layout } from "@/components/layout";
 import { useListPages, useListAccounts } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +92,15 @@ function uid() {
   return Math.random().toString(36).slice(2);
 }
 
+function detectContentType(v: { videoPath?: string; videoUrl?: string }): ContentType {
+  if (!v.videoPath && !v.videoUrl) return "text";
+  const src = v.videoPath || v.videoUrl || "";
+  const ext = src.split(".").pop()?.toLowerCase() ?? "";
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+  if (["mp4", "mov", "avi", "mkv", "webm"].includes(ext)) return "reel";
+  return "video";
+}
+
 const CONTENT_TYPES: { id: ContentType; label: string; icon: React.ElementType; accept: string; hint: string }[] = [
   { id: "reel", label: "Reel", icon: Film, accept: "video/*", hint: "Short vertical video" },
   { id: "video", label: "Video", icon: Video, accept: "video/*", hint: "Standard video post" },
@@ -167,9 +176,10 @@ interface ManagerProps {
   onDelete: (id: string) => void;
   onRefresh: () => void;
   getPageName: (id: string) => string;
+  isFiltered?: boolean;
 }
 
-function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName }: ManagerProps) {
+function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName, isFiltered }: ManagerProps) {
   const tabs = [
     { key: "all", label: "All", statuses: ["pending", "processing", "posted", "failed"] },
     { key: "pending", label: "Pending", statuses: ["pending", "processing"] },
@@ -223,7 +233,11 @@ function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDele
                 ) : filtered.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center gap-2">
                     <CalendarClock className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">No {tab.key === "all" ? "" : tab.label.toLowerCase() + " "}posts yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isFiltered
+                        ? "No scheduled posts found for the current filters."
+                        : `No ${tab.key === "all" ? "" : tab.label.toLowerCase() + " "}posts yet`}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -359,6 +373,38 @@ export default function UploadScheduler() {
   const accountPages = selectedAccountId
     ? (allPages ?? []).filter((p) => p.accountId === selectedAccountId && (p.status === "active" || p.status === "paused"))
     : [];
+
+  // ── Filter Schedule Manager videos based on wizard selection state ──
+  // Filter order: Account → Selected Pages → Content Type (only when at step 2+)
+  const managerVideos = useMemo(() => {
+    let items = videos;
+
+    // 1. Filter by selected Facebook Account
+    if (selectedAccountId) {
+      const accountPageIds = new Set(
+        (allPages ?? [])
+          .filter((p) => p.accountId === selectedAccountId)
+          .map((p) => p.id)
+      );
+      items = items.filter((v) => v.pageIds.some((pid) => accountPageIds.has(pid)));
+    }
+
+    // 2. Filter by explicitly selected pages (user has checked specific pages)
+    if (selectedPageIds.length > 0) {
+      const pageSet = new Set(selectedPageIds);
+      items = items.filter((v) => v.pageIds.some((pid) => pageSet.has(pid)));
+    }
+
+    // 3. Filter by content type — only when user is at or past the content type step
+    if (step >= 2) {
+      items = items.filter((v) => detectContentType(v) === contentType);
+    }
+
+    return items;
+  }, [videos, selectedAccountId, selectedPageIds, contentType, step, allPages]);
+
+  // True whenever any wizard filter is actively narrowing the list
+  const managerIsFiltered = !!(selectedAccountId || selectedPageIds.length > 0 || step >= 2);
 
   const allSelected = accountPages.length > 0 && accountPages.every((p) => selectedPageIds.includes(p.id));
 
@@ -963,15 +1009,16 @@ export default function UploadScheduler() {
           </CardContent>
         </Card>
 
-        {/* Schedule Manager */}
+        {/* Schedule Manager — filtered by current wizard selection */}
         <ScheduleManagerSection
-          videos={videos}
+          videos={managerVideos}
           loading={loadingVideos}
           postingNow={postingNow}
           onPostNow={handlePostNow}
           onDelete={handleDelete}
           onRefresh={fetchVideos}
           getPageName={getPageName}
+          isFiltered={managerIsFiltered}
         />
 
       </div>
