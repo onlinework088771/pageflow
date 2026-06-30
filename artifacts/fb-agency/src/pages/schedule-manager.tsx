@@ -193,62 +193,110 @@ interface EditDialogProps {
   onSaved: (v: ScheduledVideo) => void;
 }
 
+const FB_CAPTION_LIMIT = 63_206;
+const TITLE_MAX = 255;
+
+function splitDescriptionAndHashtags(raw: string): { caption: string; hashtags: string } {
+  const tags = (raw.match(/#[\w\u0080-\uFFFF]+/g) ?? []).join(" ");
+  const caption = raw.replace(/#[\w\u0080-\uFFFF]+/g, "").replace(/\s{2,}/g, " ").trim();
+  return { caption, hashtags: tags };
+}
+
 function EditDialog({ video, onClose, onSaved }: EditDialogProps) {
   const { toast } = useToast();
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [caption, setCaption] = useState("");
+  const [hashtags, setHashtags] = useState("");
   const [dateVal, setDateVal] = useState("");
   const [timeVal, setTimeVal] = useState("");
   const [tz, setTz] = useState("America/New_York");
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!video) return;
     setTitle(video.title);
-    setDescription(video.description ?? "");
+    const { caption: cap, hashtags: tags } = splitDescriptionAndHashtags(video.description ?? "");
+    setCaption(cap);
+    setHashtags(tags);
     const d = new Date(video.scheduledAt);
     setDateVal(d.toISOString().split("T")[0]);
     setTimeVal(d.toTimeString().slice(0, 5));
     setTz(video.timezone || "America/New_York");
+    setErrors({});
   }, [video]);
+
+  function validate(): boolean {
+    const errs: Record<string, string> = {};
+    if (!title.trim()) errs.title = "Title is required.";
+    else if (title.trim().length > TITLE_MAX) errs.title = `Title must be ${TITLE_MAX} characters or fewer.`;
+    if (!dateVal || !timeVal) { errs.date = "Date and time are required."; }
+    else {
+      const [y, m, day] = dateVal.split("-").map(Number);
+      const [h, min] = timeVal.split(":").map(Number);
+      const dt = new Date(y, m - 1, day, h, min, 0, 0);
+      if (dt <= new Date()) errs.date = "Scheduled date must be in the future.";
+    }
+    const fullDesc = [caption.trim(), hashtags.trim()].filter(Boolean).join("\n\n");
+    if (fullDesc.length > FB_CAPTION_LIMIT) errs.caption = `Caption exceeds Facebook's limit of ${FB_CAPTION_LIMIT.toLocaleString()} characters.`;
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
 
   async function handleSave() {
     if (!video) return;
-    if (!title.trim()) { toast({ title: "Title is required", variant: "destructive" }); return; }
+    if (!validate()) return;
     const [y, m, day] = dateVal.split("-").map(Number);
     const [h, min] = timeVal.split(":").map(Number);
     const dt = new Date(y, m - 1, day, h, min, 0, 0);
+    const fullDesc = [caption.trim(), hashtags.trim()].filter(Boolean).join("\n\n") || null;
     setSaving(true);
     try {
       const resp = await authFetch(apiUrl(`/scheduled-videos/${video.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), description: description.trim() || null, scheduledAt: dt.toISOString(), timezone: tz }),
+        body: JSON.stringify({ title: title.trim(), description: fullDesc, scheduledAt: dt.toISOString(), timezone: tz }),
       });
       if (!resp.ok) throw new Error((await resp.json()).error ?? "Save failed");
       const updated = await resp.json();
       onSaved(updated);
-      toast({ title: "Saved!" });
+      toast({ title: "Schedule updated successfully." });
       onClose();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally { setSaving(false); }
   }
 
+  const captionLen = [caption.trim(), hashtags.trim()].filter(Boolean).join("\n\n").length;
+
   return (
     <Dialog open={!!video} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Scheduled Post</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4" />Edit Scheduled Post</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Post title" />
+            <Label>Post Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Post title" maxLength={TITLE_MAX} />
+            {errors.title && <p className="text-xs text-destructive">{errors.title}</p>}
+            <p className="text-[10px] text-muted-foreground text-right">{title.length}/{TITLE_MAX}</p>
           </div>
           <div className="space-y-1.5">
-            <Label>Caption / Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Caption..." rows={3} />
+            <Label>Caption</Label>
+            <Textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write your post caption here…" rows={4} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Hashtags</Label>
+            <Textarea value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#hashtag1 #hashtag2 #hashtag3" rows={2} />
+            <div className="flex items-center justify-between">
+              {errors.caption
+                ? <p className="text-xs text-destructive">{errors.caption}</p>
+                : <span />}
+              <p className={`text-[10px] text-right ml-auto ${captionLen > FB_CAPTION_LIMIT ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                {captionLen.toLocaleString()}/{FB_CAPTION_LIMIT.toLocaleString()}
+              </p>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -260,6 +308,7 @@ function EditDialog({ video, onClose, onSaved }: EditDialogProps) {
               <Input type="time" value={timeVal} onChange={(e) => setTimeVal(e.target.value)} />
             </div>
           </div>
+          {errors.date && <p className="text-xs text-destructive -mt-2">{errors.date}</p>}
           <div className="space-y-1.5">
             <Label>Timezone</Label>
             <Select value={tz} onValueChange={setTz}>
@@ -273,7 +322,7 @@ function EditDialog({ video, onClose, onSaved }: EditDialogProps) {
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Save
+            {saving && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}Save Changes
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -346,7 +395,7 @@ function ScheduleItemCard({ video, postingNow, onEdit, onDelete, onPostNow, onRe
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         )}
-        {(video.status === "pending" || video.status === "failed") && (
+        {video.status === "pending" && (
           <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground" title="Edit" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -418,6 +467,20 @@ function DashboardView({ pageId, pageName, pagePicture, pageCategory, pageFollow
   }, [tabFiltered, dateFilter, customStart, customEnd, statusFilter, ctFilter, search]);
 
   const stats = computeStats(pageVideos);
+
+  const scheduleRange = useMemo(() => {
+    const upcoming = filtered.filter((v) => v.status === "pending" || v.status === "processing");
+    if (!upcoming.length) return null;
+    const sorted = [...upcoming].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    return { first: sorted[0].scheduledAt, last: sorted[sorted.length - 1].scheduledAt };
+  }, [filtered]);
+
+  const nextScheduledItem = useMemo(() => {
+    const now = new Date().toISOString();
+    return filtered
+      .filter((v) => (v.status === "pending" || v.status === "processing") && v.scheduledAt > now)
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0] ?? null;
+  }, [filtered]);
 
   const tabs = [
     { key: "all", label: "All", count: pageVideos.length },
@@ -506,6 +569,39 @@ function DashboardView({ pageId, pageName, pagePicture, pageCategory, pageFollow
           <span className="hidden sm:inline">Refresh</span>
         </Button>
       </div>
+
+      {/* Schedule Range + Next Scheduled */}
+      {(scheduleRange || nextScheduledItem) && (
+        <div className="flex flex-col sm:flex-row gap-2">
+          {scheduleRange && (
+            <div className="flex-1 flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-muted/30">
+              <Calendar className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Schedule Range</p>
+                <p className="text-sm font-semibold leading-tight">
+                  {fmtDateOnly(scheduleRange.first)}
+                  {scheduleRange.first !== scheduleRange.last && (
+                    <> <span className="text-muted-foreground">→</span> {fmtDateOnly(scheduleRange.last)}</>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+          {nextScheduledItem && (
+            <div className="flex-1 flex items-center gap-3 p-3 rounded-xl border border-primary/20 bg-primary/5">
+              <CalendarClock className="h-4 w-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Next Scheduled</p>
+                <p className="text-sm font-semibold leading-tight">
+                  {fmtDateOnly(nextScheduledItem.scheduledAt)}
+                  <span className="text-muted-foreground"> • </span>
+                  {fmtTimeOnly(nextScheduledItem.scheduledAt, nextScheduledItem.timezone)}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
