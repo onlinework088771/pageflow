@@ -26,12 +26,12 @@ const upload = multer({
   storage,
   limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = [".mp4", ".mov", ".avi", ".mkv", ".webm"];
+    const allowed = [".mp4", ".mov", ".avi", ".mkv", ".webm", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Only video files are allowed"));
+      cb(new Error("Only video or image files are allowed"));
     }
   },
 });

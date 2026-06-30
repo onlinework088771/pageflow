@@ -539,25 +539,29 @@ export default function UploadScheduler() {
         }
       }
 
-      toast({
-        title: "Scheduled!",
-        description: `${created} post${created !== 1 ? "s" : ""} scheduled across ${scheduleDays} day${scheduleDays !== 1 ? "s" : ""}.`,
-      });
+      if (created === 0) {
+        toast({ title: "Scheduling failed", description: "The server rejected the upload. Check your file type and try again.", variant: "destructive" });
+      } else {
+        toast({
+          title: "Scheduled!",
+          description: `${created} post${created !== 1 ? "s" : ""} scheduled across ${scheduleDays} day${scheduleDays !== 1 ? "s" : ""}.`,
+        });
 
-      /* Reset wizard */
-      setStep(0);
-      setSelectedAccountId(null);
-      setSelectedPageIds([]);
-      setContentType("reel");
-      setUploadMode("single");
-      setUploadedFiles([]);
-      setTextContent("");
-      setTitle("");
-      setCaption("");
-      setHashtags("");
-      setPostsPerDay(1);
-      setStartDate(new Date().toISOString().split("T")[0]);
-      setStartTime("10:00");
+        /* Reset wizard */
+        setStep(0);
+        setSelectedAccountId(null);
+        setSelectedPageIds([]);
+        setContentType("reel");
+        setUploadMode("single");
+        setUploadedFiles([]);
+        setTextContent("");
+        setTitle("");
+        setCaption("");
+        setHashtags("");
+        setPostsPerDay(1);
+        setStartDate(new Date().toISOString().split("T")[0]);
+        setStartTime("10:00");
+      }
     } catch (err: any) {
       toast({ title: "Scheduling failed", description: err.message, variant: "destructive" });
     } finally {
