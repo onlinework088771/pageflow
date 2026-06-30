@@ -12,27 +12,30 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+// Load Replit-only dev plugins without leaking their import specifiers as
+// string literals. Rollup statically resolves string-literal dynamic imports,
+// which breaks Docker/VPS builds because the @replit/* packages depend on
+// Replit-internal APIs. Using a template literal with a variable makes the
+// specifier non-static, so Rollup skips resolution entirely. The imports still
+// execute correctly at runtime inside Replit because the variable evaluates to
+// the correct package name.
+const replitPlugins: any[] = [];
+if (process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined) {
+  const pkg = "@replit";
+  const { default: runtimeErrorModal } = await import(`${pkg}/vite-plugin-runtime-error-modal`);
+  replitPlugins.push(runtimeErrorModal());
+  const { cartographer } = await import(`${pkg}/vite-plugin-cartographer`);
+  replitPlugins.push(cartographer({ root: path.resolve(import.meta.dirname, "..") }));
+  const { devBanner } = await import(`${pkg}/vite-plugin-dev-banner`);
+  replitPlugins.push(devBanner());
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import(/* @vite-ignore */ "@replit/vite-plugin-runtime-error-modal").then((m) =>
-            m.default(),
-          ),
-          await import(/* @vite-ignore */ "@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import(/* @vite-ignore */ "@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
+    ...replitPlugins,
   ],
   resolve: {
     alias: {
