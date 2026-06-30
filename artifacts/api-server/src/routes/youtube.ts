@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { parseStringPromise } from "xml2js";
-import { db, facebookPagesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, facebookPagesTable, facebookAccountsTable } from "@workspace/db";
+import { eq, and, inArray } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -81,10 +81,18 @@ router.get("/youtube/scrape", async (req, res): Promise<void> => {
     const videos = await fetchChannelVideosByChannelId(resolvedChannelId);
 
     if (pageId) {
-      await db
-        .update(facebookPagesTable)
-        .set({ scrapingStatus: "active" })
-        .where(eq(facebookPagesTable.id, parseInt(pageId, 10)));
+      const userId = req.user!.userId;
+      const userAccounts = await db
+        .select({ id: facebookAccountsTable.id })
+        .from(facebookAccountsTable)
+        .where(eq(facebookAccountsTable.userId, userId));
+      const accountIds = userAccounts.map((a) => a.id);
+      if (accountIds.length) {
+        await db
+          .update(facebookPagesTable)
+          .set({ scrapingStatus: "active" })
+          .where(and(eq(facebookPagesTable.id, parseInt(pageId, 10)), inArray(facebookPagesTable.accountId, accountIds)));
+      }
     }
 
     res.json({ channelId: resolvedChannelId, videos, count: videos.length });

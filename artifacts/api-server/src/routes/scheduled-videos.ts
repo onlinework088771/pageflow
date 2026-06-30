@@ -133,10 +133,11 @@ router.post("/scheduled-videos/:id/post-now", async (req, res): Promise<void> =>
     return;
   }
 
+  const userId = req.user!.userId;
   const [video] = await db
     .select()
     .from(scheduledVideosTable)
-    .where(eq(scheduledVideosTable.id, id));
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)));
 
   if (!video) {
     res.status(404).json({ error: "Scheduled video not found" });
@@ -170,10 +171,11 @@ router.get("/scheduled-videos/:id/status", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = req.user!.userId;
   const [video] = await db
     .select()
     .from(scheduledVideosTable)
-    .where(eq(scheduledVideosTable.id, id));
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)));
 
   if (!video) {
     res.status(404).json({ error: "Not found" });
