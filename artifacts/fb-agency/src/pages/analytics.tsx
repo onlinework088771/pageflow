@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RechartTooltip,
-  ResponsiveContainer, Legend,
+  ResponsiveContainer,
 } from "recharts";
 
 // ---------------------------------------------------------------------------
@@ -136,6 +136,21 @@ const RANGE_LABELS: Record<RangeOption, string> = {
   "7": "7 Days", "28": "28 Days", "90": "90 Days", custom: "Custom",
 };
 
+/** True only when array has at least one point with a value > 0 */
+function hasChartData(arr: { date: string; value: number }[] | undefined | null): boolean {
+  return !!(arr && arr.length > 0 && arr.some((d) => d.value > 0));
+}
+
+/** True when a numeric metric is a positive number */
+function hasMetric(v: number | undefined | null): boolean {
+  return typeof v === "number" && isFinite(v) && v > 0;
+}
+
+/** True when a post is valid and has engagement data */
+function isValidPost(p: Post | null | undefined): boolean {
+  return !!(p && p.id && (p.engagement > 0 || p.reactions > 0 || p.comments > 0 || p.shares > 0 || p.message));
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -155,10 +170,10 @@ function ChartTip({ active, payload, label }: any) {
 }
 
 function StatCard({
-  icon: Icon, label, value, sub, color, loading,
+  icon: Icon, label, value, sub, color,
 }: {
   icon: React.ElementType; label: string; value: string;
-  sub?: string; color: string; loading?: boolean;
+  sub?: string; color: string;
 }) {
   return (
     <Card className="shadow-sm">
@@ -166,12 +181,8 @@ function StatCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider truncate">{label}</p>
-            {loading ? (
-              <Skeleton className="h-7 w-20 mt-1.5" />
-            ) : (
-              <p className="text-2xl font-bold tracking-tight mt-0.5">{value}</p>
-            )}
-            {sub && !loading && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+            <p className="text-2xl font-bold tracking-tight mt-0.5">{value}</p>
+            {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
           </div>
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
             <Icon className="w-4 h-4 text-white" />
@@ -183,9 +194,9 @@ function StatCard({
 }
 
 function SmallStatCard({
-  icon: Icon, label, value, iconColor, loading,
+  icon: Icon, label, value, iconColor,
 }: {
-  icon: React.ElementType; label: string; value: string | number; iconColor: string; loading?: boolean;
+  icon: React.ElementType; label: string; value: string | number; iconColor: string;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-xl border bg-card">
@@ -194,7 +205,7 @@ function SmallStatCard({
       </div>
       <div className="min-w-0">
         <p className="text-xs text-muted-foreground">{label}</p>
-        {loading ? <Skeleton className="h-5 w-12 mt-0.5" /> : <p className="font-bold text-sm">{value}</p>}
+        <p className="font-bold text-sm">{value}</p>
       </div>
     </div>
   );
@@ -225,17 +236,13 @@ function PostCard({ post, label, icon: Icon, iconColor }: { post: Post; label: s
   );
 }
 
-function ChartCard({ title, children, noData }: { title: string; children: React.ReactNode; noData?: boolean }) {
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-2">
         <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</CardTitle>
       </CardHeader>
-      <CardContent>
-        {noData ? (
-          <div className="h-[180px] flex items-center justify-center text-sm text-muted-foreground">No data for this period</div>
-        ) : children}
-      </CardContent>
+      <CardContent>{children}</CardContent>
     </Card>
   );
 }
@@ -305,22 +312,25 @@ export default function Analytics() {
   const { toast } = useToast();
 
   // Navigation state
-  const [view, setView]                     = useState<ViewMode>("accounts");
+  const [view, setView]                       = useState<ViewMode>("accounts");
   const [selectedAccount, setSelectedAccount] = useState<AnalyticsAccount | null>(null);
-  const [selectedPage, setSelectedPage]     = useState<AnalyticsPage | null>(null);
+  const [selectedPage, setSelectedPage]       = useState<AnalyticsPage | null>(null);
 
   // Date range state
-  const [rangeOption, setRangeOption]   = useState<RangeOption>("7");
-  const [customFrom, setCustomFrom]     = useState("");
-  const [customTo, setCustomTo]         = useState("");
-  const [showCustom, setShowCustom]     = useState(false);
+  const [rangeOption, setRangeOption] = useState<RangeOption>("7");
+  const [customFrom, setCustomFrom]   = useState("");
+  const [customTo, setCustomTo]       = useState("");
+  const [showCustom, setShowCustom]   = useState(false);
 
-  // Analytics refresh key (increment to force refetch)
+  // Refresh key
   const [refreshKey, setRefreshKey] = useState(0);
 
-  function goAccounts() { setView("accounts"); setSelectedAccount(null); setSelectedPage(null); }
-  function goPages(acc: AnalyticsAccount) { setSelectedAccount(acc); setView("pages"); setSelectedPage(null); }
-  function goDashboard(pg: AnalyticsPage) { setSelectedPage(pg); setView("dashboard"); }
+  // Stable data: persists last successful fetch — never replaced with null
+  const stableDataRef = useRef<AnalyticsData | null>(null);
+
+  function goAccounts() { setView("accounts"); setSelectedAccount(null); setSelectedPage(null); stableDataRef.current = null; }
+  function goPages(acc: AnalyticsAccount) { setSelectedAccount(acc); setView("pages"); setSelectedPage(null); stableDataRef.current = null; }
+  function goDashboard(pg: AnalyticsPage) { setSelectedPage(pg); setView("dashboard"); stableDataRef.current = null; }
 
   function handleRangeChange(opt: RangeOption) {
     setRangeOption(opt);
@@ -354,7 +364,8 @@ export default function Analytics() {
 
   const analyticsQueryKey = [
     "analytics-dashboard", selectedPage?.id, rangeOption,
-    rangeOption === "custom" ? customFrom : "", rangeOption === "custom" ? customTo : "",
+    rangeOption === "custom" ? customFrom : "",
+    rangeOption === "custom" ? customTo : "",
     refreshKey,
   ];
 
@@ -374,9 +385,20 @@ export default function Analytics() {
     retry: false,
   });
 
-  const data     = analyticsQuery.data;
-  const loading  = analyticsQuery.isLoading;
-  const error    = analyticsQuery.error as (Error & { permissionError?: boolean }) | null;
+  // Update stable ref whenever a successful response arrives — never clear it with null/undefined
+  if (analyticsQuery.data) {
+    stableDataRef.current = analyticsQuery.data;
+  }
+
+  // effectiveData: fresh data if available, otherwise last good data
+  // This prevents content from disappearing during background refetches
+  const effectiveData = analyticsQuery.data ?? stableDataRef.current;
+
+  const loading = analyticsQuery.isLoading && !effectiveData;   // only "hard" loading (no previous data)
+  const refetching = analyticsQuery.isFetching && !!effectiveData; // soft refetch with existing data
+  const error = analyticsQuery.error as (Error & { permissionError?: boolean }) | null;
+
+  const s = effectiveData?.summary;
 
   // ---------------------------------------------------------------------------
   // Render: Accounts view
@@ -536,57 +558,84 @@ export default function Analytics() {
   }
 
   // ---------------------------------------------------------------------------
-  // Render: Dashboard view
+  // Render: Dashboard view — range selector (inline, not a nested function)
   // ---------------------------------------------------------------------------
 
-  const s = data?.summary;
-
-  function RangeSelector() {
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-1.5">
-          {(["today", "yesterday", "7", "28", "90", "custom"] as RangeOption[]).map((opt) => (
-            <button
-              key={opt}
-              onClick={() => handleRangeChange(opt)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                rangeOption === opt
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:bg-muted"
-              }`}
-            >
-              {RANGE_LABELS[opt]}
-            </button>
-          ))}
-        </div>
-        {showCustom && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <Input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="h-8 text-xs w-36"
-            />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="h-8 text-xs w-36"
-            />
-            <Button
-              size="sm"
-              className="h-8 text-xs"
-              disabled={!customFrom || !customTo}
-              onClick={() => setRefreshKey((k) => k + 1)}
-            >
-              Apply
-            </Button>
-          </div>
-        )}
+  const rangeSelector = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        {(["today", "yesterday", "7", "28", "90", "custom"] as RangeOption[]).map((opt) => (
+          <button
+            key={opt}
+            onClick={() => handleRangeChange(opt)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+              rangeOption === opt
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-muted-foreground border-border hover:bg-muted"
+            }`}
+          >
+            {RANGE_LABELS[opt]}
+          </button>
+        ))}
       </div>
-    );
-  }
+      {showCustom && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 text-xs w-36" />
+          <span className="text-xs text-muted-foreground">to</span>
+          <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="h-8 text-xs w-36" />
+          <Button size="sm" className="h-8 text-xs" disabled={!customFrom || !customTo} onClick={() => setRefreshKey((k) => k + 1)}>
+            Apply
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  // ---------------------------------------------------------------------------
+  // Stat cards — built as an array, filtered to only non-zero values
+  // ---------------------------------------------------------------------------
+
+  const statCardDefs = s ? [
+    { icon: Users,         label: "Followers",     value: s.followers,         color: "bg-blue-500",    show: hasMetric(s.followers) },
+    { icon: Heart,         label: "Page Fans",      value: s.fans,              color: "bg-pink-500",    show: hasMetric(s.fans) },
+    { icon: TrendingUp,    label: "New Fans",       value: s.newFans,           color: "bg-emerald-500", show: hasMetric(s.newFans),    sub: s.lostFans > 0 ? `-${fmt(s.lostFans)} lost` : undefined },
+    { icon: Eye,           label: "Impressions",    value: s.impressions,       color: "bg-violet-500",  show: hasMetric(s.impressions), sub: s.organicImpressions > 0 ? `${fmt(s.organicImpressions)} organic` : undefined },
+    { icon: Globe,         label: "Unique Reach",   value: s.reach,             color: "bg-cyan-500",    show: hasMetric(s.reach) },
+    { icon: Activity,      label: "Engagement",     value: s.engagement,        color: "bg-orange-500",  show: hasMetric(s.engagement) },
+    { icon: Users,         label: "Engaged Users",  value: s.engagedUsers,      color: "bg-indigo-500",  show: hasMetric(s.engagedUsers) },
+    { icon: BookOpen,      label: "Page Views",     value: s.pageViews,         color: "bg-slate-500",   show: hasMetric(s.pageViews) },
+    { icon: Video,         label: "Video Views",    value: s.videoViews,        color: "bg-purple-500",  show: hasMetric(s.videoViews) },
+    { icon: PlayCircle,    label: "Reel Views",     value: s.reelViews,         color: "bg-fuchsia-500", show: hasMetric(s.reelViews) },
+    { icon: Clock,         label: "Watch Time",     value: s.watchTimeMinutes,  color: "bg-teal-500",    show: hasMetric(s.watchTimeMinutes), fmtFn: (v: number) => `${fmt(v)}m` },
+    { icon: Zap,           label: "Reactions",      value: s.totalReactions,    color: "bg-yellow-500",  show: hasMetric(s.totalReactions) },
+    { icon: MessageCircle, label: "Comments",       value: s.totalComments,     color: "bg-rose-500",    show: hasMetric(s.totalComments) },
+    { icon: Share2,        label: "Shares",         value: s.totalShares,       color: "bg-sky-500",     show: hasMetric(s.totalShares) },
+    { icon: FileText,      label: "Total Posts",    value: s.totalPosts,        color: "bg-gray-500",    show: hasMetric(s.totalPosts) },
+    {
+      icon: Video, label: "Total Videos", value: s.totalVideos, color: "bg-amber-500",
+      show: hasMetric(s.totalVideos) || hasMetric(s.totalReels),
+      fmtFn: (_: number) => `${fmt(s.totalVideos)} · ${fmt(s.totalReels)} reels`,
+    },
+  ] : [];
+
+  const visibleStatCards = statCardDefs.filter((c) => c.show);
+
+  // Publishing counts — only show rows with at least one non-zero value
+  const pubToday = s?.publishedToday ?? 0;
+  const pubWeek  = s?.publishedThisWeek ?? 0;
+  const pubMonth = s?.publishedThisMonth ?? 0;
+  const pubTotal = s?.totalPosts ?? 0;
+  const showPublishing = pubToday > 0 || pubWeek > 0 || pubMonth > 0 || pubTotal > 0;
+
+  // ---------------------------------------------------------------------------
+  // Chart definitions — only rendered if they have actual data
+  // ---------------------------------------------------------------------------
+
+  const charts = effectiveData?.charts;
+
+  // ---------------------------------------------------------------------------
+  // Dashboard render
+  // ---------------------------------------------------------------------------
 
   return (
     <Layout>
@@ -603,30 +652,38 @@ export default function Analytics() {
             <div>
               <h2 className="text-xl font-bold leading-tight">{selectedPage!.name}</h2>
               {selectedPage!.category && <p className="text-sm text-muted-foreground">{selectedPage!.category}</p>}
-              {data?.fromCache && <p className="text-[10px] text-muted-foreground">Cached · refreshes every 60s</p>}
+              {effectiveData?.fromCache && <p className="text-[10px] text-muted-foreground">Cached · refreshes every 60s</p>}
             </div>
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setRefreshKey((k) => k + 1)}
-            disabled={loading}
+            disabled={analyticsQuery.isFetching}
             className="gap-2"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${analyticsQuery.isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
 
         {/* Range selector */}
-        <RangeSelector />
+        {rangeSelector}
 
-        {/* Permission / generic error */}
-        {error && !loading && (
+        {/* Permission / generic error — only when no data at all */}
+        {error && !effectiveData && (
           <PermissionErrorBanner message={error.message} />
         )}
 
-        {/* Loading skeleton */}
+        {/* Soft refetch error banner — data exists but latest fetch failed */}
+        {error && !!effectiveData && (
+          <div className="flex items-center gap-2 p-3 rounded-xl border border-yellow-500/30 bg-yellow-500/5 text-xs text-yellow-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            Latest refresh failed — showing previous data. {error.message}
+          </div>
+        )}
+
+        {/* Hard loading skeleton — only when no previous data exists */}
         {loading && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -638,148 +695,166 @@ export default function Analytics() {
           </div>
         )}
 
-        {data && !loading && (
+        {/* Dashboard content — rendered whenever effectiveData exists, including during soft refetch */}
+        {effectiveData && !loading && (
           <>
-            {/* ---- Primary stat cards ---- */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              <StatCard icon={Users}       label="Followers"      value={fmt(s!.followers)}            color="bg-blue-500" />
-              <StatCard icon={Heart}       label="Page Fans"      value={fmt(s!.fans)}                 color="bg-pink-500" />
-              <StatCard icon={TrendingUp}  label="New Fans"       value={fmt(s!.newFans)}              sub={`-${fmt(s!.lostFans)} lost`} color="bg-emerald-500" />
-              <StatCard icon={Eye}         label="Impressions"    value={fmt(s!.impressions)}          sub={`${fmt(s!.organicImpressions)} organic`} color="bg-violet-500" />
-              <StatCard icon={Globe}       label="Unique Reach"   value={fmt(s!.reach)}                color="bg-cyan-500" />
-              <StatCard icon={Activity}    label="Engagement"     value={fmt(s!.engagement)}           color="bg-orange-500" />
-              <StatCard icon={Users}       label="Engaged Users"  value={fmt(s!.engagedUsers)}         color="bg-indigo-500" />
-              <StatCard icon={BookOpen}    label="Page Views"     value={fmt(s!.pageViews)}            color="bg-slate-500" />
-              <StatCard icon={Video}       label="Video Views"    value={fmt(s!.videoViews)}           color="bg-purple-500" />
-              <StatCard icon={PlayCircle}  label="Reel Views"     value={fmt(s!.reelViews)}            color="bg-fuchsia-500" />
-              <StatCard icon={Clock}       label="Watch Time"     value={`${fmt(s!.watchTimeMinutes)}m`} color="bg-teal-500" />
-              <StatCard icon={Zap}         label="Reactions"      value={fmt(s!.totalReactions)}       color="bg-yellow-500" />
-              <StatCard icon={MessageCircle} label="Comments"     value={fmt(s!.totalComments)}        color="bg-rose-500" />
-              <StatCard icon={Share2}      label="Shares"         value={fmt(s!.totalShares)}          color="bg-sky-500" />
-              <StatCard icon={FileText}    label="Total Posts"    value={fmt(s!.totalPosts)}           color="bg-gray-500" />
-              <StatCard icon={Video}       label="Total Videos"   value={`${fmt(s!.totalVideos)} · ${fmt(s!.totalReels)} reels`} color="bg-amber-500" />
-            </div>
-
-            {/* ---- Publishing counts ---- */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Posts Published</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <SmallStatCard icon={Calendar} label="Today"       value={s!.publishedToday}      iconColor="bg-green-500" />
-                <SmallStatCard icon={Calendar} label="This Week"   value={s!.publishedThisWeek}   iconColor="bg-blue-500" />
-                <SmallStatCard icon={Calendar} label="This Month"  value={s!.publishedThisMonth}  iconColor="bg-violet-500" />
-                <SmallStatCard icon={FileText}  label="Total Fetched" value={s!.totalPosts}       iconColor="bg-slate-500" />
+            {/* ── Primary stat cards — only rendered if value > 0 ── */}
+            {visibleStatCards.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {visibleStatCards.map((c) => (
+                  <StatCard
+                    key={c.label}
+                    icon={c.icon}
+                    label={c.label}
+                    value={c.fmtFn ? c.fmtFn(c.value) : fmt(c.value)}
+                    sub={c.sub}
+                    color={c.color}
+                  />
+                ))}
               </div>
-            </div>
+            )}
 
-            {/* ---- Charts ---- */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <ChartCard title="Impressions" noData={!data.charts.impressions.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={data.charts.impressions}>
-                    <defs>
-                      <linearGradient id="gImp" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Area type="monotone" dataKey="value" name="Impressions" stroke="#7c3aed" fill="url(#gImp)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartCard>
+            {/* ── Publishing counts — only if any non-zero ── */}
+            {showPublishing && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Posts Published</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {pubToday > 0  && <SmallStatCard icon={Calendar}  label="Today"        value={pubToday}  iconColor="bg-green-500" />}
+                  {pubWeek  > 0  && <SmallStatCard icon={Calendar}  label="This Week"    value={pubWeek}   iconColor="bg-blue-500" />}
+                  {pubMonth > 0  && <SmallStatCard icon={Calendar}  label="This Month"   value={pubMonth}  iconColor="bg-violet-500" />}
+                  {pubTotal > 0  && <SmallStatCard icon={FileText}   label="Total Fetched" value={pubTotal} iconColor="bg-slate-500" />}
+                </div>
+              </div>
+            )}
 
-              <ChartCard title="Unique Reach" noData={!data.charts.reach.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={data.charts.reach}>
-                    <defs>
-                      <linearGradient id="gReach" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Area type="monotone" dataKey="value" name="Reach" stroke="#06b6d4" fill="url(#gReach)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartCard>
+            {/* ── Charts — each card only rendered when it has actual non-zero data ── */}
+            {(hasChartData(charts?.impressions) || hasChartData(charts?.reach) ||
+              hasChartData(charts?.engagement)  || hasChartData(charts?.followers) ||
+              hasChartData(charts?.videoViews)  || hasChartData(charts?.fanAdds)) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {hasChartData(charts?.impressions) && (
+                  <ChartCard title="Impressions">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <AreaChart data={charts!.impressions}>
+                        <defs>
+                          <linearGradient id="gImp" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Area type="monotone" dataKey="value" name="Impressions" stroke="#7c3aed" fill="url(#gImp)" strokeWidth={2} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
-              <ChartCard title="Post Engagement" noData={!data.charts.engagement.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={data.charts.engagement}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Bar dataKey="value" name="Engagement" fill="#f97316" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
+                {hasChartData(charts?.reach) && (
+                  <ChartCard title="Unique Reach">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <AreaChart data={charts!.reach}>
+                        <defs>
+                          <linearGradient id="gReach" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Area type="monotone" dataKey="value" name="Reach" stroke="#06b6d4" fill="url(#gReach)" strokeWidth={2} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
-              <ChartCard title="Followers (Page Fans)" noData={!data.charts.followers.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <LineChart data={data.charts.followers}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={45} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Line type="monotone" dataKey="value" name="Followers" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartCard>
+                {hasChartData(charts?.engagement) && (
+                  <ChartCard title="Post Engagement">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={charts!.engagement}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Bar dataKey="value" name="Engagement" fill="#f97316" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
-              <ChartCard title="Video Views" noData={!data.charts.videoViews.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={data.charts.videoViews}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Bar dataKey="value" name="Video Views" fill="#a855f7" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
+                {hasChartData(charts?.followers) && (
+                  <ChartCard title="Followers (Page Fans)">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <LineChart data={charts!.followers}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={45} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Line type="monotone" dataKey="value" name="Followers" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
-              <ChartCard title="New Fans per Day" noData={!data.charts.fanAdds.length}>
-                <ResponsiveContainer width="100%" height={180}>
-                  <AreaChart data={data.charts.fanAdds}>
-                    <defs>
-                      <linearGradient id="gFans" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                    <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
-                    <RechartTooltip content={<ChartTip />} />
-                    <Area type="monotone" dataKey="value" name="New Fans" stroke="#10b981" fill="url(#gFans)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartCard>
-            </div>
+                {hasChartData(charts?.videoViews) && (
+                  <ChartCard title="Video Views">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <BarChart data={charts!.videoViews}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Bar dataKey="value" name="Video Views" fill="#a855f7" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
 
-            {/* ---- Best & Worst performing posts ---- */}
-            {(data.bestPost || data.worstPost) && (
+                {hasChartData(charts?.fanAdds) && (
+                  <ChartCard title="New Fans per Day">
+                    <ResponsiveContainer width="100%" height={180}>
+                      <AreaChart data={charts!.fanAdds}>
+                        <defs>
+                          <linearGradient id="gFans" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
+                        <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
+                        <RechartTooltip content={<ChartTip />} />
+                        <Area type="monotone" dataKey="value" name="New Fans" stroke="#10b981" fill="url(#gFans)" strokeWidth={2} dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                )}
+              </div>
+            )}
+
+            {/* ── Best & Worst performing posts
+                  Only rendered when: post exists AND has engagement/reactions/comments/shares
+                  Best and worst are treated independently
+            ── */}
+            {(isValidPost(effectiveData.bestPost) || isValidPost(effectiveData.worstPost)) && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Post Performance</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {data.bestPost && (
+                  {isValidPost(effectiveData.bestPost) && (
                     <PostCard
-                      post={data.bestPost}
+                      post={effectiveData.bestPost!}
                       label="Best Performing Post"
                       icon={Star}
                       iconColor="bg-yellow-500/10 text-yellow-600 border-yellow-500/20"
                     />
                   )}
-                  {data.worstPost && data.worstPost.id !== data.bestPost?.id && (
+                  {isValidPost(effectiveData.worstPost) && effectiveData.worstPost!.id !== effectiveData.bestPost?.id && (
                     <PostCard
-                      post={data.worstPost}
+                      post={effectiveData.worstPost!}
                       label="Lowest Performing Post"
                       icon={ArrowDown}
                       iconColor="bg-slate-500/10 text-slate-600 border-slate-500/20"
@@ -789,23 +864,26 @@ export default function Analytics() {
               </div>
             )}
 
-            {/* ---- Latest posts ---- */}
-            {data.recentPosts.length > 0 && (
+            {/* ── Latest posts
+                  Independent of Insights API — always rendered when recentPosts exists.
+                  Thumbnails show on both mobile and desktop.
+            ── */}
+            {effectiveData.recentPosts.length > 0 && (
               <Card className="shadow-sm">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Latest Posts ({data.recentPosts.length})
+                    Latest Posts ({effectiveData.recentPosts.length})
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="divide-y">
-                    {data.recentPosts.map((post) => (
-                      <div key={post.id} className="flex items-start gap-4 px-6 py-4">
+                    {effectiveData.recentPosts.map((post) => (
+                      <div key={post.id} className="flex items-start gap-4 px-4 sm:px-6 py-4">
                         {post.thumbnail && (
                           <img
                             src={post.thumbnail}
                             alt=""
-                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 hidden sm:block"
+                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                           />
                         )}
@@ -832,7 +910,7 @@ export default function Analytics() {
             )}
 
             <p className="text-xs text-muted-foreground text-center">
-              Last fetched: {new Date(data.fetchedAt).toLocaleTimeString()} · Data from Facebook Graph API v19.0
+              Last fetched: {new Date(effectiveData.fetchedAt).toLocaleTimeString()} · Data from Facebook Graph API v19.0
             </p>
           </>
         )}

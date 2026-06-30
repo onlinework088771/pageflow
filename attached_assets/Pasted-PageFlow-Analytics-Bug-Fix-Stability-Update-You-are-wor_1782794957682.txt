@@ -1,0 +1,324 @@
+PageFlow Analytics Bug Fix & Stability Update
+
+You are working on the existing PageFlow project.
+
+⚠️ IMPORTANT RULES
+
+DO NOT redesign the UI.
+
+DO NOT change colors, spacing, typography or existing layout.
+
+Keep the current design exactly the same.
+
+Only fix bugs and improve stability.
+
+Mobile and Desktop must behave identically.
+
+
+
+---
+
+1. Remove Empty Analytics Cards
+
+Currently these sections appear even when Graph API returns no data:
+
+Impressions
+
+Unique Reach
+
+Post Engagement
+
+Followers
+
+Video Views
+
+New Fans Per Day
+
+Any chart section showing "No data for this period"
+
+
+This creates a very poor user experience.
+
+Required Fix
+
+If the metric has:
+
+null
+
+undefined
+
+empty array
+
+no values
+
+API error
+
+all values = 0 because Facebook didn't return the metric
+
+
+Then DO NOT render the card at all.
+
+Instead:
+
+Completely hide that section.
+
+No empty white boxes.
+
+No "No data for this period".
+
+No reserved blank space.
+
+The page should automatically collapse upward.
+
+Example:
+
+If only Reel Views exists, then only Reel Views should appear.
+
+
+---
+
+2. Best Performing / Lowest Performing / Latest Posts Bug
+
+Sometimes these sections load correctly.
+
+Sometimes they disappear.
+
+Sometimes they only appear after refresh.
+
+Desktop sometimes shows nothing.
+
+This must be fixed.
+
+Requirements:
+
+Fetch once.
+
+Store response in state.
+
+Prevent unnecessary re-render.
+
+Prevent state reset.
+
+Prevent race conditions.
+
+Prevent component unmount issues.
+
+Do not overwrite fetched data with empty responses.
+
+If data already exists, never replace it with null.
+
+
+Use stable loading logic.
+
+
+---
+
+3. Desktop Bug
+
+Desktop mode sometimes shows:
+
+no latest posts
+
+no best performing
+
+no lowest performing
+
+
+while mobile shows them.
+
+Fix responsive rendering.
+
+Desktop and mobile must use exactly the same data source.
+
+Do not maintain separate rendering logic.
+
+
+---
+
+4. Conditional Rendering
+
+Current logic:
+
+if response exists render everything
+
+This is wrong.
+
+Instead:
+
+Every section should independently decide whether it should render.
+
+Example:
+
+Followers ✔
+
+Reel Views ✔
+
+Latest Posts ✔
+
+Impressions ❌
+
+Video Views ❌
+
+Only visible sections should render.
+
+
+---
+
+5. Best Performing Post
+
+Only show this card if:
+
+thumbnail exists
+
+post exists
+
+engagement data exists
+
+
+Otherwise completely hide it.
+
+No placeholder.
+
+
+---
+
+6. Lowest Performing Post
+
+Same logic.
+
+If no valid post exists:
+
+Hide entire section.
+
+
+---
+
+7. Latest Posts
+
+Always show latest posts whenever posts were fetched successfully.
+
+Do not depend on Insights API.
+
+Latest Posts should come from fetched page posts.
+
+If posts exist:
+
+Always render.
+
+
+---
+
+8. Charts
+
+Every chart should verify data before rendering.
+
+If chart dataset is empty:
+
+Hide chart completely.
+
+Do not render an empty chart container.
+
+
+---
+
+9. API Error Handling
+
+If Graph API returns:
+
+Unsupported metric
+
+Missing permission
+
+Unsupported period
+
+(#100)
+
+OAuth error
+
+then:
+
+Skip only that metric.
+
+Do NOT break the whole Analytics page.
+
+Continue rendering all remaining valid metrics.
+
+
+---
+
+10. Performance
+
+Avoid duplicate Graph API requests.
+
+Cache analytics response during the current session.
+
+Do not refetch every re-render.
+
+Only refresh when:
+
+Refresh button pressed
+
+Selected page changes
+
+Selected date range changes
+
+
+
+---
+
+11. Loading
+
+During loading:
+
+Show skeleton loaders.
+
+Never flash empty cards.
+
+Never show "No data" before request finishes.
+
+
+---
+
+12. Final Expected Result
+
+The Analytics page should behave like a professional SaaS dashboard.
+
+If Facebook returns only:
+
+Reel Views
+
+Followers
+
+Best Performing Post
+
+Latest Posts
+
+
+then ONLY those sections should appear.
+
+No empty cards.
+
+No blank containers.
+
+No disappearing sections.
+
+No desktop/mobile inconsistency.
+
+The analytics page must be stable, responsive, and render only valid data returned by the Facebook Graph API.
+
+
+---
+
+After implementing all fixes:
+
+1. Test on both mobile and desktop.
+
+
+2. Verify that Best Performing, Lowest Performing, and Latest Posts never disappear after refresh or resize.
+
+
+3. Ensure no empty analytics cards are rendered when data is unavailable.
+
+
+4. Do not modify any existing UI design—only fix the rendering logic and bugs.
+
