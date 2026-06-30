@@ -30,12 +30,13 @@ router.get("/overview/stats", async (req, res): Promise<void> => {
   const hasExpired = userAccounts.some((a) => a.status === "expired" || a.status === "error");
   const accountHealth = userAccounts.length === 0 ? "inactive" : hasExpired ? "warning" : "active";
 
-  const balanceRows = await db.select().from(tokenBalanceTable).limit(1);
+  const balanceRows = await db.select().from(tokenBalanceTable).where(eq(tokenBalanceTable.userId, userId)).limit(1);
   const tokenBalance = balanceRows.length > 0 ? balanceRows[0].balance : 0;
 
   const transactions = await db
     .select()
     .from(tokenTransactionsTable)
+    .where(eq(tokenTransactionsTable.userId, userId))
     .orderBy(tokenTransactionsTable.timestamp)
     .limit(5);
 

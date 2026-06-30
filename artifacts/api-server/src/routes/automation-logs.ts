@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db, automationLogsTable } from "@workspace/db";
+import { eq, desc, inArray } from "drizzle-orm";
+import { db, automationLogsTable, facebookAccountsTable, facebookPagesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { ListAutomationLogsQueryParams, ListAutomationLogsResponse } from "@workspace/api-zod";
 
@@ -25,14 +25,58 @@ router.get("/automation-logs", requireAuth, async (req, res): Promise<void> => {
   const pageId = parsed.success ? parsed.data.pageId : undefined;
   const limit = parsed.success ? (parsed.data.limit ?? 50) : 50;
 
-  let query = db.select().from(automationLogsTable).orderBy(desc(automationLogsTable.createdAt)).limit(limit);
+  const userId = req.user!.userId;
 
-  const logs = await query;
-  const filtered = pageId
-    ? logs.filter((l) => l.pageId != null && String(l.pageId) === pageId)
-    : logs;
+  // Resolve page IDs that belong to this user
+  const userAccounts = await db
+    .select({ id: facebookAccountsTable.id })
+    .from(facebookAccountsTable)
+    .where(eq(facebookAccountsTable.userId, userId));
 
-  res.json(ListAutomationLogsResponse.parse(filtered.map(serializeLog)));
+  const accountIds = userAccounts.map((a) => a.id);
+
+  if (accountIds.length === 0) {
+    res.json(ListAutomationLogsResponse.parse([]));
+    return;
+  }
+
+  const userPages = await db
+    .select({ id: facebookPagesTable.id })
+    .from(facebookPagesTable)
+    .where(inArray(facebookPagesTable.accountId, accountIds));
+
+  const pageIds = userPages.map((p) => p.id);
+
+  if (pageIds.length === 0) {
+    res.json(ListAutomationLogsResponse.parse([]));
+    return;
+  }
+
+  // If a specific pageId filter is requested, verify it belongs to this user
+  if (pageId !== undefined) {
+    const numericPageId = parseInt(pageId, 10);
+    if (!pageIds.includes(numericPageId)) {
+      res.json(ListAutomationLogsResponse.parse([]));
+      return;
+    }
+    const logs = await db
+      .select()
+      .from(automationLogsTable)
+      .where(eq(automationLogsTable.pageId, numericPageId))
+      .orderBy(desc(automationLogsTable.createdAt))
+      .limit(limit);
+    res.json(ListAutomationLogsResponse.parse(logs.map(serializeLog)));
+    return;
+  }
+
+  const logs = await db
+    .select()
+    .from(automationLogsTable)
+    .where(inArray(automationLogsTable.pageId, pageIds))
+    .orderBy(desc(automationLogsTable.createdAt))
+    .limit(limit);
+
+  res.json(ListAutomationLogsResponse.parse(logs.map(serializeLog)));
 });
 
 export default router;

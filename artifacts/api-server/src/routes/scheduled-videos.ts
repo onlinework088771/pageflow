@@ -260,9 +260,10 @@ router.delete("/scheduled-videos/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = req.user!.userId;
   const [video] = await db
     .delete(scheduledVideosTable)
-    .where(eq(scheduledVideosTable.id, id))
+    .where(and(eq(scheduledVideosTable.id, id), eq(scheduledVideosTable.userId, userId)))
     .returning();
 
   if (!video) {

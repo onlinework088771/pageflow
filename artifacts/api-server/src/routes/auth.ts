@@ -46,7 +46,7 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
   }).returning();
 
   // Create default agency settings for this user
-  await db.insert(agencySettingsTable).values({ agencyName }).onConflictDoNothing();
+  await db.insert(agencySettingsTable).values({ agencyName, userId: user.id }).onConflictDoNothing();
 
   const token = signToken({
     userId: user.id,

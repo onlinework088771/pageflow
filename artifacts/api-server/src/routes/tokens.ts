@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, tokenBalanceTable, tokenTransactionsTable } from "@workspace/db";
 import { AddTokensBody, ListTokensResponse, AddTokensResponse } from "@workspace/api-zod";
 
@@ -12,17 +12,23 @@ const TOKEN_PACKAGES = [
   { id: "agency", name: "Agency Pack", tokens: 5000, price: 299.99 },
 ];
 
-async function ensureBalance(): Promise<{ id: number; balance: number; updatedAt: Date }> {
-  const rows = await db.select().from(tokenBalanceTable).limit(1);
+async function ensureBalance(userId: number): Promise<{ id: number; balance: number; updatedAt: Date }> {
+  const rows = await db.select().from(tokenBalanceTable).where(eq(tokenBalanceTable.userId, userId)).limit(1);
   if (rows.length > 0) return rows[0];
-  const [created] = await db.insert(tokenBalanceTable).values({ balance: 0 }).returning();
+  const [created] = await db.insert(tokenBalanceTable).values({ userId, balance: 0 }).returning();
   return created;
 }
 
 router.get("/tokens", async (req, res): Promise<void> => {
   req.log.info("Getting token info");
-  const balance = await ensureBalance();
-  const transactions = await db.select().from(tokenTransactionsTable).orderBy(tokenTransactionsTable.timestamp).limit(20);
+  const userId = req.user!.userId;
+  const balance = await ensureBalance(userId);
+  const transactions = await db
+    .select()
+    .from(tokenTransactionsTable)
+    .where(eq(tokenTransactionsTable.userId, userId))
+    .orderBy(tokenTransactionsTable.timestamp)
+    .limit(20);
 
   res.json(ListTokensResponse.parse({
     balance: balance.balance,
@@ -48,24 +54,33 @@ router.post("/tokens", async (req, res): Promise<void> => {
     return;
   }
 
-  const balance = await ensureBalance();
+  const userId = req.user!.userId;
+  const balance = await ensureBalance(userId);
   const newBalance = balance.balance + amount;
 
-  await db.update(tokenBalanceTable).set({ balance: newBalance }).where(eq(tokenBalanceTable.id, balance.id));
+  await db
+    .update(tokenBalanceTable)
+    .set({ balance: newBalance })
+    .where(and(eq(tokenBalanceTable.id, balance.id), eq(tokenBalanceTable.userId, userId)));
 
-  // Record transaction
   const packageName = parsed.data.packageId
     ? TOKEN_PACKAGES.find(p => p.id === parsed.data.packageId)?.name ?? "Custom"
     : "Custom";
 
   await db.insert(tokenTransactionsTable).values({
+    userId,
     type: "purchase",
     amount,
     description: `Purchased ${amount} tokens (${packageName})`,
     timestamp: new Date(),
   });
 
-  const transactions = await db.select().from(tokenTransactionsTable).orderBy(tokenTransactionsTable.timestamp).limit(20);
+  const transactions = await db
+    .select()
+    .from(tokenTransactionsTable)
+    .where(eq(tokenTransactionsTable.userId, userId))
+    .orderBy(tokenTransactionsTable.timestamp)
+    .limit(20);
 
   res.json(AddTokensResponse.parse({
     balance: newBalance,
