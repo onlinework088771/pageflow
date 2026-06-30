@@ -147,6 +147,60 @@ async function uploadVideoViaFile(
   return res.data?.id ?? "unknown";
 }
 
+/**
+ * Post an image to a Facebook page via the /photos endpoint.
+ */
+async function postImageToPage(
+  fbPageId: string,
+  pageToken: string,
+  caption: string,
+  opts: { localFilePath?: string; imageUrl?: string },
+): Promise<string> {
+  const { localFilePath, imageUrl } = opts;
+
+  if (localFilePath && fs.existsSync(localFilePath)) {
+    logger.info({ fbPageId, localFilePath }, "Uploading image to Facebook as binary");
+    const form = new FormData();
+    form.append("source", fs.createReadStream(localFilePath));
+    form.append("caption", caption);
+    form.append("access_token", pageToken);
+    const res = await axios.post(`${FB_API}/${fbPageId}/photos`, form, {
+      headers: form.getHeaders(),
+      timeout: 120_000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
+    return res.data?.id ?? "unknown";
+  }
+
+  if (imageUrl) {
+    logger.info({ fbPageId, imageUrl: imageUrl.slice(0, 80) }, "Uploading image to Facebook via URL");
+    const res = await axios.post(`${FB_API}/${fbPageId}/photos`, null, {
+      params: { url: imageUrl, caption, access_token: pageToken },
+      timeout: 60_000,
+    });
+    return res.data?.id ?? "unknown";
+  }
+
+  throw new Error("No image source available (no file, no URL)");
+}
+
+/**
+ * Post a text-only message to a Facebook page via the /feed endpoint.
+ */
+async function postTextToPage(
+  fbPageId: string,
+  pageToken: string,
+  message: string,
+): Promise<string> {
+  logger.info({ fbPageId }, "Posting text to Facebook /feed");
+  const res = await axios.post(`${FB_API}/${fbPageId}/feed`, null, {
+    params: { message, access_token: pageToken },
+    timeout: 30_000,
+  });
+  return res.data?.id ?? "unknown";
+}
+
 async function postVideoToPage(
   fbPageId: string,
   pageToken: string,
@@ -220,16 +274,16 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
     .where(eq(scheduledVideosTable.id, videoId));
 
   const pageIds = Array.isArray(video.pageIds) ? video.pageIds : [];
-  const videoUrl = video.videoUrl ?? undefined;
-  const localVideoPath = video.videoPath
+  const mediaUrl = video.videoUrl ?? undefined;
+  const localMediaPath = video.videoPath
     ? path.join(process.cwd(), video.videoPath.replace(/^\//, ""))
     : undefined;
 
   const localFilePath =
-    localVideoPath && fs.existsSync(localVideoPath) ? localVideoPath : undefined;
+    localMediaPath && fs.existsSync(localMediaPath) ? localMediaPath : undefined;
 
-  // Use stored description if available, otherwise it will be auto-generated for YouTube URLs
-  const storedDescription = (video as any).description ?? undefined;
+  const storedDescription = video.description ?? undefined;
+  const postType = video.postType ?? "video";
 
   let postedCount = 0;
   const errors: string[] = [];
@@ -252,20 +306,33 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
         if (!account) { errors.push(`Account for page ${pageId} not found`); continue; }
 
         const pageToken = await getPageAccessToken(page.fbPageId, account.accessToken);
+        const caption = storedDescription || video.title;
 
-        await postVideoToPage(page.fbPageId, pageToken, video.title, {
-          localFilePath,
-          videoUrl,
-          originalUrl: videoUrl,
-          description: storedDescription,
-        });
+        if (postType === "text") {
+          // Text post — no file needed
+          await postTextToPage(page.fbPageId, pageToken, caption);
+        } else if (postType === "image") {
+          // Image post → /photos endpoint
+          await postImageToPage(page.fbPageId, pageToken, caption, {
+            localFilePath,
+            imageUrl: mediaUrl,
+          });
+        } else {
+          // video or reel → /videos endpoint
+          await postVideoToPage(page.fbPageId, pageToken, video.title, {
+            localFilePath,
+            videoUrl: mediaUrl,
+            originalUrl: mediaUrl,
+            description: storedDescription,
+          });
+        }
+
         postedCount++;
-
-        logger.info({ videoId, pageId, fbPageId: page.fbPageId }, "Posted video to Facebook page");
+        logger.info({ videoId, pageId, fbPageId: page.fbPageId, postType }, "Posted to Facebook page");
       } catch (err: any) {
         const msg = err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
         errors.push(msg);
-        logger.error({ videoId, pageId, err: msg }, "Failed to post video to page");
+        logger.error({ videoId, pageId, postType, err: msg }, "Failed to post to page");
       }
     }
 

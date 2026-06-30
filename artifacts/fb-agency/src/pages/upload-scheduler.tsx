@@ -505,6 +505,7 @@ export default function UploadScheduler() {
         const fd = new FormData();
         fd.append("title", title.trim());
         if (fullCaption) fd.append("description", fullCaption);
+        fd.append("postType", "text");
         fd.append("pageIds", JSON.stringify(selectedPageIds));
         fd.append("scheduledAt", scheduleDates[0]);
         fd.append("timezone", timezone);
@@ -521,14 +522,11 @@ export default function UploadScheduler() {
           const fd = new FormData();
           fd.append("title", uploadedFiles.length > 1 ? `${title.trim()} (${i + 1})` : title.trim());
           if (fullCaption) fd.append("description", fullCaption);
+          fd.append("postType", contentType);
           fd.append("pageIds", JSON.stringify(selectedPageIds));
           fd.append("scheduledAt", scheduleDates[i] ?? scheduleDates[scheduleDates.length - 1]);
           fd.append("timezone", timezone);
-          if (contentType === "image") {
-            fd.append("video", file); // API uses "video" field for all media
-          } else {
-            fd.append("video", file);
-          }
+          fd.append("video", file);
           const resp = await authFetch(apiUrl("/scheduled-videos"), { method: "POST", body: fd });
           if (resp.ok) {
             const v = await resp.json();

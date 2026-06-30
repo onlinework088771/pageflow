@@ -41,6 +41,7 @@ function serializeVideo(v: typeof scheduledVideosTable.$inferSelect) {
     id: String(v.id),
     title: v.title,
     description: v.description ?? undefined,
+    postType: v.postType ?? "video",
     videoUrl: v.videoUrl ?? undefined,
     videoPath: v.videoPath ?? undefined,
     thumbnailUrl: v.thumbnailUrl ?? undefined,
@@ -66,7 +67,7 @@ router.get("/scheduled-videos", async (req, res): Promise<void> => {
 
 router.post("/scheduled-videos", upload.single("video"), async (req, res): Promise<void> => {
   try {
-    const { title, description, pageIds, scheduledAt, timezone, videoUrl } = req.body;
+    const { title, description, pageIds, scheduledAt, timezone, videoUrl, postType } = req.body;
 
     if (!title) {
       res.status(400).json({ error: "Title is required" });
@@ -96,11 +97,15 @@ router.post("/scheduled-videos", upload.single("video"), async (req, res): Promi
       return;
     }
 
+    const resolvedPostType: "reel" | "video" | "image" | "text" =
+      ["reel", "video", "image", "text"].includes(postType) ? postType : "video";
+
     const videoPath = req.file ? `/uploads/${req.file.filename}` : undefined;
     const finalVideoUrl = videoUrl || undefined;
 
-    if (!videoPath && !finalVideoUrl) {
-      res.status(400).json({ error: "Either a video file or URL is required" });
+    // Text posts don't need a file or URL
+    if (resolvedPostType !== "text" && !videoPath && !finalVideoUrl) {
+      res.status(400).json({ error: "Either a video/image file or URL is required" });
       return;
     }
 
@@ -111,6 +116,7 @@ router.post("/scheduled-videos", upload.single("video"), async (req, res): Promi
         userId,
         title,
         description: description || null,
+        postType: resolvedPostType,
         pageIds: parsedPageIds,
         scheduledAt: scheduledDate,
         timezone: timezone || "UTC",
