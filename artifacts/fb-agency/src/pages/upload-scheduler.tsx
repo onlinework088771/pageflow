@@ -16,7 +16,7 @@ import {
   Upload, Calendar, Clock, Video, CheckCircle, XCircle, Loader2,
   Globe, ChevronRight, Film, Image, Type, FileText, Layers,
   Zap, Trash2, PlayCircle, CheckCircle2, AlertCircle, RefreshCw,
-  Users, Hash, Plus, CalendarClock,
+  Users, Hash, Plus, CalendarClock, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-utils";
 
@@ -24,6 +24,21 @@ import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-u
 
 type ContentType = "reel" | "video" | "image" | "text";
 type UploadMode = "single" | "bulk";
+type ScheduleMode = "slots" | "interval";
+
+const INTERVAL_OPTIONS = [
+  { label: "30m", value: 30 },
+  { label: "45m", value: 45 },
+  { label: "1h", value: 60 },
+  { label: "2h", value: 120 },
+  { label: "3h", value: 180 },
+  { label: "6h", value: 360 },
+  { label: "12h", value: 720 },
+  { label: "24h", value: 1440 },
+];
+
+const DEFAULT_TIME_SLOTS = ["21:00", "23:00", "01:00"];
+
 type ScheduledVideoStatus = "pending" | "processing" | "posted" | "failed";
 
 interface ScheduledVideo {
@@ -80,32 +95,48 @@ function wallClockToUTC(dateStr: string, timeStr: string, tz: string): Date {
 
 function computeSchedule(
   count: number,
-  postsPerDay: number,
+  mode: ScheduleMode,
   startDate: string,
   startTime: string,
   timezone: string,
+  slots: string[],
+  intervalMinutes: number,
 ): string[] {
-  if (!startDate || !startTime || count === 0) return [];
-  const dates: string[] = [];
-  const [y, m, d] = startDate.split("-").map(Number);
-  const [h, min] = startTime.split(":").map(Number);
-  let fileIdx = 0;
-  let dayOffset = 0;
-  while (fileIdx < count) {
-    const perDay = Math.min(postsPerDay, count - fileIdx);
-    for (let slot = 0; slot < perDay; slot++) {
-      const totalMin = h * 60 + min + slot * 30;
-      const slotH = Math.floor(totalMin / 60);
-      const slotM = totalMin % 60;
+  if (!startDate || count === 0) return [];
+  if (mode === "interval") {
+    if (!startTime) return [];
+    const [y, m, d] = startDate.split("-").map(Number);
+    const [h, min] = startTime.split(":").map(Number);
+    return Array.from({ length: count }, (_, i) => {
+      const totalMin = h * 60 + min + i * intervalMinutes;
+      const dayOffset = Math.floor(totalMin / 1440);
+      const rem = totalMin % 1440;
+      const slotH = Math.floor(rem / 60);
+      const slotM = rem % 60;
       const dayDate = new Date(Date.UTC(y, m - 1, d + dayOffset));
       const dayStr = dayDate.toISOString().split("T")[0];
-      const timeSlotStr = `${String(slotH).padStart(2, "0")}:${String(slotM).padStart(2, "0")}`;
-      dates.push(wallClockToUTC(dayStr, timeSlotStr, timezone).toISOString());
-      fileIdx++;
+      const timeStr = `${String(slotH).padStart(2, "0")}:${String(slotM).padStart(2, "0")}`;
+      return wallClockToUTC(dayStr, timeStr, timezone).toISOString();
+    });
+  } else {
+    // slots mode
+    if (slots.length === 0) return [];
+    const [y, m, d] = startDate.split("-").map(Number);
+    const dates: string[] = [];
+    let fileIdx = 0;
+    let dayOffset = 0;
+    while (fileIdx < count) {
+      for (const slot of slots) {
+        if (fileIdx >= count) break;
+        const dayDate = new Date(Date.UTC(y, m - 1, d + dayOffset));
+        const dayStr = dayDate.toISOString().split("T")[0];
+        dates.push(wallClockToUTC(dayStr, slot, timezone).toISOString());
+        fileIdx++;
+      }
+      dayOffset++;
     }
-    dayOffset++;
+    return dates;
   }
-  return dates;
 }
 
 function fmtDate(iso: string, tz = "UTC") {
@@ -122,6 +153,13 @@ function fmtDate(iso: string, tz = "UTC") {
 
 function uid() {
   return Math.random().toString(36).slice(2);
+}
+
+function formatSlotTime(slot: string): string {
+  const [h, m] = slot.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
 function detectContentType(v: { videoPath?: string; videoUrl?: string }): ContentType {
@@ -379,7 +417,10 @@ export default function UploadScheduler() {
   const bulkInputRef = useRef<HTMLInputElement>(null);
 
   /* Step 5 – Scheduler */
-  const [postsPerDay, setPostsPerDay] = useState(1);
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("slots");
+  const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_TIME_SLOTS);
+  const [newSlotInput, setNewSlotInput] = useState("");
+  const [intervalMinutes, setIntervalMinutes] = useState(60);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [startTime, setStartTime] = useState("10:00");
   const [timezone, setTimezone] = useState("Asia/Dhaka");
@@ -476,9 +517,11 @@ export default function UploadScheduler() {
   const allSelected = accountPages.length > 0 && accountPages.every((p) => selectedPageIds.includes(p.id));
 
   const fileCount = contentType === "text" ? 1 : uploadedFiles.length;
-  const schedule = computeSchedule(fileCount || 1, postsPerDay, startDate, startTime, timezone);
+  const schedule = computeSchedule(fileCount || 1, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes);
   const scheduleDays = schedule.length > 0
-    ? Math.ceil(fileCount / postsPerDay)
+    ? scheduleMode === "slots"
+      ? Math.ceil(fileCount / Math.max(timeSlots.length, 1))
+      : Math.ceil((fileCount * intervalMinutes) / 1440)
     : 0;
 
   const acceptAttr = CONTENT_TYPES.find((c) => c.id === contentType)?.accept ?? "*/*";
@@ -523,10 +566,12 @@ export default function UploadScheduler() {
     if (contentType !== "text" && uploadedFiles.length === 0) {
       toast({ title: "Upload at least one file", variant: "destructive" }); return;
     }
-    if (!startDate || !startTime) { toast({ title: "Set a start date and time", variant: "destructive" }); return; }
+    if (!startDate) { toast({ title: "Set a start date", variant: "destructive" }); return; }
+    if (scheduleMode === "slots" && timeSlots.length === 0) { toast({ title: "Add at least one time slot", variant: "destructive" }); return; }
+    if (scheduleMode === "interval" && !startTime) { toast({ title: "Set a start time", variant: "destructive" }); return; }
 
     const fullCaption = [caption.trim(), hashtags.trim()].filter(Boolean).join("\n\n");
-    const scheduleDates = computeSchedule(fileCount, postsPerDay, startDate, startTime, timezone);
+    const scheduleDates = computeSchedule(fileCount, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes);
 
     setScheduling(true);
     setScheduledCount(0);
@@ -588,7 +633,10 @@ export default function UploadScheduler() {
         setTitle("");
         setCaption("");
         setHashtags("");
-        setPostsPerDay(1);
+        setScheduleMode("slots");
+        setTimeSlots(DEFAULT_TIME_SLOTS);
+        setNewSlotInput("");
+        setIntervalMinutes(60);
         setStartDate(new Date().toISOString().split("T")[0]);
         setStartTime("10:00");
       }
@@ -890,39 +938,32 @@ export default function UploadScheduler() {
             {step === 4 && (
               <div className="space-y-5">
                 <div>
-                  <h2 className="font-semibold text-base">Auto Continue Scheduler</h2>
+                  <h2 className="font-semibold text-base">Scheduler Settings</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Set how many posts per day and when to start. Files are automatically spread across days.
+                    Choose how to spread your posts across time.
                   </p>
                 </div>
 
+                {/* Mode toggle */}
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { mode: "slots" as ScheduleMode, label: "Daily Time Slots", icon: Clock },
+                    { mode: "interval" as ScheduleMode, label: "Interval", icon: Zap },
+                  ]).map(({ mode, label, icon: Icon }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setScheduleMode(mode)}
+                      className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${scheduleMode === mode ? "border-primary bg-primary/8 text-primary" : "border-border hover:border-primary/30 text-muted-foreground"}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Start Date + Timezone (always shown) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><PlayCircle className="h-3.5 w-3.5" />Posts Per Day</Label>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setPostsPerDay((p) => Math.max(1, p - 1))}>-</Button>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={postsPerDay}
-                        onChange={(e) => setPostsPerDay(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
-                        className="text-center font-semibold"
-                      />
-                      <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setPostsPerDay((p) => Math.min(20, p + 1))}>+</Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" />Timezone</Label>
-                    <Select value={timezone} onValueChange={setTimezone}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TIMEZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Start Date</Label>
                     <Input
@@ -932,15 +973,125 @@ export default function UploadScheduler() {
                       onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
-
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Start Time</Label>
-                    <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                    <Label className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" />Timezone</Label>
+                    <Select value={timezone} onValueChange={setTimezone}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TIMEZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
+                {/* ── Daily Time Slots mode ── */}
+                {scheduleMode === "slots" && (
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Daily Time Slots</Label>
+                    <div className="space-y-1.5">
+                      {timeSlots.map((slot, i) => (
+                        <div key={slot + i} className="flex items-center gap-2 p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="flex-1 text-sm font-medium">{formatSlotTime(slot)}</span>
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={i === 0}
+                              onClick={() => {
+                                const s = [...timeSlots];
+                                [s[i - 1], s[i]] = [s[i], s[i - 1]];
+                                setTimeSlots(s);
+                              }}
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={i === timeSlots.length - 1}
+                              onClick={() => {
+                                const s = [...timeSlots];
+                                [s[i], s[i + 1]] = [s[i + 1], s[i]];
+                                setTimeSlots(s);
+                              }}
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setTimeSlots(timeSlots.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {timeSlots.length < 10 && (
+                      <div className="flex gap-2">
+                        <Input
+                          type="time"
+                          value={newSlotInput}
+                          onChange={(e) => setNewSlotInput(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="gap-1 shrink-0"
+                          disabled={!newSlotInput || timeSlots.includes(newSlotInput)}
+                          onClick={() => {
+                            if (newSlotInput && !timeSlots.includes(newSlotInput)) {
+                              setTimeSlots([...timeSlots, newSlotInput]);
+                              setNewSlotInput("");
+                            }
+                          }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />Add Slot
+                        </Button>
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {timeSlots.length} slot{timeSlots.length !== 1 ? "s" : ""} per day · posts spread across days automatically
+                    </p>
+                  </div>
+                )}
+
+                {/* ── Interval mode ── */}
+                {scheduleMode === "interval" && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Start Time</Label>
+                      <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Post Every</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {INTERVAL_OPTIONS.map(({ label, value }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setIntervalMinutes(value)}
+                            className={`px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all ${intervalMinutes === value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40 text-muted-foreground"}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Schedule Preview */}
-                {fileCount > 0 && startDate && startTime && (
+                {fileCount > 0 && startDate && schedule.length > 0 && (
                   <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-2">
                     <p className="text-xs font-semibold text-primary uppercase tracking-wide">Schedule Preview</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
@@ -972,7 +1123,10 @@ export default function UploadScheduler() {
 
                 <div className="flex justify-between pt-2">
                   <Button variant="ghost" onClick={() => setStep(3)}>Back</Button>
-                  <Button onClick={() => setStep(5)}>
+                  <Button
+                    disabled={scheduleMode === "slots" ? timeSlots.length === 0 : !startTime}
+                    onClick={() => setStep(5)}
+                  >
                     Next: Details <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
@@ -1041,12 +1195,23 @@ export default function UploadScheduler() {
                     <span className="font-medium capitalize">{contentType}</span>
                     <span className="text-muted-foreground">Total Posts</span>
                     <span className="font-medium">{fileCount}</span>
-                    <span className="text-muted-foreground">Posts/Day</span>
-                    <span className="font-medium">{postsPerDay}</span>
+                    <span className="text-muted-foreground">Mode</span>
+                    <span className="font-medium capitalize">{scheduleMode === "slots" ? "Daily Time Slots" : "Interval"}</span>
+                    {scheduleMode === "slots" ? (
+                      <>
+                        <span className="text-muted-foreground">Slots/Day</span>
+                        <span className="font-medium">{timeSlots.length}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-muted-foreground">Interval</span>
+                        <span className="font-medium">{INTERVAL_OPTIONS.find((o) => o.value === intervalMinutes)?.label ?? `${intervalMinutes}m`}</span>
+                      </>
+                    )}
                     <span className="text-muted-foreground">Days</span>
                     <span className="font-medium">{scheduleDays}</span>
                     <span className="text-muted-foreground">Starts</span>
-                    <span className="font-medium">{startDate} at {startTime}</span>
+                    <span className="font-medium">{startDate}{scheduleMode === "interval" ? ` at ${startTime}` : ""}</span>
                     <span className="text-muted-foreground">Timezone</span>
                     <span className="font-medium truncate">{timezone}</span>
                   </div>
