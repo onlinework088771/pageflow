@@ -1,0 +1,94 @@
+Perform a FULL ROOT CAUSE AUDIT for why Video Scheduling is not working.
+
+DO NOT MODIFY ANY CODE.
+DO NOT GUESS.
+READ THE ENTIRE PROJECT FIRST.
+
+Investigate the complete scheduling flow from start to finish.
+
+1. Frontend
+- Verify the schedule form submits the correct payload.
+- Verify timezone conversion.
+- Verify API endpoint called.
+- Verify request body.
+
+2. Timezone Audit
+- Verify the entire application is using Asia/Dhaka (Bangladesh) timezone where expected.
+- Verify frontend schedule time.
+- Verify backend timezone conversion.
+- Verify database stored timestamps.
+- Verify scheduler comparison logic.
+- Verify cron execution timezone.
+- Verify Docker container timezone.
+- Verify Node.js timezone.
+- Verify PostgreSQL timezone.
+- Check whether timezone mismatch is causing scheduled videos to never become due.
+- If any timezone issue exists, identify the exact file, function and line responsible.
+
+3. API
+- Verify the schedule endpoint receives the request.
+- Verify validation.
+- Verify database insert.
+- Verify returned response.
+
+4. Database
+- Verify scheduled_videos table.
+- Verify inserted records.
+- Verify schedule_time.
+- Verify status.
+- Verify userId.
+- Verify pageId.
+- Verify video path.
+
+5. Scheduler Worker
+- Verify scheduler process is running.
+- Verify cron interval.
+- Verify polling query.
+- Verify due videos are detected.
+- Verify locking.
+- Verify status updates.
+
+6. Facebook Posting
+- Verify page access token.
+- Verify permissions.
+- Verify upload request.
+- Verify Graph API response.
+- Verify retry logic.
+
+7. Docker
+- Verify scheduler container is actually running.
+- Verify API container uses the latest GitHub commit.
+- Verify build hash.
+- Verify image version.
+- Verify compose configuration.
+
+8. Environment
+- Verify every required ENV variable.
+- Verify PUBLIC_BASE_URL.
+- Verify DATABASE_URL.
+- Verify filesystem paths.
+- Verify TZ environment variable is correctly configured.
+
+9. Logs
+- Read all scheduler logs.
+- Read all API logs.
+- Find the FIRST error that causes scheduling to fail.
+- Trace the complete execution path until failure.
+
+If multiple problems exist, rank them by order of execution.
+
+Finally provide ONLY:
+
+- Root cause
+- Exact file
+- Exact function
+- Exact line number
+- Whether the issue is code, database, Docker, deployment or timezone.
+- Why it fails.
+- Why it was not caught earlier.
+- Exact fix required.
+
+If there is no code bug, prove it with evidence and identify the deployment or environment problem instead.
+
+Read-only audit only.
+DO NOT MODIFY ANY CODE.
