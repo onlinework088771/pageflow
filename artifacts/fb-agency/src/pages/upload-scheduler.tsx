@@ -119,21 +119,37 @@ function computeSchedule(
       return wallClockToUTC(dayStr, timeStr, timezone).toISOString();
     });
   } else {
-    // slots mode
+    // slots mode — each cycle fills one pass through all slots.
+    // Slots can cross midnight (e.g. 21:00 → 23:00 → 01:00): detect a
+    // decrease in minutes-since-midnight and bump the calendar date by 1.
     if (slots.length === 0) return [];
     const [y, m, d] = startDate.split("-").map(Number);
     const dates: string[] = [];
     let fileIdx = 0;
-    let dayOffset = 0;
+    let calDayOffset = 0; // calendar day offset from startDate for the START of each cycle
+
     while (fileIdx < count) {
+      let prevMins = -1;
+      let midnightCrossings = 0; // extra calendar days gained within this cycle
+      const cycleBase = calDayOffset;
+
       for (const slot of slots) {
         if (fileIdx >= count) break;
-        const dayDate = new Date(Date.UTC(y, m - 1, d + dayOffset));
+        const [slotH, slotM] = slot.split(":").map(Number);
+        const slotMins = slotH * 60 + slotM;
+        if (prevMins >= 0 && slotMins <= prevMins) {
+          midnightCrossings++; // slot wrapped past midnight relative to the previous one
+        }
+        prevMins = slotMins;
+        const dayDate = new Date(Date.UTC(y, m - 1, d + cycleBase + midnightCrossings));
         const dayStr = dayDate.toISOString().split("T")[0];
         dates.push(wallClockToUTC(dayStr, slot, timezone).toISOString());
         fileIdx++;
       }
-      dayOffset++;
+      // Next cycle starts the calendar day AFTER the first slot's calendar day.
+      // midnightCrossings is already baked into individual slot offsets above;
+      // do NOT add it here or we skip a day between every cycle.
+      calDayOffset = cycleBase + 1;
     }
     return dates;
   }
@@ -1035,7 +1051,7 @@ export default function UploadScheduler() {
                         </div>
                       ))}
                     </div>
-                    {timeSlots.length < 10 && (
+                    {(
                       <div className="flex gap-2">
                         <Input
                           type="time"
@@ -1060,7 +1076,7 @@ export default function UploadScheduler() {
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {timeSlots.length} slot{timeSlots.length !== 1 ? "s" : ""} per day · posts spread across days automatically
+                      {timeSlots.length} slot{timeSlots.length !== 1 ? "s" : ""}/day → {timeSlots.length} post{timeSlots.length !== 1 ? "s" : ""}/day · {fileCount > 0 ? `${Math.ceil(fileCount / Math.max(timeSlots.length, 1))} day${Math.ceil(fileCount / Math.max(timeSlots.length, 1)) !== 1 ? "s" : ""} for ${fileCount} file${fileCount !== 1 ? "s" : ""}` : "add files to see days needed"}
                     </p>
                   </div>
                 )}
