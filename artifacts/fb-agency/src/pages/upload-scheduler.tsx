@@ -50,11 +50,40 @@ interface UploadedFile {
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
+/**
+ * Convert a wall-clock date+time in a specific timezone to a UTC Date.
+ * Uses two Intl iterations to handle DST boundaries correctly.
+ */
+function wallClockToUTC(dateStr: string, timeStr: string, tz: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [h, min] = timeStr.split(":").map(Number);
+  let utcMs = Date.UTC(y, m - 1, d, h, min, 0);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  for (let i = 0; i < 2; i++) {
+    const parts = fmt.formatToParts(new Date(utcMs));
+    const get = (t: string) => parseInt(parts.find((p) => p.type === t)!.value, 10);
+    const localH = get("hour") % 24;
+    const localMin = get("minute");
+    const localD = get("day");
+    const localMo = get("month");
+    const localY = get("year");
+    const localMs = Date.UTC(localY, localMo - 1, localD, localH, localMin, 0);
+    const desiredMs = Date.UTC(y, m - 1, d, h, min, 0);
+    utcMs += desiredMs - localMs;
+  }
+  return new Date(utcMs);
+}
+
 function computeSchedule(
   count: number,
   postsPerDay: number,
   startDate: string,
   startTime: string,
+  timezone: string,
 ): string[] {
   if (!startDate || !startTime || count === 0) return [];
   const dates: string[] = [];
@@ -65,10 +94,13 @@ function computeSchedule(
   while (fileIdx < count) {
     const perDay = Math.min(postsPerDay, count - fileIdx);
     for (let slot = 0; slot < perDay; slot++) {
-      const dt = new Date(y, m - 1, d + dayOffset);
       const totalMin = h * 60 + min + slot * 30;
-      dt.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
-      dates.push(dt.toISOString());
+      const slotH = Math.floor(totalMin / 60);
+      const slotM = totalMin % 60;
+      const dayDate = new Date(Date.UTC(y, m - 1, d + dayOffset));
+      const dayStr = dayDate.toISOString().split("T")[0];
+      const timeSlotStr = `${String(slotH).padStart(2, "0")}:${String(slotM).padStart(2, "0")}`;
+      dates.push(wallClockToUTC(dayStr, timeSlotStr, timezone).toISOString());
       fileIdx++;
     }
     dayOffset++;
@@ -350,7 +382,7 @@ export default function UploadScheduler() {
   const [postsPerDay, setPostsPerDay] = useState(1);
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [startTime, setStartTime] = useState("10:00");
-  const [timezone, setTimezone] = useState("America/New_York");
+  const [timezone, setTimezone] = useState("Asia/Dhaka");
 
   /* Step 6 – Details */
   const [title, setTitle] = useState("");
@@ -444,7 +476,7 @@ export default function UploadScheduler() {
   const allSelected = accountPages.length > 0 && accountPages.every((p) => selectedPageIds.includes(p.id));
 
   const fileCount = contentType === "text" ? 1 : uploadedFiles.length;
-  const schedule = computeSchedule(fileCount || 1, postsPerDay, startDate, startTime);
+  const schedule = computeSchedule(fileCount || 1, postsPerDay, startDate, startTime, timezone);
   const scheduleDays = schedule.length > 0
     ? Math.ceil(fileCount / postsPerDay)
     : 0;
@@ -494,7 +526,7 @@ export default function UploadScheduler() {
     if (!startDate || !startTime) { toast({ title: "Set a start date and time", variant: "destructive" }); return; }
 
     const fullCaption = [caption.trim(), hashtags.trim()].filter(Boolean).join("\n\n");
-    const scheduleDates = computeSchedule(fileCount, postsPerDay, startDate, startTime);
+    const scheduleDates = computeSchedule(fileCount, postsPerDay, startDate, startTime, timezone);
 
     setScheduling(true);
     setScheduledCount(0);
