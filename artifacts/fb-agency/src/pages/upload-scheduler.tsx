@@ -65,6 +65,24 @@ interface UploadedFile {
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
+/** Parse a newline-delimited bulk title string into a trimmed, non-empty array. */
+function parseBulkTitles(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** Fisher-Yates shuffle — returns a new array. */
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /**
  * Convert a wall-clock date+time in a specific timezone to a UTC Date.
  * Uses two Intl iterations to handle DST boundaries correctly.
@@ -446,6 +464,10 @@ export default function UploadScheduler() {
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
 
+  /* Bulk Title Sheet */
+  const [useBulkTitles, setUseBulkTitles] = useState(false);
+  const [bulkTitlesText, setBulkTitlesText] = useState("");
+
   /* Scheduling state */
   const [scheduling, setScheduling] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
@@ -578,7 +600,20 @@ export default function UploadScheduler() {
     /* Validate */
     if (!selectedAccountId) { toast({ title: "Select an account", variant: "destructive" }); return; }
     if (selectedPageIds.length === 0) { toast({ title: "Select at least one page", variant: "destructive" }); return; }
-    if (!title.trim()) { toast({ title: "Title is required", variant: "destructive" }); return; }
+    if (!useBulkTitles && !title.trim()) { toast({ title: "Title is required", variant: "destructive" }); return; }
+    if (useBulkTitles) {
+      const parsed = parseBulkTitles(bulkTitlesText);
+      if (parsed.length === 0) { toast({ title: "Add at least one title in the Bulk Title Sheet", variant: "destructive" }); return; }
+      const videoCount = contentType === "text" ? 1 : uploadedFiles.length;
+      if (parsed.length < videoCount) {
+        toast({
+          title: "Not enough titles",
+          description: `You uploaded ${videoCount} video${videoCount !== 1 ? "s" : ""} but only provided ${parsed.length} title${parsed.length !== 1 ? "s" : ""}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     if (contentType !== "text" && uploadedFiles.length === 0) {
       toast({ title: "Upload at least one file", variant: "destructive" }); return;
     }
@@ -610,10 +645,20 @@ export default function UploadScheduler() {
           setScheduledCount(created);
         }
       } else {
+        /* Build shuffled title list once for the whole batch */
+        const assignedTitles: string[] = (() => {
+          if (!useBulkTitles) return [];
+          const shuffled = shuffleArray(parseBulkTitles(bulkTitlesText));
+          return shuffled.slice(0, uploadedFiles.length);
+        })();
+
         for (let i = 0; i < uploadedFiles.length; i++) {
           const { file } = uploadedFiles[i];
           const fd = new FormData();
-          fd.append("title", uploadedFiles.length > 1 ? `${title.trim()} (${i + 1})` : title.trim());
+          const videoTitle = useBulkTitles
+            ? assignedTitles[i]
+            : (uploadedFiles.length > 1 ? `${title.trim()} (${i + 1})` : title.trim());
+          fd.append("title", videoTitle);
           if (fullCaption) fd.append("description", fullCaption);
           fd.append("postType", contentType);
           fd.append("pageIds", JSON.stringify(selectedPageIds));
@@ -649,6 +694,8 @@ export default function UploadScheduler() {
         setTitle("");
         setCaption("");
         setHashtags("");
+        setUseBulkTitles(false);
+        setBulkTitlesText("");
         setScheduleMode("slots");
         setTimeSlots(DEFAULT_TIME_SLOTS);
         setNewSlotInput("");
@@ -1160,14 +1207,81 @@ export default function UploadScheduler() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Title <span className="text-destructive">*</span></Label>
-                  <Input
-                    placeholder="e.g. Morning Motivation Reel"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                  {fileCount > 1 && (
-                    <p className="text-xs text-muted-foreground">For bulk uploads, posts will be numbered: "{title || "Title"} (1)", "(2)", etc.</p>
+                  {/* Title label row + Bulk Titles toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label>Title <span className="text-destructive">*</span></Label>
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={useBulkTitles}
+                        onChange={(e) => setUseBulkTitles(e.target.checked)}
+                        className="w-4 h-4 accent-primary rounded"
+                      />
+                      <span className="text-sm text-muted-foreground">Bulk Title Sheet</span>
+                    </label>
+                  </div>
+
+                  {!useBulkTitles ? (
+                    /* ── Normal single title ── */
+                    <>
+                      <Input
+                        placeholder="e.g. Morning Motivation Reel"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                      />
+                      {fileCount > 1 && (
+                        <p className="text-xs text-muted-foreground">For bulk uploads, posts will be numbered: "{title || "Title"} (1)", "(2)", etc.</p>
+                      )}
+                    </>
+                  ) : (
+                    /* ── Bulk Title Sheet ── */
+                    <>
+                      <textarea
+                        rows={6}
+                        placeholder={"Amazing Cat Rescue\nTiny Kitten Saved\nHeartwarming Animal Story\nCute Puppy Rescue\nEmotional Animal Story"}
+                        value={bulkTitlesText}
+                        onChange={(e) => setBulkTitlesText(e.target.value)}
+                        className="flex w-full rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                      />
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer border rounded-lg px-3 py-1.5 hover:bg-muted transition-colors">
+                          <Upload className="h-3.5 w-3.5" />
+                          Upload .txt / .csv
+                          <input
+                            type="file"
+                            accept=".txt,.csv"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (ev) => setBulkTitlesText(ev.target?.result as string ?? "");
+                              reader.readAsText(file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                        <span className="text-xs text-muted-foreground">
+                          {(() => {
+                            const count = parseBulkTitles(bulkTitlesText).length;
+                            const need = fileCount;
+                            if (count === 0) return "0 titles";
+                            if (count < need) return (
+                              <span className="text-destructive font-medium">
+                                {count} title{count !== 1 ? "s" : ""} — need {need - count} more
+                              </span>
+                            );
+                            return <span className="text-green-600 font-medium">{count} title{count !== 1 ? "s" : ""} ✓</span>;
+                          })()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        One title per line. Titles are randomly shuffled — every video gets a unique title, no duplicates.
+                        {parseBulkTitles(bulkTitlesText).length > fileCount && fileCount > 0 && (
+                          <span className="ml-1">Extra titles will be discarded.</span>
+                        )}
+                      </p>
+                    </>
                   )}
                 </div>
 
@@ -1237,7 +1351,7 @@ export default function UploadScheduler() {
                   <Button variant="ghost" onClick={() => setStep(4)}>Back</Button>
                   <Button
                     onClick={handleScheduleAll}
-                    disabled={scheduling || !title.trim()}
+                    disabled={scheduling || (!useBulkTitles && !title.trim()) || (useBulkTitles && parseBulkTitles(bulkTitlesText).length === 0)}
                     className="gap-2 min-w-[160px]"
                   >
                     {scheduling ? (
