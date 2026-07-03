@@ -113,9 +113,11 @@ export function generateCaption(title: string, description: string, tags?: strin
 
 async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
   try {
+    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+    const extraArgs = isYouTube ? ["--extractor-args", "youtube:player_client=android,ios"] : [];
     const { stdout } = await execFileAsync(
       YT_DLP_PATH,
-      ["--dump-json", "--no-playlist", "--no-warnings", url],
+      ["--dump-json", "--no-playlist", "--no-warnings", ...extraArgs, url],
       { timeout: 30_000 },
     );
     const data = JSON.parse(stdout.trim());
@@ -143,6 +145,9 @@ async function downloadVideoToTempFile(url: string, label = "auto"): Promise<str
 
   logger.info({ url: url.slice(0, 80), tmpFile }, "page-automation: downloading video");
 
+  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+  const extraArgs = isYouTube ? ["--extractor-args", "youtube:player_client=android,ios"] : [];
+
   await execFileAsync(
     YT_DLP_PATH,
     [
@@ -152,6 +157,7 @@ async function downloadVideoToTempFile(url: string, label = "auto"): Promise<str
       "--no-playlist",
       "--no-warnings",
       "--quiet",
+      ...extraArgs,
       url,
     ],
     { timeout: 300_000 },  // 5 min for page automation downloads
