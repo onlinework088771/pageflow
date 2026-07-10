@@ -332,7 +332,23 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
       } catch (err: any) {
         const msg = err?.response?.data?.error?.message ?? err.message ?? "Unknown error";
         errors.push(msg);
-        logger.error({ videoId, pageId, postType, err: msg }, "Failed to post to page");
+        // TEMPORARY DIAGNOSTIC LOGGING (does not affect posting/scheduler/OAuth logic):
+        // captures the complete raw Facebook Graph API error object for root-cause analysis.
+        logger.error(
+          {
+            videoId,
+            pageId,
+            postType,
+            err: msg,
+            fbHttpStatus: err?.response?.status,
+            fbErrorCode: err?.response?.data?.error?.code,
+            fbErrorSubcode: err?.response?.data?.error?.error_subcode,
+            fbErrorType: err?.response?.data?.error?.type,
+            fbTraceId: err?.response?.data?.error?.fbtrace_id,
+            fbRawResponse: err?.response?.data,
+          },
+          "Failed to post to page",
+        );
       }
     }
 
