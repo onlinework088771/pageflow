@@ -64,4 +64,32 @@ if (process.env["NODE_ENV"] === "production") {
   }
 }
 
+// Shared error-handling middleware — logging only. This does not replace or
+// suppress any existing logs, does not change the response, and does not
+// swallow the error: it logs the complete error detail (including the
+// PostgreSQL-specific fields the `pg` driver attaches to query errors) and
+// then calls next(err), which forwards to Express's built-in default error
+// handler — the exact same behavior that occurs today when no error
+// middleware is registered at all.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error(
+    {
+      route: req.originalUrl,
+      method: req.method,
+      message: err?.message,
+      code: err?.code,
+      detail: err?.detail,
+      hint: err?.hint,
+      schema: err?.schema,
+      table: err?.table,
+      column: err?.column,
+      constraint: err?.constraint,
+      stack: err?.stack,
+    },
+    "Unhandled error in request pipeline",
+  );
+  next(err);
+});
+
 export default app;

@@ -69,7 +69,32 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   }
 
   const { email, password } = parsed.data;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+
+  let user: typeof usersTable.$inferSelect | undefined;
+  try {
+    [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
+  } catch (err) {
+    // Logging only — capture the full PostgreSQL error detail before
+    // re-throwing unchanged so existing error-handling behavior (and the
+    // resulting API response) is not altered.
+    const pgErr = err as Record<string, unknown> & { stack?: string };
+    logger.error(
+      {
+        route: "/api/auth/login",
+        message: pgErr?.message,
+        code: pgErr?.code,
+        detail: pgErr?.detail,
+        hint: pgErr?.hint,
+        schema: pgErr?.schema,
+        table: pgErr?.table,
+        column: pgErr?.column,
+        constraint: pgErr?.constraint,
+        stack: pgErr?.stack,
+      },
+      "Database error while looking up user for login",
+    );
+    throw err;
+  }
 
   if (!user) {
     res.status(401).json({ error: "Invalid email or password." });
