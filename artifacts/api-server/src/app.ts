@@ -3,6 +3,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -44,14 +45,17 @@ app.use("/uploads", express.static(uploadsDir));
 app.use("/api", router);
 
 // In production serve the compiled Vite frontend and handle SPA fallback.
-// The frontend build output lands at artifacts/fb-agency/dist/public relative
-// to the workspace root, which is where the process runs in deployment.
+// Anchor off import.meta.url so the path is correct regardless of cwd.
+// Compiled output: artifacts/api-server/dist/index.mjs
+// Frontend build:  artifacts/fb-agency/dist/public  (two dirs up, then down)
 if (process.env["NODE_ENV"] === "production") {
-  const frontendDist = path.resolve(process.cwd(), "artifacts", "fb-agency", "dist", "public");
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const frontendDist = path.resolve(__dirname, "..", "..", "fb-agency", "dist", "public");
   if (fs.existsSync(frontendDist)) {
     app.use(express.static(frontendDist));
     // SPA fallback — serve index.html for any non-API, non-file route
-    app.get("*", (_req, res) => {
+    // Express 5 requires a named wildcard parameter; bare "*" is not allowed.
+    app.get("*splat", (_req, res) => {
       res.sendFile(path.join(frontendDist, "index.html"));
     });
     logger.info({ frontendDist }, "Serving frontend static build");
