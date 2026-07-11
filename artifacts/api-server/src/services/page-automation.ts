@@ -18,6 +18,95 @@ const execFileAsync = promisify(execFile);
 const FB_API = "https://graph.facebook.com/v19.0";
 const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
 
+// Optional cookie files for platforms that require an authenticated session
+// to scrape (Instagram now blocks all anonymous yt-dlp requests with 429 /
+// "empty media response" — see runYtDlp()/classifyYtDlpError() below).
+// Export cookies from a logged-in browser session in Netscape cookies.txt
+// format and point these env vars at the file.
+const INSTAGRAM_COOKIES_FILE = process.env["INSTAGRAM_COOKIES_FILE"];
+const TIKTOK_COOKIES_FILE = process.env["TIKTOK_COOKIES_FILE"];
+
+function cookiesArgsFor(url: string): string[] {
+  if (url.includes("instagram.com") && INSTAGRAM_COOKIES_FILE && fs.existsSync(INSTAGRAM_COOKIES_FILE)) {
+    return ["--cookies", INSTAGRAM_COOKIES_FILE];
+  }
+  if (url.includes("tiktok.com") && TIKTOK_COOKIES_FILE && fs.existsSync(TIKTOK_COOKIES_FILE)) {
+    return ["--cookies", TIKTOK_COOKIES_FILE];
+  }
+  return [];
+}
+
+/**
+ * Classifies a yt-dlp failure so callers/logs can tell "platform requires
+ * login now" apart from a generic transient failure.
+ */
+type YtDlpErrorKind = "auth_wall" | "rate_limited" | "not_found" | "unknown";
+
+function classifyYtDlpError(message: string): YtDlpErrorKind {
+  const m = message.toLowerCase();
+  if (
+    m.includes("empty media response") ||
+    m.includes("login required") ||
+    m.includes("rate-limit reached") ||
+    m.includes("--cookies-from-browser")
+  ) {
+    return "auth_wall";
+  }
+  if (m.includes("429") || m.includes("too many requests")) return "rate_limited";
+  if (m.includes("404") || m.includes("unable to find") || m.includes("no video") || m.includes("content isn't available")) {
+    return "not_found";
+  }
+  return "unknown";
+}
+
+/**
+ * Runs yt-dlp with structured start/end/error logging, cookie injection for
+ * platforms that need it, and one retry with backoff for rate-limit errors.
+ * `step` is a pipeline-stage tag used purely for log correlation, e.g.
+ * "metadata", "download", "profile-list".
+ */
+async function runYtDlp(
+  step: string,
+  url: string,
+  args: string[],
+  opts: { timeout: number },
+): Promise<{ stdout: string; stderr: string }> {
+  const fullArgs = [...cookiesArgsFor(url), ...args, url];
+  const attempt = async () => {
+    const startedAt = Date.now();
+    try {
+      const res = await execFileAsync(YT_DLP_PATH, fullArgs, { timeout: opts.timeout });
+      logger.info(
+        { step, url: url.slice(0, 120), durationMs: Date.now() - startedAt },
+        `yt-dlp[${step}]: succeeded`,
+      );
+      return res;
+    } catch (err: any) {
+      const message: string = err?.stderr || err?.message || String(err);
+      const kind = classifyYtDlpError(message);
+      logger.error(
+        { step, url: url.slice(0, 120), durationMs: Date.now() - startedAt, kind, message: message.slice(0, 500) },
+        `yt-dlp[${step}]: failed`,
+      );
+      const wrapped: any = new Error(message.slice(0, 800));
+      wrapped.ytDlpKind = kind;
+      wrapped.step = step;
+      throw wrapped;
+    }
+  };
+
+  try {
+    return await attempt();
+  } catch (err: any) {
+    if (err.ytDlpKind === "rate_limited") {
+      logger.warn({ step, url: url.slice(0, 120) }, `yt-dlp[${step}]: rate-limited, retrying once after backoff`);
+      await new Promise((r) => setTimeout(r, 5_000 + Math.random() * 3_000));
+      return await attempt();
+    }
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Automation log writer
 // ---------------------------------------------------------------------------
@@ -112,12 +201,14 @@ export function generateCaption(title: string, description: string, tags?: strin
 // ---------------------------------------------------------------------------
 
 async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
+  logger.info({ step: "metadata", url: url.slice(0, 120) }, "Pipeline step 3/8: extracting video metadata");
   try {
     const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
     const extraArgs = isYouTube ? ["--extractor-args", "youtube:player_client=android,ios"] : [];
-    const { stdout } = await execFileAsync(
-      YT_DLP_PATH,
-      ["--dump-json", "--no-playlist", "--no-warnings", ...extraArgs, url],
+    const { stdout } = await runYtDlp(
+      "metadata",
+      url,
+      ["--dump-json", "--no-playlist", "--no-warnings", ...extraArgs],
       { timeout: 30_000 },
     );
     const data = JSON.parse(stdout.trim());
@@ -127,7 +218,10 @@ async function getVideoMetadata(url: string): Promise<{ title: string; descripti
       tags: Array.isArray(data.tags) ? data.tags : [],
     };
   } catch (err: any) {
-    logger.warn({ url, err: err.message }, "yt-dlp --dump-json failed");
+    // Metadata is best-effort — callers fall back to RSS/profile-listing title.
+    // We still surface the classified error kind so auth-wall failures (e.g.
+    // Instagram requiring login) are visible in logs even though we don't abort here.
+    logger.warn({ url, kind: err.ytDlpKind, err: err.message }, "yt-dlp metadata extraction failed, continuing with fallback title");
     return { title: "", description: "", tags: [] };
   }
 }
@@ -143,29 +237,39 @@ async function downloadVideoToTempFile(url: string, label = "auto"): Promise<str
 
   const tmpFile = path.join(tmpDir, `${label}_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
 
-  logger.info({ url: url.slice(0, 80), tmpFile }, "page-automation: downloading video");
+  logger.info({ step: "download", url: url.slice(0, 120), tmpFile }, "Pipeline step 4/8: downloading video");
 
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
   const extraArgs = isYouTube ? ["--extractor-args", "youtube:player_client=android,ios"] : [];
 
-  await execFileAsync(
-    YT_DLP_PATH,
+  await runYtDlp(
+    "download",
+    url,
     [
       "--format", "best[ext=mp4][height<=720]/mp4/best[height<=720]/best",
       "--merge-output-format", "mp4",
       "--output", tmpFile,
       "--no-playlist",
       "--no-warnings",
-      "--quiet",
       ...extraArgs,
-      url,
     ],
     { timeout: 300_000 },  // 5 min for page automation downloads
   );
 
-  if (!fs.existsSync(tmpFile) || fs.statSync(tmpFile).size === 0) {
-    throw new Error(`yt-dlp download produced no output for: ${url.slice(0, 80)}`);
+  // Pipeline step 5/8: verify the file actually landed on disk before we ever
+  // try to schedule/upload it — this is the exact check that used to be
+  // silently skipped when yt-dlp exited 0 but wrote nothing (e.g. merge failures).
+  if (!fs.existsSync(tmpFile)) {
+    logger.error({ step: "file-verify", tmpFile }, "Pipeline step 5/8: FAILED — file does not exist after download");
+    throw new Error(`yt-dlp download produced no output file for: ${url.slice(0, 80)}`);
   }
+  const size = fs.statSync(tmpFile).size;
+  if (size === 0) {
+    logger.error({ step: "file-verify", tmpFile }, "Pipeline step 5/8: FAILED — file exists but is 0 bytes");
+    try { fs.unlinkSync(tmpFile); } catch {}
+    throw new Error(`yt-dlp download produced an empty (0-byte) file for: ${url.slice(0, 80)}`);
+  }
+  logger.info({ step: "file-verify", tmpFile, sizeBytes: size }, "Pipeline step 5/8: file verified on disk");
 
   return tmpFile;
 }
@@ -178,20 +282,21 @@ async function fetchProfileVideos(
   profileUrl: string,
   limit = 20,
 ): Promise<{ videoId: string; title: string; url: string }[]> {
+  logger.info({ step: "profile-list", profileUrl }, "Pipeline step 3/8: listing recent videos from profile");
   try {
-    const { stdout } = await execFileAsync(
-      YT_DLP_PATH,
+    const { stdout } = await runYtDlp(
+      "profile-list",
+      profileUrl,
       [
         "--flat-playlist",
         "--print", "%(id)s\t%(title)s\t%(webpage_url)s",
         "--playlist-end", String(limit),
         "--no-warnings",
-        profileUrl,
       ],
       { timeout: 45_000 },
     );
 
-    return stdout
+    const videos = stdout
       .trim()
       .split("\n")
       .filter(Boolean)
@@ -200,8 +305,19 @@ async function fetchProfileVideos(
         return { videoId: videoId ?? "", title: title ?? "", url: url ?? "" };
       })
       .filter((v) => v.videoId);
+
+    logger.info({ step: "profile-list", profileUrl, count: videos.length }, "Pipeline step 3/8: profile listing complete");
+    return videos;
   } catch (err: any) {
-    logger.warn({ profileUrl, err: err.message }, "yt-dlp --flat-playlist failed");
+    // Surface WHY the listing failed — this is the exact spot where Instagram
+    // now fails for every account (anonymous scraping blocked platform-side),
+    // vs. TikTok/YouTube which still succeed anonymously as of this fix.
+    logger.error(
+      { profileUrl, kind: err.ytDlpKind, err: err.message },
+      err.ytDlpKind === "auth_wall"
+        ? "Pipeline step 3/8 FAILED: platform requires an authenticated session (cookies) to list videos — see INSTAGRAM_COOKIES_FILE"
+        : "Pipeline step 3/8 FAILED: yt-dlp --flat-playlist failed",
+    );
     return [];
   }
 }
@@ -304,7 +420,7 @@ async function uploadVideoFileTofacebook(
   caption: string,
   filePath: string,
 ): Promise<string> {
-  logger.info({ fbPageId, filePath }, "page-automation: uploading video to Facebook (binary)");
+  logger.info({ step: "fb-upload", fbPageId, filePath }, "Pipeline step 8/8: uploading video to Facebook (binary)");
 
   const form = new FormData();
   form.append("source", fs.createReadStream(filePath));
@@ -312,14 +428,25 @@ async function uploadVideoFileTofacebook(
   form.append("description", caption);
   form.append("access_token", pageToken);
 
-  const res = await axios.post(`${FB_API}/${fbPageId}/videos`, form, {
-    headers: form.getHeaders(),
-    timeout: 300_000,
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
-  });
+  try {
+    const res = await axios.post(`${FB_API}/${fbPageId}/videos`, form, {
+      headers: form.getHeaders(),
+      timeout: 300_000,
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+    });
 
-  return res.data?.id ?? "unknown";
+    const fbVideoId = res.data?.id ?? "unknown";
+    logger.info({ step: "fb-upload", fbPageId, fbVideoId }, "Pipeline step 8/8: Facebook upload succeeded");
+    return fbVideoId;
+  } catch (err: any) {
+    const fbErr = err?.response?.data?.error;
+    logger.error(
+      { step: "fb-upload", fbPageId, fbCode: fbErr?.code, fbSubcode: fbErr?.error_subcode, fbMessage: fbErr?.message ?? err.message },
+      "Pipeline step 8/8 FAILED: Facebook upload rejected",
+    );
+    throw err;
+  }
 }
 
 /**
@@ -413,7 +540,26 @@ async function postNextInstagramVideo(
   const profileUrl = `https://www.instagram.com/@${handle}/`;
 
   const videos = await fetchProfileVideos(profileUrl, 20);
-  if (!videos.length) throw new Error(`No Instagram videos found for @${handle}`);
+  if (!videos.length) {
+    // fetchProfileVideos() swallows its own error (so a bad/renamed handle
+    // doesn't crash the whole scheduler loop) — re-probe here so we can give
+    // an accurate, actionable error instead of a generic "no videos found".
+    const probeErr: any = await runYtDlp(
+      "profile-list-probe",
+      profileUrl,
+      ["--flat-playlist", "--playlist-end", "1", "--no-warnings", "--print", "%(id)s"],
+      { timeout: 20_000 },
+    ).then(() => null).catch((e) => e);
+
+    if (probeErr?.ytDlpKind === "auth_wall" || probeErr?.ytDlpKind === "rate_limited") {
+      throw new Error(
+        `Instagram is blocking anonymous access for @${handle} (${probeErr.ytDlpKind}). ` +
+        `Instagram now requires an authenticated session to list/download videos — set ` +
+        `INSTAGRAM_COOKIES_FILE to a cookies.txt exported from a logged-in browser session.`,
+      );
+    }
+    throw new Error(`No Instagram videos found for @${handle}`);
+  }
 
   const lastPostedId = page.lastPostedYtVideoId;
   let nextVideo = videos[0];
@@ -448,7 +594,9 @@ async function postNextTikTokVideo(
   const profileUrl = `https://www.tiktok.com/@${handle}`;
 
   const videos = await fetchProfileVideos(profileUrl, 20);
-  if (!videos.length) throw new Error(`No TikTok videos found for @${handle}`);
+  if (!videos.length) {
+    throw new Error(`No TikTok videos found for @${handle} (profile may be private, renamed, or empty)`);
+  }
 
   const lastPostedId = page.lastPostedYtVideoId;
   let nextVideo = videos[0];
@@ -527,8 +675,18 @@ export async function postPageNextVideo(page: typeof facebookPagesTable.$inferSe
 
   let postedVideoId: string;
 
+  // Pipeline steps 1/8 + 2/8: URL/identity input and platform detection.
+  // "Schedule creation in DB" (step 6 in the user-facing mental model) does
+  // NOT exist as a separate step for page automation — unlike the manual
+  // upload flow (scheduled_videos table), automation downloads and posts
+  // synchronously within a single scheduler tick. Step 7 ("scheduler
+  // execution") is this very function being invoked by runFixedSchedule()/
+  // runRandomSchedule() below.
   const source = page.sourceType ?? "youtube";
-  logger.info({ pageId: page.id, source, identity: page.sourceIdentity }, "Page automation: posting next video");
+  logger.info(
+    { step: "platform-detect", pageId: page.id, source, identity: page.sourceIdentity },
+    "Pipeline steps 1-2/8: URL input + platform detected",
+  );
 
   if (source === "youtube") {
     ({ postedVideoId } = await postNextYouTubeVideo(page, pageToken));
