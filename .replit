@@ -3,6 +3,8 @@ modules = ["nodejs-20", "web", "postgresql-16"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["bash", "-c", "cd /home/runner/workspace && NODE_ENV=production PORT=8080 pnpm --filter @workspace/api-server run start"]
+build = ["bash", "-c", "pnpm install --frozen-lockfile && pnpm -r --if-present run build"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]

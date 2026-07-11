@@ -43,4 +43,21 @@ app.use("/uploads", express.static(uploadsDir));
 
 app.use("/api", router);
 
+// In production serve the compiled Vite frontend and handle SPA fallback.
+// The frontend build output lands at artifacts/fb-agency/dist/public relative
+// to the workspace root, which is where the process runs in deployment.
+if (process.env["NODE_ENV"] === "production") {
+  const frontendDist = path.resolve(process.cwd(), "artifacts", "fb-agency", "dist", "public");
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    // SPA fallback — serve index.html for any non-API, non-file route
+    app.get("*", (_req, res) => {
+      res.sendFile(path.join(frontendDist, "index.html"));
+    });
+    logger.info({ frontendDist }, "Serving frontend static build");
+  } else {
+    logger.warn({ frontendDist }, "Frontend build not found — skipping static serving");
+  }
+}
+
 export default app;
