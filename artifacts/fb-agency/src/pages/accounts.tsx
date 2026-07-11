@@ -22,10 +22,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Trash2, Facebook, RefreshCw, AlertCircle, CheckCircle2, Loader2, Link, Copy, ExternalLink, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -61,11 +73,14 @@ export default function Accounts() {
   const generateMagicLink = useGenerateMagicLink();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const [isConnectOpen, setIsConnectOpen] = useState(false);
   const [magicLinkUrl, setMagicLinkUrl] = useState<string | null>(null);
   const [magicLinkExpiry, setMagicLinkExpiry] = useState<string | null>(null);
   const [permissionsMap, setPermissionsMap] = useState<Record<string, PermissionStatus>>({});
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const checkPermissions = useCallback(async (accountId: string) => {
     setPermissionsMap((prev) => ({
@@ -189,6 +204,36 @@ export default function Accounts() {
     );
   };
 
+  // Admin-only cleanup action: removes every connected Facebook account by calling
+  // the existing DELETE /accounts/:accountId endpoint once per account (same call
+  // the per-card Trash button uses). Facebook pages are removed via the existing
+  // DB cascade on that endpoint. Nothing else (scheduled videos, agency settings,
+  // users, etc.) is touched.
+  const handleDeleteAllAccounts = async () => {
+    if (!accounts?.length) return;
+    setIsDeletingAll(true);
+    let removed = 0;
+    let failed = 0;
+    for (const account of accounts) {
+      try {
+        await deleteAccount.mutateAsync({ accountId: account.id });
+        removed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setIsDeletingAll(false);
+    queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+    if (failed > 0) {
+      toast({
+        title: `Removed ${removed} account${removed === 1 ? "" : "s"}, ${failed} failed`,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Removed ${removed} account${removed === 1 ? "" : "s"} and their pages` });
+    }
+  };
+
   return (
     <Layout>
       <div className="flex flex-col gap-8">
@@ -203,13 +248,51 @@ export default function Accounts() {
             <p className="text-muted-foreground mt-1">Manage your connected Facebook accounts and their permissions.</p>
           </div>
 
-          <Button className="gap-2" onClick={() => {
-            setMagicLinkUrl(null);
-            setIsConnectOpen(true);
-          }}>
-            <Facebook className="h-4 w-4" />
-            Connect Facebook Account
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+                    disabled={isDeletingAll || !accounts?.length}
+                  >
+                    {isDeletingAll ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Delete All Facebook Accounts
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all Facebook accounts?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove all connected Facebook accounts and their connected pages.
+                      Scheduled videos must remain untouched.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground"
+                      onClick={handleDeleteAllAccounts}
+                    >
+                      Delete All
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button className="gap-2" onClick={() => {
+              setMagicLinkUrl(null);
+              setIsConnectOpen(true);
+            }}>
+              <Facebook className="h-4 w-4" />
+              Connect Facebook Account
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
