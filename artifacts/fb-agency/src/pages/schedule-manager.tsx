@@ -16,6 +16,7 @@ import {
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -25,6 +26,7 @@ import {
   Facebook, BarChart2, ArrowLeft,
 } from "lucide-react";
 import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-utils";
+import { useAuth } from "@/contexts/auth-context";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -764,6 +766,11 @@ export default function ScheduleManager() {
   const { data: allPages, isLoading: pagesLoading } = useListPages({});
   const [videos, setVideos] = useState<ScheduledVideo[]>([]);
   const [videosLoading, setVideosLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const [view, setView] = useState<View>("accounts");
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -775,6 +782,38 @@ export default function ScheduleManager() {
       if (resp.ok) setVideos(await resp.json());
     } catch { } finally { setVideosLoading(false); }
   }, []);
+
+  // Admin-only reset action: removes every scheduled video (any status) by
+  // calling the existing DELETE /scheduled-videos/:id endpoint once per item —
+  // the same call the per-item Trash button uses. There is no separate
+  // queue/job table in this app; scheduled_videos rows ARE the queue, so
+  // clearing them removes all pending jobs too. Nothing else is touched.
+  const handleDeleteAllSchedules = useCallback(async () => {
+    if (!videos.length) return;
+    setIsDeletingAll(true);
+    let removed = 0;
+    let failed = 0;
+    for (const v of videos) {
+      try {
+        const resp = await authFetch(apiUrl(`/scheduled-videos/${v.id}`), { method: "DELETE" });
+        if (resp.ok || resp.status === 204) removed += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setIsDeletingAll(false);
+    setIsDeleteAllOpen(false);
+    await fetchVideos();
+    if (failed > 0) {
+      toast({
+        title: `Removed ${removed} schedule${removed === 1 ? "" : "s"}, ${failed} failed`,
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Removed ${removed} schedule${removed === 1 ? "" : "s"}` });
+    }
+  }, [videos, fetchVideos, toast]);
 
   useEffect(() => {
     fetchVideos();
@@ -842,9 +881,45 @@ export default function ScheduleManager() {
               </h1>
               <p className="text-muted-foreground text-sm mt-1">Select a Facebook account to manage its scheduled posts page by page.</p>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={fetchVideos}>
-              <RefreshCw className="h-3.5 w-3.5" />Refresh
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              {isAdmin && (
+                <AlertDialog open={isDeleteAllOpen} onOpenChange={(o) => { if (!isDeletingAll) setIsDeleteAllOpen(o); }}>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                      disabled={isDeletingAll || !videos.length}
+                    >
+                      {isDeletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      Delete All Schedules
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete all scheduled videos?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete ALL scheduled videos (Pending, Completed, and Failed history). This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isDeletingAll}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={(e) => { e.preventDefault(); handleDeleteAllSchedules(); }}
+                        disabled={isDeletingAll}
+                      >
+                        {isDeletingAll && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                        Delete All
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={fetchVideos}>
+                <RefreshCw className="h-3.5 w-3.5" />Refresh
+              </Button>
+            </div>
           </div>
 
           {loading ? (
