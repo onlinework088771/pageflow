@@ -26,9 +26,25 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const TOKEN_KEY = "pf_auth_token";
 const USER_KEY = "pf_auth_user";
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function getAuthToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+// Re-fetches the current user (including role) from the server so a stale
+// cached copy in localStorage never keeps admin-only UI hidden after a role
+// change. Best-effort: on failure it silently keeps the cached user as-is.
+async function fetchFreshUser(token: string): Promise<UserProfile | null> {
+  try {
+    const res = await fetch(`${BASE}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as UserProfile;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -46,7 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         setState({ user: null, token: null, isLoading: false });
+        return;
       }
+
+      // Refresh from the server on app init so the latest role is always loaded.
+      fetchFreshUser(storedToken).then((freshUser) => {
+        if (freshUser) {
+          localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+          setState((prev) => (prev.token === storedToken ? { ...prev, user: freshUser } : prev));
+        }
+      });
     } else {
       setState({ user: null, token: null, isLoading: false });
     }
@@ -61,6 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     setState({ user, token, isLoading: false });
+
+    // Re-fetch immediately after login too, in case the login response's
+    // user snapshot is ever out of date relative to the server.
+    fetchFreshUser(token).then((freshUser) => {
+      if (freshUser) {
+        localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+        setState((prev) => (prev.token === token ? { ...prev, user: freshUser } : prev));
+      }
+    });
   }, []);
 
   const logout = useCallback(() => {
