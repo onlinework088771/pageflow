@@ -55,9 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem(USER_KEY);
 
     if (storedToken && storedUser) {
+      let cachedUser: UserProfile | null = null;
       try {
-        const user = JSON.parse(storedUser) as UserProfile;
-        setState({ user, token: storedToken, isLoading: false });
+        cachedUser = JSON.parse(storedUser) as UserProfile;
       } catch {
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
@@ -65,12 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Refresh from the server on app init so the latest role is always loaded.
+      // Always fetch a fresh user from the server before clearing isLoading so
+      // that role-gated UI (e.g. the "Delete All Schedules" admin button) is
+      // evaluated against authoritative server data, not a potentially stale
+      // localStorage snapshot.  Fall back to the cached user only when the
+      // request fails (network error, expired token, etc.).
       fetchFreshUser(storedToken).then((freshUser) => {
+        const userToUse = freshUser ?? cachedUser!;
         if (freshUser) {
           localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
-          setState((prev) => (prev.token === storedToken ? { ...prev, user: freshUser } : prev));
         }
+        setState({ user: userToUse, token: storedToken, isLoading: false });
       });
     } else {
       setState({ user: null, token: null, isLoading: false });
