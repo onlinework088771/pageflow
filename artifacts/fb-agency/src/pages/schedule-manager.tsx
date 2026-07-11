@@ -783,35 +783,23 @@ export default function ScheduleManager() {
     } catch { } finally { setVideosLoading(false); }
   }, []);
 
-  // Admin-only reset action: removes every scheduled video (any status) by
-  // calling the existing DELETE /scheduled-videos/:id endpoint once per item —
-  // the same call the per-item Trash button uses. There is no separate
-  // queue/job table in this app; scheduled_videos rows ARE the queue, so
-  // clearing them removes all pending jobs too. Nothing else is touched.
+  // Admin-only reset: one bulk DELETE call removes every scheduled video for
+  // this user in a single DB round-trip instead of N sequential requests.
   const handleDeleteAllSchedules = useCallback(async () => {
     if (!videos.length) return;
     setIsDeletingAll(true);
-    let removed = 0;
-    let failed = 0;
-    for (const v of videos) {
-      try {
-        const resp = await authFetch(apiUrl(`/scheduled-videos/${v.id}`), { method: "DELETE" });
-        if (resp.ok || resp.status === 204) removed += 1;
-        else failed += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-    setIsDeletingAll(false);
-    setIsDeleteAllOpen(false);
-    await fetchVideos();
-    if (failed > 0) {
-      toast({
-        title: `Removed ${removed} schedule${removed === 1 ? "" : "s"}, ${failed} failed`,
-        variant: "destructive",
-      });
-    } else {
-      toast({ title: `Removed ${removed} schedule${removed === 1 ? "" : "s"}` });
+    try {
+      const resp = await authFetch(apiUrl("/scheduled-videos"), { method: "DELETE" });
+      if (!resp.ok) throw new Error((await resp.json()).error ?? "Delete failed");
+      const { deleted } = await resp.json();
+      setIsDeleteAllOpen(false);
+      await fetchVideos();
+      toast({ title: `Removed ${deleted} schedule${deleted === 1 ? "" : "s"}` });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsDeletingAll(false);
+      setIsDeleteAllOpen(false);
     }
   }, [videos, fetchVideos, toast]);
 

@@ -261,6 +261,28 @@ router.post("/scheduled-videos/:id/duplicate", async (req, res): Promise<void> =
   res.status(201).json(serializeVideo(copy));
 });
 
+// Bulk-delete ALL scheduled videos for the current user in one DB round-trip.
+// Called by the "Delete All Schedules" admin action on the frontend.
+router.delete("/scheduled-videos", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
+  const deleted = await db
+    .delete(scheduledVideosTable)
+    .where(eq(scheduledVideosTable.userId, userId))
+    .returning();
+
+  // Best-effort cleanup of uploaded files
+  for (const video of deleted) {
+    if (video.videoPath) {
+      const fullPath = path.join(process.cwd(), video.videoPath.replace(/^\//, ""));
+      if (fs.existsSync(fullPath)) {
+        try { fs.unlinkSync(fullPath); } catch { /* ignore */ }
+      }
+    }
+  }
+
+  res.json({ deleted: deleted.length });
+});
+
 router.delete("/scheduled-videos/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {

@@ -19,6 +19,12 @@ import {
   Users, Hash, Plus, CalendarClock, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-utils";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -282,9 +288,14 @@ interface ManagerProps {
   getPageName: (id: string) => string;
   isFiltered?: boolean;
   filterSummary?: string[];
+  isAdmin?: boolean;
+  onDeleteAll?: () => void;
+  isDeletingAll?: boolean;
+  totalVideosCount?: number;
 }
 
-function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName, isFiltered, filterSummary }: ManagerProps) {
+function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDelete, onRefresh, getPageName, isFiltered, filterSummary, isAdmin, onDeleteAll, isDeletingAll, totalVideosCount }: ManagerProps) {
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
   const tabs = [
     { key: "all", label: "All", statuses: ["pending", "processing", "posted", "failed"] },
     { key: "pending", label: "Pending", statuses: ["pending", "processing"] },
@@ -307,9 +318,45 @@ function ScheduleManagerSection({ videos, loading, postingNow, onPostNow, onDele
             <CalendarClock className="h-4 w-4 text-primary" />
             Schedule Manager
           </CardTitle>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh} title="Refresh">
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {isAdmin && onDeleteAll && (
+              <AlertDialog open={isDeleteAllOpen} onOpenChange={(o) => { if (!isDeletingAll) setIsDeleteAllOpen(o); }}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                    disabled={isDeletingAll || (totalVideosCount ?? 0) === 0}
+                  >
+                    {isDeletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Delete All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all scheduled videos?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete ALL scheduled videos (Pending, Completed, and Failed history). This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeletingAll}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={(e) => { e.preventDefault(); onDeleteAll(); }}
+                      disabled={isDeletingAll}
+                    >
+                      {isDeletingAll && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                      Delete All
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh} title="Refresh">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
         {filterSummary && filterSummary.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
@@ -472,10 +519,15 @@ export default function UploadScheduler() {
   const [scheduling, setScheduling] = useState(false);
   const [scheduledCount, setScheduledCount] = useState(0);
 
+  /* Auth */
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   /* Schedule manager */
   const [videos, setVideos] = useState<ScheduledVideo[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [postingNow, setPostingNow] = useState<Set<string>>(new Set());
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   /* ── Fetch scheduled videos ─────────────────────────────────────── */
   const fetchVideos = useCallback(async () => {
@@ -493,6 +545,22 @@ export default function UploadScheduler() {
     const t = setInterval(fetchVideos, 8_000);
     return () => clearInterval(t);
   }, [fetchVideos]);
+
+  const handleDeleteAllSchedules = useCallback(async () => {
+    if (!videos.length) return;
+    setIsDeletingAll(true);
+    try {
+      const resp = await authFetch(apiUrl("/scheduled-videos"), { method: "DELETE" });
+      if (!resp.ok) throw new Error((await resp.json()).error ?? "Delete failed");
+      const { deleted } = await resp.json();
+      await fetchVideos();
+      toast({ title: `Removed ${deleted} schedule${deleted === 1 ? "" : "s"}` });
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsDeletingAll(false);
+    }
+  }, [videos, fetchVideos, toast]);
 
   /* ── Derived ────────────────────────────────────────────────────── */
   const accountPages = selectedAccountId
@@ -1384,6 +1452,10 @@ export default function UploadScheduler() {
           getPageName={getPageName}
           isFiltered={managerIsFiltered}
           filterSummary={filterSummary}
+          isAdmin={isAdmin}
+          onDeleteAll={handleDeleteAllSchedules}
+          isDeletingAll={isDeletingAll}
+          totalVideosCount={videos.length}
         />
 
       </div>
