@@ -1,0 +1,278 @@
+IMPORTANT
+
+The current Facebook production system is LIVE and working.
+
+Your highest priority is:
+
+DO NOT BREAK ANY EXISTING FACEBOOK FUNCTIONALITY.
+
+=========================================================
+GENERAL RULES
+=========================================================
+
+1. Do NOT modify Facebook Scheduler.
+2. Do NOT modify Facebook Automation.
+3. Do NOT modify Facebook OAuth.
+4. Do NOT modify Facebook Posting.
+5. Do NOT modify existing database tables unless absolutely required.
+6. Do NOT refactor existing production code.
+7. Existing Facebook production must continue working exactly as it does today.
+
+YouTube must be built as a COMPLETELY SEPARATE MODULE.
+
+Only minimal integration changes are allowed:
+
+- Sidebar menu
+- Route registration
+- Navigation
+
+Everything else should be implemented as NEW files.
+
+=========================================================
+VERY IMPORTANT
+=========================================================
+
+DO NOT build the entire YouTube system at once.
+
+We will build it in small phases.
+
+At the end of each phase:
+
+- Stop.
+- Build successfully.
+- Verify there are no TypeScript errors.
+- Verify Facebook still works.
+- Commit.
+- Push to GitHub.
+- Wait for my approval before starting the next phase.
+
+Never continue automatically.
+
+=========================================================
+PHASE 1
+=========================================================
+
+Only create the YouTube module structure.
+
+Add:
+
+• YouTube section in sidebar
+• YouTube Dashboard page
+• YouTube Automation page (placeholder)
+• YouTube Scheduler page (placeholder)
+• YouTube Accounts page (placeholder)
+• YouTube Analytics page (placeholder)
+
+Only routing and UI.
+
+NO backend.
+
+NO OAuth.
+
+NO API.
+
+NO database.
+
+NO scheduler.
+
+NO upload.
+
+NO automation.
+
+Nothing functional yet.
+
+Stop.
+
+Wait for my approval.
+
+=========================================================
+PHASE 2
+=========================================================
+
+Implement ONLY YouTube Accounts.
+
+Features:
+
+Google OAuth
+
+Connect Account
+
+Disconnect
+
+Reconnect
+
+Fetch Channels
+
+Display Channels
+
+Refresh Token Storage
+
+Nothing else.
+
+Stop.
+
+Build.
+
+Test.
+
+Commit.
+
+Push.
+
+Wait for approval.
+
+=========================================================
+PHASE 3
+=========================================================
+
+Implement ONLY YouTube Scheduler.
+
+Features:
+
+Single Upload
+
+Bulk Upload
+
+Shorts
+
+Long Video
+
+Draft
+
+Scheduled
+
+Published
+
+Failed
+
+History
+
+Delete
+
+Delete All
+
+No Automation yet.
+
+Stop.
+
+Build.
+
+Test.
+
+Commit.
+
+Push.
+
+Wait.
+
+=========================================================
+PHASE 4
+=========================================================
+
+Implement ONLY YouTube Upload Worker.
+
+Worker
+
+Queue
+
+Upload Service
+
+Retry
+
+Status Updates
+
+History
+
+Stop.
+
+Test.
+
+Commit.
+
+Push.
+
+Wait.
+
+=========================================================
+PHASE 5
+=========================================================
+
+Implement ONLY YouTube Automation.
+
+Supported sources:
+
+TikTok
+
+Facebook
+
+Instagram
+
+YouTube
+
+Workflow:
+
+Profile URL
+
+↓
+
+Scan Videos
+
+↓
+
+Download
+
+↓
+
+Choose Shorts or Long Video
+
+↓
+
+Upload to YouTube
+
+↓
+
+History
+
+Stop.
+
+Test.
+
+Commit.
+
+Push.
+
+Wait.
+
+=========================================================
+PHASE 6
+=========================================================
+
+Analytics
+
+Statistics
+
+Charts
+
+Reports
+
+Final polishing
+
+=========================================================
+VERY IMPORTANT
+=========================================================
+
+Before modifying ANY existing production file:
+
+Show me:
+
+- File name
+- Reason
+- Exact change
+
+Then wait for my approval.
+
+Never modify production code without approval.
+
+Your goal is ZERO regression.
+
+Facebook production must remain 100% stable while YouTube is developed independently.
