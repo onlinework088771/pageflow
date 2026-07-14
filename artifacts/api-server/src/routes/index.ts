@@ -13,6 +13,7 @@ import youtubeRouter from "./youtube";
 import analyticsRouter from "./analytics";
 import postManagerRouter from "./post-manager";
 import { youtubeAccountsPublicRouter, youtubeAccountsRouter } from "./youtube-accounts";
+import youtubeScheduledVideosRouter from "./youtube-scheduled-videos";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -37,5 +38,6 @@ router.use(requireAuth, postManagerRouter);
 // youtubeAccountsRouter applies requireAuth internally too; the extra requireAuth
 // here just keeps this file consistent with every other protected router.
 router.use(requireAuth, youtubeAccountsRouter);
+router.use(requireAuth, youtubeScheduledVideosRouter);
 
 export default router;
