@@ -1,0 +1,336 @@
+import axios from "axios";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import fs from "fs";
+import path from "path";
+import { parseStringPromise } from "xml2js";
+import { eq, and } from "drizzle-orm";
+import {
+  db,
+  youtubeAutomationsTable,
+  youtubeChannelsTable,
+  youtubeAccountsTable,
+  automationLogsTable,
+} from "@workspace/db";
+import { logger } from "../lib/logger";
+
+// Phase 5 — YouTube Automation.
+// Independent counterpart to Facebook's page-automation.ts: instead of posting
+// scraped content to a Facebook Page, this posts it to one of the user's own
+// connected YouTube channels. Deliberately self-contained (own yt-dlp/RSS/
+// download helpers, own logging) rather than importing page-automation.ts's
+// internal (non-exported) helpers — this keeps the YouTube module fully
+// independent per the project's Facebook-isolation rule. `generateCaption` is
+// the one exception: it's already an exported, pure helper, so it's imported
+// directly here to avoid duplicating hashtag/caption logic.
+import { generateCaption } from "./page-automation";
+import { getValidAccessToken, uploadToYoutube } from "./youtube-poster";
+
+const execFileAsync = promisify(execFile);
+const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
+const TIKTOK_COOKIES_FILE = process.env["TIKTOK_COOKIES_FILE"];
+
+function cookiesArgsFor(url: string): string[] {
+  if (url.includes("tiktok.com") && TIKTOK_COOKIES_FILE && fs.existsSync(TIKTOK_COOKIES_FILE)) {
+    return ["--cookies", TIKTOK_COOKIES_FILE];
+  }
+  return [];
+}
+
+async function logAutomation(
+  status: "success" | "error" | "info",
+  message: string,
+  channelId?: number,
+  channelName?: string,
+  metadata?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.insert(automationLogsTable).values({
+      type: "youtube_automation",
+      message,
+      pageId: channelId ?? null,
+      pageName: channelName ?? null,
+      status,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    });
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Failed to write youtube automation log");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timezone-aware time matching (mirrors page-automation.ts's own logic)
+// ---------------------------------------------------------------------------
+
+function getCurrentHHMM(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const h = parts.find((p) => p.type === "hour")?.value?.padStart(2, "0") ?? "00";
+    const m = parts.find((p) => p.type === "minute")?.value?.padStart(2, "0") ?? "00";
+    return `${h}:${m}`;
+  } catch {
+    return new Date().toISOString().slice(11, 16);
+  }
+}
+
+function timeSlotDue(slot: string, timezone: string): boolean {
+  return getCurrentHHMM(timezone) === slot;
+}
+
+function hoursSinceLastPost(lastPostedAt: Date | null | undefined): number {
+  if (!lastPostedAt) return Infinity;
+  return (Date.now() - new Date(lastPostedAt).getTime()) / (1000 * 60 * 60);
+}
+
+// ---------------------------------------------------------------------------
+// Source resolution — YouTube (RSS) and TikTok (yt-dlp)
+// ---------------------------------------------------------------------------
+
+async function fetchChannelIdFromHandle(handle: string): Promise<string | null> {
+  const cleanHandle = handle.replace(/^@/, "").replace(/\/$/, "");
+  if (cleanHandle.startsWith("UC") && cleanHandle.length === 24) return cleanHandle;
+  try {
+    const resp = await fetch(`https://www.youtube.com/@${cleanHandle}`, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" },
+    });
+    const html = await resp.text();
+    const m1 = html.match(/"channelId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m1) return m1[1];
+    const m2 = html.match(/"externalId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m2) return m2[1];
+    const m3 = html.match(/"browseId":"(UC[a-zA-Z0-9_-]+)"/);
+    if (m3) return m3[1];
+    const m4 = html.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+    if (m4) return m4[1];
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+async function fetchYouTubeRssVideos(
+  channelId: string,
+): Promise<{ videoId: string; title: string; description: string; url: string }[]> {
+  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  const resp = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)" } });
+  if (!resp.ok) throw new Error(`YouTube RSS ${resp.status}`);
+  const xml = await resp.text();
+  const parsed = await parseStringPromise(xml, { explicitArray: false });
+  const entries = parsed?.feed?.entry;
+  if (!entries) return [];
+  const arr = Array.isArray(entries) ? entries : [entries];
+  return arr.slice(0, 20).map((e: any) => ({
+    videoId: e["yt:videoId"] ?? "",
+    title: e.title ?? "",
+    description: (e["media:group"]?.["media:description"] ?? "").slice(0, 2000),
+    url: e.link?.["$"]?.href ?? `https://www.youtube.com/watch?v=${e["yt:videoId"]}`,
+  }));
+}
+
+async function fetchTikTokProfileVideos(
+  profileUrl: string,
+  limit = 20,
+): Promise<{ videoId: string; title: string; url: string }[]> {
+  logger.info({ step: "profile-list", profileUrl }, "YouTube automation: listing recent TikTok videos");
+  try {
+    const fullArgs = [
+      ...cookiesArgsFor(profileUrl),
+      "--flat-playlist",
+      "--print", "%(id)s\t%(title)s\t%(webpage_url)s",
+      "--playlist-end", String(limit),
+      "--no-warnings",
+      profileUrl,
+    ];
+    const { stdout } = await execFileAsync(YT_DLP_PATH, fullArgs, { timeout: 45_000 });
+    return stdout
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [videoId, title, url] = line.split("\t");
+        return { videoId: videoId ?? "", title: title ?? "", url: url ?? "" };
+      })
+      .filter((v) => v.videoId);
+  } catch (err: any) {
+    const message: string = err?.stderr || err?.message || String(err);
+    logger.error({ profileUrl, err: message.slice(0, 300) }, "YouTube automation: TikTok profile listing failed");
+    return [];
+  }
+}
+
+async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
+  try {
+    const { stdout } = await execFileAsync(
+      YT_DLP_PATH,
+      [...cookiesArgsFor(url), "--dump-json", "--no-playlist", "--no-warnings", url],
+      { timeout: 30_000 },
+    );
+    const data = JSON.parse(stdout.trim());
+    return { title: data.title ?? "", description: data.description ?? "", tags: Array.isArray(data.tags) ? data.tags : [] };
+  } catch (err: any) {
+    logger.warn({ url, err: err.message }, "YouTube automation: metadata extraction failed, using fallback title");
+    return { title: "", description: "", tags: [] };
+  }
+}
+
+async function downloadVideoToTempFile(url: string): Promise<string> {
+  const tmpDir = path.join(process.cwd(), "uploads", "youtube", "tmp");
+  if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+  const tmpFile = path.join(tmpDir, `auto_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
+
+  await execFileAsync(
+    YT_DLP_PATH,
+    [
+      ...cookiesArgsFor(url),
+      "--format", "best[ext=mp4][height<=1080]/mp4/best",
+      "--merge-output-format", "mp4",
+      "--output", tmpFile,
+      "--no-playlist",
+      "--no-warnings",
+      url,
+    ],
+    { timeout: 300_000 },
+  );
+
+  if (!fs.existsSync(tmpFile) || fs.statSync(tmpFile).size === 0) {
+    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    throw new Error(`yt-dlp download produced no usable file for: ${url.slice(0, 80)}`);
+  }
+  return tmpFile;
+}
+
+/** Finds the next video from the source that hasn't been posted yet (by lastPostedVideoId). */
+async function findNextUnseenVideo(
+  automation: typeof youtubeAutomationsTable.$inferSelect,
+): Promise<{ videoId: string; url: string; title: string; description?: string } | null> {
+  if (automation.sourceType === "youtube" && automation.sourceIdentity) {
+    const channelId = await fetchChannelIdFromHandle(automation.sourceIdentity);
+    if (!channelId) return null;
+    const videos = await fetchYouTubeRssVideos(channelId);
+    const idx = automation.lastPostedVideoId ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId) : -1;
+    // RSS is newest-first; the "next" video is the one just before the last one we posted.
+    const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
+    return next ? { videoId: next.videoId, url: next.url, title: next.title, description: next.description } : null;
+  }
+
+  if (automation.sourceType === "tiktok" && automation.sourceIdentity) {
+    const videos = await fetchTikTokProfileVideos(automation.sourceIdentity);
+    const idx = automation.lastPostedVideoId ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId) : -1;
+    const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
+    return next ? { videoId: next.videoId, url: next.url, title: next.title } : null;
+  }
+
+  return null;
+}
+
+/** Runs one automation: finds, downloads, and uploads the next unseen video to the channel's own YouTube account. */
+export async function runChannelAutomation(automation: typeof youtubeAutomationsTable.$inferSelect): Promise<void> {
+  const [channel] = await db.select().from(youtubeChannelsTable).where(eq(youtubeChannelsTable.id, automation.channelId));
+  if (!channel) {
+    await logAutomation("error", "Automation skipped — channel no longer exists", automation.channelId);
+    return;
+  }
+
+  const [account] = await db.select().from(youtubeAccountsTable).where(eq(youtubeAccountsTable.id, channel.accountId));
+  if (!account) {
+    await logAutomation("error", "Automation skipped — YouTube account no longer exists", automation.channelId, channel.title);
+    return;
+  }
+
+  const next = await findNextUnseenVideo(automation);
+  if (!next) {
+    await logAutomation("info", "No new video found from source", automation.channelId, channel.title);
+    return;
+  }
+
+  let tmpFile: string | null = null;
+  try {
+    const accessToken = await getValidAccessToken(account);
+
+    const meta = automation.sourceType === "tiktok" ? await getVideoMetadata(next.url) : { title: "", description: next.description ?? "", tags: [] };
+    const title = (next.title || meta.title || "Untitled video").slice(0, 100);
+    const description = generateCaption(title, meta.description || next.description || "", meta.tags);
+
+    tmpFile = await downloadVideoToTempFile(next.url);
+
+    const youtubeVideoId = await uploadToYoutube(accessToken, tmpFile, {
+      title,
+      description,
+      privacyStatus: automation.privacyStatus,
+      videoType: automation.videoType,
+    });
+
+    await db
+      .update(youtubeAutomationsTable)
+      .set({
+        lastPostedAt: new Date(),
+        lastPostedVideoId: next.videoId,
+        totalPosted: automation.totalPosted + 1,
+        status: "active",
+      })
+      .where(eq(youtubeAutomationsTable.id, automation.id));
+
+    await logAutomation("success", `Posted "${title}" to YouTube (video ${youtubeVideoId})`, automation.channelId, channel.title, {
+      sourceVideoId: next.videoId,
+      youtubeVideoId,
+    });
+  } catch (err: any) {
+    const message = err?.response?.data?.error?.message || err.message || "Automation run failed";
+    await db
+      .update(youtubeAutomationsTable)
+      .set({ totalFailed: automation.totalFailed + 1, status: "error" })
+      .where(eq(youtubeAutomationsTable.id, automation.id));
+    await logAutomation("error", String(message).slice(0, 500), automation.channelId, channel.title);
+    logger.error({ automationId: automation.id, err: message }, "YouTube automation run failed");
+  } finally {
+    if (tmpFile) {
+      try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+    }
+  }
+}
+
+async function runFixedSchedule(): Promise<void> {
+  const automations = await db
+    .select()
+    .from(youtubeAutomationsTable)
+    .where(and(eq(youtubeAutomationsTable.automationEnabled, true), eq(youtubeAutomationsTable.scheduleLogic, "fixed")));
+
+  for (const automation of automations) {
+    if (automation.status === "error") continue;
+    const slots = Array.isArray(automation.timeSlots) ? automation.timeSlots : [];
+    const due = slots.some((slot) => timeSlotDue(slot, automation.timezone));
+    if (due) {
+      await runChannelAutomation(automation);
+    }
+  }
+}
+
+async function runRandomSchedule(): Promise<void> {
+  const automations = await db
+    .select()
+    .from(youtubeAutomationsTable)
+    .where(and(eq(youtubeAutomationsTable.automationEnabled, true), eq(youtubeAutomationsTable.scheduleLogic, "random")));
+
+  for (const automation of automations) {
+    if (automation.status === "error") continue;
+    const hoursPerPost = 24 / Math.max(1, automation.postsPerDay);
+    if (hoursSinceLastPost(automation.lastPostedAt) >= hoursPerPost) {
+      // Small random chance per tick within the due window, mirroring page-automation.ts's
+      // random-schedule jitter so posts don't all land at the exact top of the window.
+      if (Math.random() < 0.3) {
+        await runChannelAutomation(automation);
+      }
+    }
+  }
+}
+
+/** Scheduler tick — call every 60s. */
+export async function runYoutubeAutomation(): Promise<void> {
+  await runFixedSchedule();
+  await runRandomSchedule();
+}

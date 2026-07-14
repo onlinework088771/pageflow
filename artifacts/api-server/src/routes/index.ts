@@ -14,6 +14,7 @@ import analyticsRouter from "./analytics";
 import postManagerRouter from "./post-manager";
 import { youtubeAccountsPublicRouter, youtubeAccountsRouter } from "./youtube-accounts";
 import youtubeScheduledVideosRouter from "./youtube-scheduled-videos";
+import youtubeAutomationRouter from "./youtube-automation";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -39,5 +40,6 @@ router.use(requireAuth, postManagerRouter);
 // here just keeps this file consistent with every other protected router.
 router.use(requireAuth, youtubeAccountsRouter);
 router.use(requireAuth, youtubeScheduledVideosRouter);
+router.use(requireAuth, youtubeAutomationRouter);
 
 export default router;

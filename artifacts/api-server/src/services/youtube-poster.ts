@@ -29,7 +29,7 @@ function getGoogleCredentials(): { clientId: string; clientSecret: string } | nu
 }
 
 /** Returns a valid access token for this account, refreshing it first if expired or about to expire. */
-async function getValidAccessToken(account: typeof youtubeAccountsTable.$inferSelect): Promise<string> {
+export async function getValidAccessToken(account: typeof youtubeAccountsTable.$inferSelect): Promise<string> {
   const expiresAt = account.tokenExpiresAt ? new Date(account.tokenExpiresAt).getTime() : 0;
   const isExpiring = !expiresAt || expiresAt - Date.now() < 60_000;
 
@@ -107,7 +107,7 @@ async function resolveVideoFile(
 }
 
 /** Upload a local video file to YouTube via the resumable upload protocol. Returns the new video ID. */
-async function uploadToYoutube(
+export async function uploadToYoutube(
   accessToken: string,
   filePath: string,
   metadata: { title: string; description: string; privacyStatus: "public" | "unlisted" | "private"; videoType: "short" | "long" },

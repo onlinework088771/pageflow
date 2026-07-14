@@ -8,3 +8,4 @@ export * from "./magic-links";
 export * from "./scheduled-videos";
 export * from "./youtube-accounts";
 export * from "./youtube-scheduled-videos";
+export * from "./youtube-automations";

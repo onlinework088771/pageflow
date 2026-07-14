@@ -4,6 +4,7 @@ import { runScheduler } from "./services/facebook-poster";
 import { runPageAutomation } from "./services/page-automation";
 import { runCleanupJob } from "./services/cleanup-service";
 import { runYoutubeScheduler } from "./services/youtube-poster";
+import { runYoutubeAutomation } from "./services/youtube-automation";
 
 const rawPort = process.env["PORT"];
 const port = rawPort ? Number(rawPort) : 8080;
@@ -61,8 +62,18 @@ app.listen(port, (err) => {
     );
   }, 10_000);
 
+  // YouTube automation (Phase 5) — runs every 60s, same cadence as the Facebook
+  // page-automation scheduler above but fully independent: separate table,
+  // separate service, no shared code paths with any Facebook file.
+  setInterval(() => {
+    runYoutubeAutomation().catch((e) =>
+      logger.error({ err: e.message }, "YouTube automation error"),
+    );
+  }, 60_000);
+
   runScheduler(publicBaseUrl).catch(() => {});
   runPageAutomation().catch(() => {});
   runCleanupJob().catch(() => {});
   runYoutubeScheduler().catch(() => {});
+  runYoutubeAutomation().catch(() => {});
 });
