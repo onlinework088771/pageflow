@@ -4,7 +4,7 @@ import { useGetOverviewStats, getGetOverviewStatsQueryKey } from "@workspace/api
 import {
   LayoutDashboard, Users, Files, Settings,
   LogOut, Coins, Menu, X,
-  ChevronRight, Upload, BarChart2, Layers, CalendarClock,
+  ChevronRight, Upload, BarChart2, Layers, CalendarClock, Youtube,
 } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { PageFlowLogo } from "@/components/pageflow-logo";
@@ -24,6 +24,12 @@ const navItems = [
   { href: "/schedule", label: "Schedule Manager", icon: CalendarClock },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/settings", label: "Settings", icon: Settings },
+  // YouTube module — Phase 1: navigation entries only, no backend behind them yet.
+  { href: "/youtube", label: "YouTube", icon: Youtube, group: "youtube" as const },
+  { href: "/youtube/automation", label: "YT Automation", icon: Youtube, group: "youtube" as const },
+  { href: "/youtube/scheduler", label: "YT Scheduler", icon: Youtube, group: "youtube" as const },
+  { href: "/youtube/accounts", label: "YT Accounts", icon: Youtube, group: "youtube" as const },
+  { href: "/youtube/analytics", label: "YT Analytics", icon: Youtube, group: "youtube" as const },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -97,37 +103,42 @@ export function Layout({ children }: { children: ReactNode }) {
               </Link>
 
               <nav className="hidden md:flex items-center gap-0.5">
-                {navItems.map((item) => {
+                {navItems.map((item, i) => {
                   const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                   const Icon = item.icon;
+                  const startsNewGroup = item.group === "youtube" && navItems[i - 1]?.group !== "youtube";
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`
-                        relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium
-                        transition-all duration-200 select-none
-                        ${isActive
-                          ? "text-primary"
-                          : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
-                        }
-                      `}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="nav-active"
-                          className="absolute inset-0 rounded-lg bg-primary/10"
-                          transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                        />
+                    <div key={item.href} className="flex items-center">
+                      {startsNewGroup && (
+                        <div className="w-px h-5 bg-border mx-1.5 shrink-0" aria-hidden="true" />
                       )}
-                      <Icon className="h-4 w-4 relative z-10 shrink-0" />
-                      <span className="relative z-10">{item.label}</span>
-                      {item.href === "/upload" && pendingCount > 0 && (
-                        <span className="relative z-10 ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 leading-none">
-                          {pendingCount > 99 ? "99+" : pendingCount}
-                        </span>
-                      )}
-                    </Link>
+                      <Link
+                        href={item.href}
+                        className={`
+                          relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium
+                          transition-all duration-200 select-none
+                          ${isActive
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+                          }
+                        `}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="nav-active"
+                            className="absolute inset-0 rounded-lg bg-primary/10"
+                            transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                          />
+                        )}
+                        <Icon className={`h-4 w-4 relative z-10 shrink-0 ${item.group === "youtube" && !isActive ? "text-red-500/80" : ""}`} />
+                        <span className="relative z-10">{item.label}</span>
+                        {item.href === "/upload" && pendingCount > 0 && (
+                          <span className="relative z-10 ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 leading-none">
+                            {pendingCount > 99 ? "99+" : pendingCount}
+                          </span>
+                        )}
+                      </Link>
+                    </div>
                   );
                 })}
               </nav>
@@ -247,6 +258,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   {navItems.map((item, i) => {
                     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                     const Icon = item.icon;
+                    const startsNewGroup = item.group === "youtube" && navItems[i - 1]?.group !== "youtube";
                     return (
                       <motion.div
                         key={item.href}
@@ -254,6 +266,11 @@ export function Layout({ children }: { children: ReactNode }) {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.04, duration: 0.2 }}
                       >
+                        {startsNewGroup && (
+                          <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                            YouTube
+                          </p>
+                        )}
                         <Link
                           href={item.href}
                           className={`

@@ -22,6 +22,11 @@ import ScheduleManager from "@/pages/schedule-manager";
 import Privacy from "@/pages/privacy";
 import Terms from "@/pages/terms";
 import DataDeletion from "@/pages/data-deletion";
+import YoutubeDashboard from "@/pages/youtube/dashboard";
+import YoutubeAutomation from "@/pages/youtube/automation";
+import YoutubeScheduler from "@/pages/youtube/scheduler";
+import YoutubeAccounts from "@/pages/youtube/accounts";
+import YoutubeAnalytics from "@/pages/youtube/analytics";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,6 +70,22 @@ function Router() {
       </Route>
       <Route path="/schedule">
         <ProtectedRoute component={ScheduleManager} />
+      </Route>
+      {/* YouTube module — Phase 1: routing/UI only, no backend. */}
+      <Route path="/youtube">
+        <ProtectedRoute component={YoutubeDashboard} />
+      </Route>
+      <Route path="/youtube/automation">
+        <ProtectedRoute component={YoutubeAutomation} />
+      </Route>
+      <Route path="/youtube/scheduler">
+        <ProtectedRoute component={YoutubeScheduler} />
+      </Route>
+      <Route path="/youtube/accounts">
+        <ProtectedRoute component={YoutubeAccounts} />
+      </Route>
+      <Route path="/youtube/analytics">
+        <ProtectedRoute component={YoutubeAnalytics} />
       </Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
