@@ -15,6 +15,7 @@ import postManagerRouter from "./post-manager";
 import { youtubeAccountsPublicRouter, youtubeAccountsRouter } from "./youtube-accounts";
 import youtubeScheduledVideosRouter from "./youtube-scheduled-videos";
 import youtubeAutomationRouter from "./youtube-automation";
+import youtubeAnalyticsRouter from "./youtube-analytics";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -41,5 +42,6 @@ router.use(requireAuth, postManagerRouter);
 router.use(requireAuth, youtubeAccountsRouter);
 router.use(requireAuth, youtubeScheduledVideosRouter);
 router.use(requireAuth, youtubeAutomationRouter);
+router.use(requireAuth, youtubeAnalyticsRouter);
 
 export default router;
