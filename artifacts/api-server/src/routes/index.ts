@@ -12,6 +12,7 @@ import scheduledVideosRouter from "./scheduled-videos";
 import youtubeRouter from "./youtube";
 import analyticsRouter from "./analytics";
 import postManagerRouter from "./post-manager";
+import { youtubeAccountsPublicRouter, youtubeAccountsRouter } from "./youtube-accounts";
 import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -20,6 +21,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(authRouter);
 router.use(facebookOAuthRouter);
+router.use(youtubeAccountsPublicRouter);
 
 // Protected routes — require valid JWT
 router.use(requireAuth, agencyRouter);
@@ -32,5 +34,8 @@ router.use(requireAuth, scheduledVideosRouter);
 router.use(requireAuth, youtubeRouter);
 router.use(requireAuth, analyticsRouter);
 router.use(requireAuth, postManagerRouter);
+// youtubeAccountsRouter applies requireAuth internally too; the extra requireAuth
+// here just keeps this file consistent with every other protected router.
+router.use(requireAuth, youtubeAccountsRouter);
 
 export default router;

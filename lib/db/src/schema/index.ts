@@ -6,3 +6,4 @@ export * from "./users";
 export * from "./automation-logs";
 export * from "./magic-links";
 export * from "./scheduled-videos";
+export * from "./youtube-accounts";
