@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { runScheduler } from "./services/facebook-poster";
 import { runPageAutomation } from "./services/page-automation";
 import { runCleanupJob } from "./services/cleanup-service";
+import { runYoutubeScheduler } from "./services/youtube-poster";
 
 const rawPort = process.env["PORT"];
 const port = rawPort ? Number(rawPort) : 8080;
@@ -52,7 +53,16 @@ app.listen(port, (err) => {
     );
   }, 60 * 60 * 1000);
 
+  // YouTube upload engine (Phase 4) — runs every 10s, fully independent of the
+  // Facebook scheduler above: separate table, separate service, separate OAuth.
+  setInterval(() => {
+    runYoutubeScheduler().catch((e) =>
+      logger.error({ err: e.message }, "YouTube scheduler error"),
+    );
+  }, 10_000);
+
   runScheduler(publicBaseUrl).catch(() => {});
   runPageAutomation().catch(() => {});
   runCleanupJob().catch(() => {});
+  runYoutubeScheduler().catch(() => {});
 });

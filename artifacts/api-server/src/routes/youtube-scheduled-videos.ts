@@ -10,6 +10,7 @@ import {
   youtubeAccountsTable,
   YoutubeScheduledVideoSchema,
 } from "@workspace/db";
+import { postScheduledVideo } from "../services/youtube-poster";
 
 // Phase 3 — YouTube Scheduler.
 // Fully independent of the Facebook `scheduled-videos.ts` route: separate table,
@@ -201,6 +202,37 @@ router.put("/youtube/scheduled-videos/:id", async (req, res): Promise<void> => {
     .returning();
 
   res.json(serialize(updated));
+});
+
+// Phase 4 — trigger the upload engine for one video immediately instead of waiting
+// for its scheduled time. Only valid for videos not already posted/processing.
+router.post("/youtube/scheduled-videos/:id/post-now", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid ID" });
+    return;
+  }
+
+  const userId = req.user!.userId;
+  const [video] = await db
+    .select()
+    .from(youtubeScheduledVideosTable)
+    .where(and(eq(youtubeScheduledVideosTable.id, id), eq(youtubeScheduledVideosTable.userId, userId)));
+
+  if (!video) {
+    res.status(404).json({ error: "Scheduled video not found" });
+    return;
+  }
+  if (video.status === "processing" || video.status === "posted") {
+    res.status(409).json({ error: "This video is already processing or posted" });
+    return;
+  }
+
+  postScheduledVideo(id).catch(() => {
+    /* postScheduledVideo already records failures on the row itself */
+  });
+
+  res.json({ status: "processing" });
 });
 
 router.delete("/youtube/scheduled-videos/:id", async (req, res): Promise<void> => {

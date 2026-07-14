@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Send,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -164,6 +165,22 @@ export default function YoutubeScheduler() {
       queryClient.invalidateQueries({ queryKey: ["youtube-scheduled-videos"] });
     },
     onError: () => toast({ title: "Failed to delete", variant: "destructive" }),
+  });
+
+  const postNow = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(apiUrl(`/youtube/scheduled-videos/${id}/post-now`), { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to start upload");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Upload started" });
+      queryClient.invalidateQueries({ queryKey: ["youtube-scheduled-videos"] });
+    },
+    onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
   });
 
   const channelMap = useMemo(() => new Map((channels ?? []).map((c) => [String(c.id), c])), [channels]);
@@ -364,6 +381,18 @@ export default function YoutubeScheduler() {
                         <StatusIcon className="h-3 w-3" />
                         {style.label}
                       </Badge>
+                      {(v.status === "pending" || v.status === "failed") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 gap-1.5"
+                          onClick={() => postNow.mutate(v.id)}
+                          disabled={postNow.isPending}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          Post now
+                        </Button>
+                      )}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" className="shrink-0 text-destructive hover:text-destructive">

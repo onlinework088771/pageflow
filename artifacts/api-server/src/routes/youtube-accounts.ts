@@ -19,8 +19,13 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const YOUTUBE_CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels";
+// Phase 4 adds the upload scope so the upload engine (youtube-poster.ts) can publish
+// videos with tokens issued through this same connect flow. Accounts connected before
+// this change only hold the read-only scope and will need to reconnect (the existing
+// "Reconnect" button re-runs this OAuth flow and Google will re-prompt for consent).
 const YOUTUBE_SCOPE = [
   "https://www.googleapis.com/auth/youtube.readonly",
+  "https://www.googleapis.com/auth/youtube.upload",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
 ].join(" ");
