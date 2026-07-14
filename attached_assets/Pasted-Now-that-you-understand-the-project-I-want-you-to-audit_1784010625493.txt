@@ -1,0 +1,123 @@
+Now that you understand the project, I want you to audit ONLY the new YouTube module.
+
+IMPORTANT
+
+The Facebook production system is LIVE and must remain completely untouched.
+
+Do NOT modify anything.
+
+Do NOT commit.
+
+Do NOT push.
+
+Read-only audit only.
+
+==========================================================
+PROJECT GOAL
+==========================================================
+
+This project is a multi-platform social media management system.
+
+Facebook is already fully implemented and working in production.
+
+The long-term goal is to build a completely independent YouTube module with the same professional quality, but WITHOUT affecting Facebook.
+
+The YouTube module must eventually support:
+
+• Multiple YouTube Accounts
+• Multiple Channels
+• Google OAuth
+• Refresh Token management
+• YouTube Automation
+• YouTube Scheduler
+• Shorts Upload
+• Long Video Upload
+• Bulk Upload
+• Upload Queue
+• Upload History
+• Analytics
+
+Facebook and YouTube must remain completely independent modules.
+
+==========================================================
+CURRENT STATUS
+==========================================================
+
+Phase 1 is completed:
+- Sidebar
+- Routes
+- YouTube pages
+- Navigation
+- UI placeholders
+
+Phase 2 is mostly completed:
+- Google OAuth
+- YouTube Accounts
+- Channel connection
+- Refresh Token support
+- Database tables
+- OAuth callback
+
+The only planned Phase 2 enhancement is a future Magic Connect Link (UX improvement only). It is NOT required for functionality.
+
+==========================================================
+YOUR TASK
+==========================================================
+
+Audit the existing YouTube implementation.
+
+Tell me:
+
+1. What already exists.
+2. What is fully working.
+3. What is partially implemented.
+4. What is missing.
+5. Whether the implementation is isolated from Facebook.
+6. Whether any Facebook production files were modified.
+7. Any risks you see.
+8. Any architectural improvements you recommend.
+
+Then create a detailed roadmap for the remaining phases.
+
+Phase 3
+YouTube Scheduler
+
+Phase 4
+YouTube Upload Worker
+
+Phase 5
+YouTube Automation
+(TikTok / Facebook / Instagram / YouTube → YouTube)
+
+Phase 6
+Analytics
+
+For every phase explain:
+
+- Scope
+- Files likely to change
+- New files to create
+- Risks
+- Estimated complexity
+- Testing plan
+- Rollback strategy
+
+==========================================================
+IMPORTANT
+==========================================================
+
+Do NOT write code.
+
+Do NOT modify files.
+
+Do NOT commit.
+
+Do NOT push.
+
+I want a complete audit and implementation plan first.
+
+After I approve the roadmap, we will implement ONE phase at a time.
+
+Never skip phases.
+
+Never modify Facebook production code without my approval.
