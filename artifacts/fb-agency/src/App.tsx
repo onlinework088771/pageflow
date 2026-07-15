@@ -27,6 +27,10 @@ import YoutubeAutomation from "@/pages/youtube/automation";
 import YoutubeScheduler from "@/pages/youtube/scheduler";
 import YoutubeAccounts from "@/pages/youtube/accounts";
 import YoutubeAnalytics from "@/pages/youtube/analytics";
+import Team from "@/pages/team";
+import Billing from "@/pages/billing";
+import ApiKeys from "@/pages/api-keys";
+import AcceptInvite from "@/pages/accept-invite";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +45,7 @@ function Router() {
       <Route path="/signup" component={Signup} />
       <Route path="/fb-success" component={FbSuccess} />
       <Route path="/fb-connect" component={FbConnect} />
+      <Route path="/accept-invite/:token" component={AcceptInvite} />
       <Route path="/">
         <ProtectedRoute component={Overview} />
       </Route>
@@ -86,6 +91,16 @@ function Router() {
       </Route>
       <Route path="/youtube/analytics">
         <ProtectedRoute component={YoutubeAnalytics} />
+      </Route>
+      {/* Phase 7 — Professional Features */}
+      <Route path="/team">
+        <ProtectedRoute component={Team} />
+      </Route>
+      <Route path="/billing">
+        <ProtectedRoute component={Billing} />
+      </Route>
+      <Route path="/api-keys">
+        <ProtectedRoute component={ApiKeys} />
       </Route>
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />

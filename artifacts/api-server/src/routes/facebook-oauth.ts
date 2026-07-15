@@ -3,6 +3,7 @@ import axios from "axios";
 import { eq, lt, and } from "drizzle-orm";
 import { db, agencySettingsTable, facebookAccountsTable, facebookPagesTable, magicLinksTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { getSubscription, planAllows } from "../lib/plan-limits";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -30,6 +31,16 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
     return;
   }
 
+  const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
+
+  // Phase 7 — plan gating. Only blocks *new* connections; accounts connected
+  // before Phase 7 (or under a grandfathered plan) are never disabled by this check.
+  const sub = await getSubscription(userId);
+  if (!planAllows(sub.plan, "facebook")) {
+    res.redirect(`${frontendBase}/accounts?fb_error=plan_upgrade_required`);
+    return;
+  }
+
   const [settings] = await db
     .select()
     .from(agencySettingsTable)
@@ -37,7 +48,6 @@ router.get("/auth/facebook", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!settings?.appId) {
-    const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
     res.redirect(`${frontendBase}/accounts?fb_error=app_not_configured`);
     return;
   }

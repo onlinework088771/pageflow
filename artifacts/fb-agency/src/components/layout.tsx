@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, Files, Settings,
   LogOut, Coins, Menu, X,
   ChevronRight, Upload, BarChart2, Layers, CalendarClock, Youtube,
+  UsersRound, CreditCard, KeyRound,
 } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { PageFlowLogo } from "@/components/pageflow-logo";
@@ -24,6 +25,10 @@ const navItems = [
   { href: "/schedule", label: "Schedule Manager", icon: CalendarClock },
   { href: "/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/settings", label: "Settings", icon: Settings },
+  // Phase 7 — Professional Features
+  { href: "/team", label: "Team", icon: UsersRound, group: "professional" as const },
+  { href: "/billing", label: "Billing", icon: CreditCard, group: "professional" as const },
+  { href: "/api-keys", label: "API Keys", icon: KeyRound, group: "professional" as const },
   // YouTube module — Phase 1: navigation entries only, no backend behind them yet.
   { href: "/youtube", label: "YouTube", icon: Youtube, group: "youtube" as const },
   { href: "/youtube/automation", label: "YT Automation", icon: Youtube, group: "youtube" as const },
@@ -106,7 +111,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 {navItems.map((item, i) => {
                   const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                   const Icon = item.icon;
-                  const startsNewGroup = item.group === "youtube" && navItems[i - 1]?.group !== "youtube";
+                  const startsNewGroup = !!item.group && item.group !== navItems[i - 1]?.group;
                   return (
                     <div key={item.href} className="flex items-center">
                       {startsNewGroup && (
@@ -130,7 +135,7 @@ export function Layout({ children }: { children: ReactNode }) {
                             transition={{ type: "spring", stiffness: 400, damping: 35 }}
                           />
                         )}
-                        <Icon className={`h-4 w-4 relative z-10 shrink-0 ${item.group === "youtube" && !isActive ? "text-red-500/80" : ""}`} />
+                        <Icon className={`h-4 w-4 relative z-10 shrink-0 ${item.group === "youtube" && !isActive ? "text-red-500/80" : ""}`} aria-hidden="true" />
                         <span className="relative z-10">{item.label}</span>
                         {item.href === "/upload" && pendingCount > 0 && (
                           <span className="relative z-10 ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-orange-500 text-white text-[10px] font-bold px-1 leading-none">
@@ -258,7 +263,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   {navItems.map((item, i) => {
                     const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                     const Icon = item.icon;
-                    const startsNewGroup = item.group === "youtube" && navItems[i - 1]?.group !== "youtube";
+                    const startsNewGroup = !!item.group && item.group !== navItems[i - 1]?.group;
                     return (
                       <motion.div
                         key={item.href}
@@ -268,7 +273,7 @@ export function Layout({ children }: { children: ReactNode }) {
                       >
                         {startsNewGroup && (
                           <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                            YouTube
+                            {item.group === "youtube" ? "YouTube" : "Professional"}
                           </p>
                         )}
                         <Link

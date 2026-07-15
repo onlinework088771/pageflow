@@ -3,6 +3,7 @@ import axios from "axios";
 import { eq, and } from "drizzle-orm";
 import { db, youtubeAccountsTable, youtubeChannelsTable, type YoutubeAccount } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
+import { getSubscription, planAllows } from "../lib/plan-limits";
 import { logger } from "../lib/logger";
 
 // YouTube Accounts (Google OAuth) — Phase 2.
@@ -111,6 +112,14 @@ youtubeAccountsPublicRouter.get("/auth/youtube", async (req, res): Promise<void>
 
   if (!creds) {
     res.redirect(`${frontendBase}/youtube/accounts?yt_error=app_not_configured`);
+    return;
+  }
+
+  // Phase 7 — plan gating. Only blocks *new* connections; channels connected
+  // before Phase 7 (or under a grandfathered plan) are never disabled by this check.
+  const sub = await getSubscription(userId!);
+  if (!planAllows(sub.plan, "youtube")) {
+    res.redirect(`${frontendBase}/youtube/accounts?yt_error=plan_upgrade_required`);
     return;
   }
 

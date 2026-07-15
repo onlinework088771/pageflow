@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, usersTable, teamMembersTable, agencySettingsTable } from "@workspace/db";
 import { requireAuth, requireRole, signToken } from "../middlewares/auth";
 import { getSubscription, teamMemberLimit } from "../lib/plan-limits";
