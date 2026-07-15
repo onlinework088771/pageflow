@@ -239,7 +239,7 @@ export function Layout({ children }: { children: ReactNode }) {
               }}
               className="md:hidden absolute w-full z-50 rounded-b-2xl overflow-hidden"
             >
-              <div className="px-3 pt-3 pb-2">
+              <div className="px-3 pt-3 pb-2 overflow-y-auto max-h-[calc(100svh-4.5rem)]">
                 <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-muted/50 mb-3">
                   <div className="relative shrink-0">
                     <Avatar className="h-10 w-10 ring-2 ring-primary/20 ring-offset-1 ring-offset-card">
