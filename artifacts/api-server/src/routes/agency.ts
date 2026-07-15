@@ -402,6 +402,12 @@ router.get("/agency/developer-settings", async (req, res): Promise<void> => {
 
 // POST /agency/youtube-developer-settings/test
 // Verify Google OAuth credentials against Google's token endpoint without saving.
+//
+// Strategy: POST a fake authorization code to the token endpoint.
+// Google validates in order: (1) client_id/secret, (2) redirect_uri, (3) code.
+// Using the real registered callback URL as redirect_uri ensures Google reaches
+// step 3 and returns "invalid_grant" (fake code rejected) for valid credentials,
+// rather than "redirect_uri_mismatch" (which would happen with a placeholder URL).
 router.post("/agency/youtube-developer-settings/test", async (req, res): Promise<void> => {
   if (!requireAdmin(req, res)) return;
 
@@ -411,34 +417,46 @@ router.post("/agency/youtube-developer-settings/test", async (req, res): Promise
     return;
   }
 
+  // Use the same callback URL that the real OAuth flow uses so redirect_uri validation passes.
+  const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/youtube/callback`;
+
   try {
-    // Verify by attempting a token exchange with a fake code.
-    // Google returns "invalid_client" when the credentials are wrong,
-    // and "invalid_grant" when they are structurally valid (fake code rejected as expected).
+    // This always throws because the fake code is invalid.
+    // "invalid_grant" → credentials are valid (code check failed, not credential check).
+    // "invalid_client" → credentials are wrong.
     await axios.post(
       "https://oauth2.googleapis.com/token",
       new URLSearchParams({
         code: "VALIDATION_PROBE",
         client_id: clientId.trim(),
         client_secret: clientSecret.trim(),
-        redirect_uri: "http://localhost",
+        redirect_uri: callbackUrl,
         grant_type: "authorization_code",
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
-    // If we somehow get a 200 (should never happen), credentials are valid.
+    // Unexpected 200 — still valid credentials.
     logger.info({ userId: req.user!.userId }, "YouTube developer settings: test connection success");
     res.json({ valid: true });
   } catch (err: unknown) {
-    const errData = (err as { response?: { data?: { error?: string; error_description?: string } } })?.response?.data;
+    const axiosErr = err as { response?: { status?: number; data?: { error?: string; error_description?: string } } };
+    const errData = axiosErr?.response?.data;
+    const httpStatus = axiosErr?.response?.status;
+
+    logger.info(
+      { userId: req.user!.userId, httpStatus, googleError: errData?.error, googleDesc: errData?.error_description },
+      "YouTube developer settings: Google token probe response",
+    );
+
     if (errData?.error === "invalid_grant") {
-      // Credentials are valid — Google rejected the fake code, not the client credentials.
-      logger.info({ userId: req.user!.userId }, "YouTube developer settings: test connection success (invalid_grant)");
+      // Credentials are valid — Google rejected the fake code as expected.
       res.json({ valid: true });
       return;
     }
+
+    // Any other error (invalid_client, unauthorized_client, etc.) means the credentials are wrong.
     const msg = errData?.error_description ?? errData?.error ?? "Invalid Client ID or Client Secret. Please check your Google Cloud Console credentials.";
-    logger.warn({ userId: req.user!.userId }, "YouTube developer settings: test connection failed");
+    logger.warn({ userId: req.user!.userId, httpStatus, googleError: errData?.error }, "YouTube developer settings: test connection failed");
     res.status(400).json({ error: msg });
   }
 });
@@ -458,15 +476,19 @@ router.post("/agency/youtube-developer-settings", async (req, res): Promise<void
   const trimmedClientId = clientId.trim();
   const trimmedClientSecret = clientSecret.trim();
 
+  // Use the real callback URL so Google validates redirect_uri before the code,
+  // ensuring "invalid_grant" (not "redirect_uri_mismatch") confirms valid credentials.
+  const callbackUrl = `${process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`}/api/auth/youtube/callback`;
+
   try {
-    // Verify with Google before saving
+    // Verify with Google before saving — same probe strategy as the /test endpoint.
     await axios.post(
       "https://oauth2.googleapis.com/token",
       new URLSearchParams({
         code: "VALIDATION_PROBE",
         client_id: trimmedClientId,
         client_secret: trimmedClientSecret,
-        redirect_uri: "http://localhost",
+        redirect_uri: callbackUrl,
         grant_type: "authorization_code",
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
