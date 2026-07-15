@@ -16,7 +16,11 @@ import { youtubeAccountsPublicRouter, youtubeAccountsRouter } from "./youtube-ac
 import youtubeScheduledVideosRouter from "./youtube-scheduled-videos";
 import youtubeAutomationRouter from "./youtube-automation";
 import youtubeAnalyticsRouter from "./youtube-analytics";
-import { requireAuth } from "../middlewares/auth";
+import { teamPublicRouter, teamRouter } from "./team";
+import { billingPublicRouter, billingRouter } from "./billing";
+import apiKeysRouter from "./api-keys";
+import publicApiRouter from "./public-api";
+import { requireAuth, resolveTeamScope } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
@@ -25,23 +29,35 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(facebookOAuthRouter);
 router.use(youtubeAccountsPublicRouter);
+// Team invite acceptance is unauthenticated (token-based) — mounted here, not under requireAuth.
+router.use(teamPublicRouter);
+// Stripe webhook must stay unauthenticated (verified via signature instead of JWT).
+router.use(billingPublicRouter);
+// External API-key auth (its own middleware, not JWT) for third-party integrations.
+router.use(publicApiRouter);
 
-// Protected routes — require valid JWT
-router.use(requireAuth, agencyRouter);
-router.use(requireAuth, accountsRouter);
-router.use(requireAuth, pagesRouter);
-router.use(requireAuth, overviewRouter);
-router.use(requireAuth, tokensRouter);
-router.use(requireAuth, automationLogsRouter);
-router.use(requireAuth, scheduledVideosRouter);
-router.use(requireAuth, youtubeRouter);
-router.use(requireAuth, analyticsRouter);
-router.use(requireAuth, postManagerRouter);
+// Protected routes — require valid JWT, then resolve team scope so shared
+// team data (Phase 7) flows through every existing route unchanged.
+const protect = [requireAuth, resolveTeamScope] as const;
+router.use(...protect, agencyRouter);
+router.use(...protect, accountsRouter);
+router.use(...protect, pagesRouter);
+router.use(...protect, overviewRouter);
+router.use(...protect, tokensRouter);
+router.use(...protect, automationLogsRouter);
+router.use(...protect, scheduledVideosRouter);
+router.use(...protect, youtubeRouter);
+router.use(...protect, analyticsRouter);
+router.use(...protect, postManagerRouter);
 // youtubeAccountsRouter applies requireAuth internally too; the extra requireAuth
 // here just keeps this file consistent with every other protected router.
-router.use(requireAuth, youtubeAccountsRouter);
-router.use(requireAuth, youtubeScheduledVideosRouter);
-router.use(requireAuth, youtubeAutomationRouter);
-router.use(requireAuth, youtubeAnalyticsRouter);
+router.use(...protect, youtubeAccountsRouter);
+router.use(...protect, youtubeScheduledVideosRouter);
+router.use(...protect, youtubeAutomationRouter);
+router.use(...protect, youtubeAnalyticsRouter);
+router.use(...protect, teamRouter);
+router.use(...protect, billingRouter);
+router.use(...protect, apiKeysRouter);
 
 export default router;
+

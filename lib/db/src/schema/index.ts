@@ -9,3 +9,6 @@ export * from "./scheduled-videos";
 export * from "./youtube-accounts";
 export * from "./youtube-scheduled-videos";
 export * from "./youtube-automations";
+export * from "./team-members";
+export * from "./subscriptions";
+export * from "./api-keys";
