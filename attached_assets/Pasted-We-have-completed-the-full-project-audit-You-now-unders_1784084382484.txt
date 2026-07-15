@@ -1,0 +1,218 @@
+We have completed the full project audit.
+
+You now understand the architecture, the Facebook production module, and the current YouTube implementation.
+
+Now continue exactly from where the previous engineer stopped.
+
+IMPORTANT
+
+Do NOT start any new phases.
+
+Do NOT implement Phase 3, Phase 4, Phase 5, Phase 6, or Phase 7 yet.
+
+First finish the current implementation correctly.
+
+==========================================================
+CURRENT STATUS
+==========================================================
+
+Facebook production is LIVE and working.
+
+It MUST remain 100% unchanged.
+
+The YouTube module has already been partially implemented.
+
+However the current implementation has several problems that must be fixed before continuing development.
+
+==========================================================
+CURRENT PROBLEMS
+==========================================================
+
+1.
+The mobile sidebar does not scroll correctly.
+
+The full YouTube section cannot be reached on mobile devices.
+
+2.
+The YouTube Dashboard still shows placeholder/Coming Soon.
+
+3.
+The YouTube Accounts page does not provide a visible way to connect a Google account.
+
+4.
+There is no visible "Connect Google Account" button.
+
+5.
+The existing Google OAuth flow appears incomplete from the UI.
+
+6.
+Users currently cannot connect any YouTube account.
+
+7.
+Connected channels are not displayed.
+
+8.
+Audit whether the OAuth backend already exists but is simply not connected to the frontend.
+
+9.
+Verify whether the latest commits are actually integrated correctly.
+
+==========================================================
+YOUR JOB
+==========================================================
+
+First perform another detailed audit of ONLY the YouTube module.
+
+Tell me:
+
+• What already exists.
+
+• What is fully implemented.
+
+• What is partially implemented.
+
+• What is missing.
+
+• Why the current UI behaves this way.
+
+• Whether previous work was integrated correctly.
+
+• Whether any files are incomplete.
+
+Only after the audit, if fixes are required:
+
+Implement ONLY the minimum changes required to make the existing YouTube Accounts module usable.
+
+==========================================================
+REQUIRED RESULT
+==========================================================
+
+Users should be able to:
+
+Open YouTube Accounts
+
+↓
+
+See a visible "Connect Google Account" button
+
+↓
+
+Click it
+
+↓
+
+Existing Google OAuth starts
+
+↓
+
+Grant permission
+
+↓
+
+Return to PageFlow
+
+↓
+
+Google account is saved
+
+↓
+
+YouTube channels are automatically fetched
+
+↓
+
+Connected channels appear in the UI
+
+↓
+
+User can:
+
+• Disconnect
+
+• Reconnect
+
+• Refresh Channels
+
+==========================================================
+MAGIC CONNECT
+==========================================================
+
+Do NOT build a new authentication system.
+
+Magic Connect simply means clicking "Connect Google Account" immediately starts the existing Google OAuth flow.
+
+Reuse the existing OAuth implementation.
+
+==========================================================
+STRICT RULES
+==========================================================
+
+Do NOT modify:
+
+Facebook
+
+Facebook Scheduler
+
+Facebook Automation
+
+Facebook OAuth
+
+TikTok
+
+Existing Scheduler
+
+Existing Automation
+
+Database schema (unless absolutely required)
+
+Migrations
+
+Docker
+
+Environment Variables
+
+Production business logic
+
+Existing APIs unrelated to YouTube
+
+==========================================================
+BEFORE CHANGING ANY FILE
+==========================================================
+
+Show me:
+
+1. Files to modify
+
+2. Why each file must be modified
+
+3. What exactly will change
+
+Wait for my approval.
+
+Do NOT code until I approve.
+
+==========================================================
+AFTER IMPLEMENTATION
+==========================================================
+
+Build the project.
+
+Verify TypeScript.
+
+Verify production build.
+
+Verify Facebook still works.
+
+Verify YouTube OAuth works.
+
+Verify connected channels appear.
+
+Verify mobile sidebar scrolling.
+
+Commit.
+
+Push.
+
+STOP.
+
+Do NOT continue to Phase 3 automatically.
