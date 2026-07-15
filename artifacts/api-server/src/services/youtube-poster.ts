@@ -8,6 +8,7 @@ import {
   youtubeChannelsTable,
   youtubeAccountsTable,
 } from "@workspace/db";
+import { getGoogleCredentialsForService } from "../routes/youtube-accounts";
 import { logger } from "../lib/logger";
 
 // Phase 4 — YouTube Upload Engine.
@@ -21,13 +22,6 @@ import { logger } from "../lib/logger";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos";
 
-function getGoogleCredentials(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
-
 /** Returns a valid access token for this account, refreshing it first if expired or about to expire. */
 export async function getValidAccessToken(account: typeof youtubeAccountsTable.$inferSelect): Promise<string> {
   const expiresAt = account.tokenExpiresAt ? new Date(account.tokenExpiresAt).getTime() : 0;
@@ -40,8 +34,8 @@ export async function getValidAccessToken(account: typeof youtubeAccountsTable.$
     throw new Error("Access token expired and no refresh token is stored; please reconnect this YouTube account");
   }
 
-  const creds = getGoogleCredentials();
-  if (!creds) throw new Error("Google OAuth is not configured on the server");
+  const creds = await getGoogleCredentialsForService();
+  if (!creds) throw new Error("Google OAuth credentials are not configured. An admin must add them in YouTube Developer Settings.");
 
   try {
     const tokenRes = await axios.post(

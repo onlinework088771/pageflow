@@ -27,6 +27,7 @@ import YoutubeAutomation from "@/pages/youtube/automation";
 import YoutubeScheduler from "@/pages/youtube/scheduler";
 import YoutubeAccounts from "@/pages/youtube/accounts";
 import YoutubeAnalytics from "@/pages/youtube/analytics";
+import YoutubeDeveloperSettings from "@/pages/youtube/developer-settings";
 import Team from "@/pages/team";
 import Billing from "@/pages/billing";
 import ApiKeys from "@/pages/api-keys";
@@ -91,6 +92,9 @@ function Router() {
       </Route>
       <Route path="/youtube/analytics">
         <ProtectedRoute component={YoutubeAnalytics} />
+      </Route>
+      <Route path="/youtube/developer-settings">
+        <ProtectedRoute component={YoutubeDeveloperSettings} />
       </Route>
       {/* Phase 7 — Professional Features */}
       <Route path="/team">

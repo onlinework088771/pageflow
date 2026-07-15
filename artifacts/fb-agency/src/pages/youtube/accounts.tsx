@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +18,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Youtube, Plus, RefreshCw, Trash2, Users, Video, Loader2 } from "lucide-react";
+import { Youtube, Plus, RefreshCw, Trash2, Users, Video, Loader2, Settings2 } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
-import { getAuthToken } from "@/contexts/auth-context";
+import { getAuthToken, useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 
 interface YoutubeChannel {
@@ -67,6 +68,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function YoutubeAccounts() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [, navigate] = useLocation();
+  const isAdmin = user?.role === "admin";
 
   const { data: accounts, isLoading } = useQuery({
     queryKey: ACCOUNTS_QUERY_KEY,
@@ -139,10 +143,18 @@ export default function YoutubeAccounts() {
               Connect Google accounts to manage their YouTube channels.
             </p>
           </div>
-          <Button onClick={handleConnect} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Connect Google Account
-          </Button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => navigate("/youtube/developer-settings")} className="gap-2">
+                <Settings2 className="h-4 w-4" />
+                Developer Settings
+              </Button>
+            )}
+            <Button onClick={handleConnect} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Connect Google Account
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

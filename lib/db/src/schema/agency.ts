@@ -15,6 +15,10 @@ export const agencySettingsTable = pgTable("agency_settings", {
   setupStep: integer("setup_step").notNull().default(0),
   backupAppId: text("backup_app_id"),
   backupAppSecret: text("backup_app_secret"),
+  googleClientId: text("google_client_id"),
+  googleClientSecret: text("google_client_secret"),
+  backupGoogleClientId: text("backup_google_client_id"),
+  backupGoogleClientSecret: text("backup_google_client_secret"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

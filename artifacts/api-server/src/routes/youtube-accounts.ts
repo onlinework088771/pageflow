@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import axios from "axios";
 import { eq, and } from "drizzle-orm";
-import { db, youtubeAccountsTable, youtubeChannelsTable, type YoutubeAccount } from "@workspace/db";
+import { db, youtubeAccountsTable, youtubeChannelsTable, agencySettingsTable, type YoutubeAccount } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getSubscription, planAllows } from "../lib/plan-limits";
 import { logger } from "../lib/logger";
@@ -31,11 +31,39 @@ const YOUTUBE_SCOPE = [
   "https://www.googleapis.com/auth/userinfo.profile",
 ].join(" ");
 
-function getGoogleCredentials(): { clientId: string; clientSecret: string } | null {
+// Load Google OAuth credentials from the database at runtime (same pattern as Facebook).
+// Falls back to env vars for local dev convenience; DB always takes priority.
+async function getGoogleCredentials(userId: number): Promise<{ clientId: string; clientSecret: string } | null> {
+  const [settings] = await db
+    .select()
+    .from(agencySettingsTable)
+    .where(eq(agencySettingsTable.userId, userId))
+    .limit(1);
+  if (settings?.googleClientId && settings?.googleClientSecret) {
+    return { clientId: settings.googleClientId, clientSecret: settings.googleClientSecret };
+  }
+  // Fallback: env vars (dev convenience only — not required in production)
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
+  if (clientId && clientSecret) return { clientId, clientSecret };
+  return null;
+}
+
+// Variant used in contexts where we don't have a userId (scheduler / poster services).
+// Reads the first admin row's settings.
+export async function getGoogleCredentialsForService(): Promise<{ clientId: string; clientSecret: string } | null> {
+  const [settings] = await db
+    .select()
+    .from(agencySettingsTable)
+    .orderBy(agencySettingsTable.id)
+    .limit(1);
+  if (settings?.googleClientId && settings?.googleClientSecret) {
+    return { clientId: settings.googleClientId, clientSecret: settings.googleClientSecret };
+  }
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (clientId && clientSecret) return { clientId, clientSecret };
+  return null;
 }
 
 function getCallbackUrl(req: any): string {
@@ -107,8 +135,8 @@ youtubeAccountsPublicRouter.get("/auth/youtube", async (req, res): Promise<void>
     return;
   }
 
-  const creds = getGoogleCredentials();
   const frontendBase = process.env.FRONTEND_URL || `${req.protocol}://${req.get("host")}`;
+  const creds = await getGoogleCredentials(userId!);
 
   if (!creds) {
     res.redirect(`${frontendBase}/youtube/accounts?yt_error=app_not_configured`);
@@ -162,7 +190,7 @@ youtubeAccountsPublicRouter.get("/auth/youtube/callback", async (req, res): Prom
     return;
   }
 
-  const creds = getGoogleCredentials();
+  const creds = await getGoogleCredentials(userId!);
   if (!creds) {
     res.redirect(`${frontendBase}/youtube/accounts?yt_error=app_not_configured`);
     return;
@@ -312,9 +340,9 @@ youtubeAccountsRouter.post("/youtube/accounts/:id/refresh-channels", async (req,
     return;
   }
 
-  const creds = getGoogleCredentials();
+  const creds = await getGoogleCredentials(userId);
   if (!creds) {
-    res.status(500).json({ error: "Google OAuth is not configured" });
+    res.status(500).json({ error: "Google OAuth credentials are not configured. An admin must add them in YouTube Developer Settings." });
     return;
   }
 
