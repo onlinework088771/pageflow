@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   Upload, Calendar, Clock, Video, CheckCircle, XCircle, Loader2, Globe,
   ChevronRight, Zap, Trash2, PlayCircle, CheckCircle2, AlertCircle,
   RefreshCw, Plus, CalendarClock, ArrowUp, ArrowDown, Sparkles, GripVertical,
-  Lock, Eye, EyeOff, Film,
+  Lock, EyeOff, Film,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -512,7 +513,7 @@ function YtScheduleManager({
 
 /* ─── Main Page ──────────────────────────────────────────────────────────────── */
 
-export default function YoutubeBulkUpload() {
+function YoutubeBulkUploadInner() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -559,8 +560,9 @@ export default function YoutubeBulkUpload() {
   useEffect(() => {
     authFetch(apiUrl("/youtube/accounts"))
       .then((r) => r.json())
-      .then((accounts: { channels: YoutubeChannel[] }[]) => {
-        setChannels(accounts.flatMap((a) => a.channels));
+      .then((data: unknown) => {
+        const accounts = Array.isArray(data) ? (data as { channels: YoutubeChannel[] }[]) : [];
+        setChannels(accounts.flatMap((a) => Array.isArray(a?.channels) ? a.channels : []));
       })
       .catch(() => {})
       .finally(() => setChannelsLoading(false));
@@ -588,10 +590,13 @@ export default function YoutubeBulkUpload() {
   }, [fetchManagerVideos]);
 
   /* ── Computed schedule ── */
-  const schedule = useMemo(
-    () => computeSchedule(videoItems.length, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes),
-    [videoItems.length, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes],
-  );
+  const schedule = useMemo(() => {
+    try {
+      return computeSchedule(videoItems.length, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes);
+    } catch {
+      return [];
+    }
+  }, [videoItems.length, scheduleMode, startDate, startTime, timezone, timeSlots, intervalMinutes]);
 
   /* ── Apply computed schedule to videoItems when advancing to step 3 ── */
   const applySchedule = useCallback(() => {
@@ -1150,5 +1155,13 @@ export default function YoutubeBulkUpload() {
         </AlertDialogContent>
       </AlertDialog>
     </Layout>
+  );
+}
+
+export default function YoutubeBulkUpload() {
+  return (
+    <ErrorBoundary>
+      <YoutubeBulkUploadInner />
+    </ErrorBoundary>
   );
 }
