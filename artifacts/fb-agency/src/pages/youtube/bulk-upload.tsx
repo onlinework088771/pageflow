@@ -857,7 +857,7 @@ function YoutubeBulkUploadInner() {
                           className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${active ? "border-primary bg-primary/8 shadow-sm" : "border-border hover:border-primary/40 hover:bg-muted/40"}`}>
                           <Avatar className="h-10 w-10 shrink-0">
                             <AvatarImage src={ch.thumbnailUrl} />
-                            <AvatarFallback className="text-xs bg-red-100 text-red-600">{ch.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback className="text-xs bg-red-100 text-red-600">{(ch.name ?? "YT").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate">{ch.name}</p>
