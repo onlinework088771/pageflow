@@ -29,8 +29,8 @@ const navItems = [
   { href: "/team", label: "Team", icon: UsersRound, group: "professional" as const },
   { href: "/billing", label: "Billing", icon: CreditCard, group: "professional" as const },
   { href: "/api-keys", label: "API Keys", icon: KeyRound, group: "professional" as const },
-  // YouTube module — Phase 1: navigation entries only, no backend behind them yet.
   { href: "/youtube", label: "YouTube", icon: Youtube, group: "youtube" as const },
+  { href: "/youtube/bulk-upload", label: "YT Bulk Upload", icon: Youtube, group: "youtube" as const },
   { href: "/youtube/automation", label: "YT Automation", icon: Youtube, group: "youtube" as const },
   { href: "/youtube/scheduler", label: "YT Scheduler", icon: Youtube, group: "youtube" as const },
   { href: "/youtube/accounts", label: "YT Accounts", icon: Youtube, group: "youtube" as const },

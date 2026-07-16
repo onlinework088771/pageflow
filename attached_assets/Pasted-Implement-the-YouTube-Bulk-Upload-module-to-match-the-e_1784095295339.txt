@@ -1,0 +1,99 @@
+Implement the YouTube Bulk Upload module to match the existing Facebook Bulk Video Upload experience as closely as possible.
+
+Requirements:
+
+1. Create a YouTube Bulk Upload page with the same professional UI/UX as the Facebook Bulk Upload page.
+
+2. Support selecting multiple videos at once.
+
+3. Each uploaded video must have:
+   - Editable Title
+   - Editable Description
+   - Privacy (Private / Unlisted / Public)
+   - Schedule Date
+   - Schedule Time
+   - Thumbnail (optional if supported)
+   - AI Generate Title
+   - AI Generate Description
+
+4. AI Video Analysis (IMPORTANT)
+
+For every uploaded video, add an "✨ AI Generate" button beside the Title and Description fields.
+
+When the user clicks the button:
+
+• Analyze the actual uploaded video (not only the filename).
+• Automatically inspect multiple frames from beginning, middle and end.
+• Understand:
+  - Main subject
+  - Objects
+  - People/Animals
+  - Actions
+  - Location
+  - Scene
+  - Mood
+  - Story
+  - Category
+  - Video style
+  - Viral potential
+
+Then automatically generate:
+
+• Highly clickable YouTube SEO Title
+• Professional YouTube Description
+• Optional relevant hashtags
+
+Requirements:
+
+- Analyze the video itself, not the filename.
+- Work for Shorts and long videos.
+- Support any language.
+- If analysis fails, retry automatically before showing an error.
+- Never crash the upload page.
+- Generation should complete within a few seconds whenever possible.
+- Users can regenerate unlimited times.
+- One click should automatically fill the Title and Description fields.
+- Do not overwrite manually edited text unless the user confirms.
+- Reuse one shared AI generation service for all YouTube upload pages.
+
+5. Reuse the existing AI infrastructure wherever possible.
+Do not duplicate AI services or create multiple generators.
+
+6. Allow uploading dozens of videos in one batch.
+
+7. Show upload queue with:
+   - Thumbnail
+   - File name
+   - Progress
+   - Scheduled time
+   - Status
+   - Remove button
+   - Edit button
+
+8. Allow drag & drop reordering.
+
+9. Support deleting individual videos before scheduling.
+
+10. Validate duplicate uploads.
+
+11. Mobile responsive exactly like the Facebook uploader.
+
+12. Default scheduler timezone must be:
+    Asia/Dhaka (UTC+06:00)
+
+    Automatically use Asia/Dhaka for every new schedule, while still allowing users to change the timezone manually.
+
+13. Reuse the existing scheduling engine wherever possible.
+Do not duplicate scheduler logic.
+
+14. Performance Requirements
+
+- Bulk uploads should remain fast even with many videos.
+- AI generation should run asynchronously.
+- Queue AI requests efficiently.
+- Never freeze the UI.
+- Cache analysis results so repeated generation on the same video is instant unless the user requests a fresh regeneration.
+
+15. Keep the code clean, modular, production-ready, scalable, and secure.
+
+Do not break any existing YouTube features, OAuth, Single Upload, Scheduler, Automation, or any Facebook modules.
