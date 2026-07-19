@@ -46,7 +46,7 @@ export async function getValidAccessToken(account: typeof youtubeAccountsTable.$
         client_secret: creds.clientSecret,
         grant_type: "refresh_token",
       }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 15_000 },
     );
 
     const { access_token: accessToken, expires_in: expiresIn } = tokenRes.data;
@@ -59,8 +59,22 @@ export async function getValidAccessToken(account: typeof youtubeAccountsTable.$
 
     return accessToken;
   } catch (err: any) {
-    await db.update(youtubeAccountsTable).set({ status: "expired" }).where(eq(youtubeAccountsTable.id, account.id));
-    throw new Error("Failed to refresh Google access token; please reconnect this YouTube account");
+    // Only permanently mark as expired when Google explicitly rejects the
+    // refresh token (invalid_grant = token revoked, expired, or user removed
+    // app access). Any other error (network timeout, 500, DNS failure) is
+    // transient — marking expired in those cases causes a double-lock that
+    // requires manual reconnect even though the token is actually still valid.
+    const googleError = err?.response?.data?.error;
+    const isPermanent = googleError === "invalid_grant" || googleError === "invalid_client";
+    if (isPermanent) {
+      await db.update(youtubeAccountsTable).set({ status: "expired" }).where(eq(youtubeAccountsTable.id, account.id));
+      logger.warn({ accountId: account.id, googleError }, "YouTube account marked expired — refresh token rejected by Google");
+      throw new Error("Google refresh token rejected (invalid_grant); please reconnect this YouTube account");
+    }
+    // Transient error — log and throw without touching account status so the
+    // next automation tick can retry with the existing token.
+    logger.warn({ accountId: account.id, err: err.message }, "Google token refresh failed (transient) — will retry next cycle");
+    throw new Error(`Google token refresh failed (transient): ${err.message}`);
   }
 }
 

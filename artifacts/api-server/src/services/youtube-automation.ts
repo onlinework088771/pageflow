@@ -310,7 +310,9 @@ async function runFixedSchedule(): Promise<void> {
     .where(and(eq(youtubeAutomationsTable.automationEnabled, true), eq(youtubeAutomationsTable.scheduleLogic, "fixed")));
 
   for (const automation of automations) {
-    if (automation.status === "error") continue;
+    // NOTE: status === "error" is NOT a permanent block — we always retry on the
+    // next due slot so a transient failure (yt-dlp rate-limit, network blip,
+    // Google API outage) does not permanently kill the automation.
     const slots = Array.isArray(automation.timeSlots) ? automation.timeSlots : [];
     const due = slots.some((slot) => timeSlotDue(slot, automation.timezone));
     if (due) {
@@ -326,7 +328,7 @@ async function runRandomSchedule(): Promise<void> {
     .where(and(eq(youtubeAutomationsTable.automationEnabled, true), eq(youtubeAutomationsTable.scheduleLogic, "random")));
 
   for (const automation of automations) {
-    if (automation.status === "error") continue;
+    // NOTE: status === "error" is NOT a permanent block — same reasoning as runFixedSchedule.
     const hoursPerPost = 24 / Math.max(1, automation.postsPerDay);
     if (hoursSinceLastPost(automation.lastPostedAt) >= hoursPerPost) {
       // Small random chance per tick within the due window, mirroring page-automation.ts's
