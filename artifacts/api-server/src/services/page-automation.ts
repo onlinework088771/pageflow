@@ -155,6 +155,34 @@ function getCurrentHHMM(timezone: string): string {
   }
 }
 
+/**
+ * Returns "YYYY-MM-DD HH:MM" in the given timezone — used for dedup keys in
+ * triggeredSlots so a slot fires once per minute per DAY, not once per server
+ * lifetime. Storing just HH:MM would cause the Map to permanently block the
+ * same slot the next day (stored "09:00" === current "09:00" → always skip).
+ */
+function getCurrentDateHHMM(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const y  = parts.find((p) => p.type === "year")?.value   ?? "0000";
+    const mo = parts.find((p) => p.type === "month")?.value  ?? "00";
+    const d  = parts.find((p) => p.type === "day")?.value    ?? "00";
+    const h  = parts.find((p) => p.type === "hour")?.value?.padStart(2, "0")   ?? "00";
+    const m  = parts.find((p) => p.type === "minute")?.value?.padStart(2, "0") ?? "00";
+    return `${y}-${mo}-${d} ${h}:${m}`;
+  } catch {
+    return new Date().toISOString().slice(0, 16).replace("T", " ");
+  }
+}
+
 function timeSlotDue(slot: string, timezone: string): boolean {
   return getCurrentHHMM(timezone) === slot;
 }
@@ -646,9 +674,18 @@ export async function postPageNextVideo(page: typeof facebookPagesTable.$inferSe
     return;
   }
 
-  // Check if account token is already marked expired — skip early
+  // Check if account token is already marked expired — skip early but write a
+  // visible log entry so the user can see why automation isn't posting.
   if (account.status === "expired") {
     logger.warn({ pageId: page.id, accountId: account.id }, "Page automation: account token expired, skipping");
+    await logAutomation(
+      "error",
+      "automation",
+      `Automation paused: Facebook account token expired for page "${page.name}" — please reconnect your Facebook account`,
+      page.id,
+      page.name,
+      account.id,
+    );
     return;
   }
 
@@ -757,9 +794,9 @@ async function runFixedSchedule(): Promise<void> {
     if (!dueSlot) continue;
 
     const dedupeKey = `${page.id}:${dueSlot}`;
-    const currentHHMM = getCurrentHHMM(timezone);
-    if (triggeredSlots.get(dedupeKey) === currentHHMM) continue;
-    triggeredSlots.set(dedupeKey, currentHHMM);
+    const currentDateHHMM = getCurrentDateHHMM(timezone);
+    if (triggeredSlots.get(dedupeKey) === currentDateHHMM) continue;
+    triggeredSlots.set(dedupeKey, currentDateHHMM);
 
     logger.info(
       { pageId: page.id, source: page.sourceType, slot: dueSlot, timezone },
