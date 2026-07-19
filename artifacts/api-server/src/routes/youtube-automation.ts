@@ -100,8 +100,8 @@ router.patch("/youtube/automations/:channelId", async (req, res): Promise<void> 
     videoType,
   } = req.body ?? {};
 
-  if (sourceType !== undefined && sourceType !== null && !["youtube", "tiktok"].includes(sourceType)) {
-    res.status(400).json({ error: "sourceType must be 'youtube' or 'tiktok'" });
+  if (sourceType !== undefined && sourceType !== null && !["tiktok", "instagram"].includes(sourceType)) {
+    res.status(400).json({ error: "sourceType must be 'tiktok' or 'instagram'" });
     return;
   }
   if (scheduleLogic !== undefined && !["fixed", "random"].includes(scheduleLogic)) {

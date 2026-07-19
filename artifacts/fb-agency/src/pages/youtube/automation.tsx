@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2, Camera } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 // /youtube/automations, which is backed by its own table and service.
 
 const TIMEZONES = [
-  "UTC", "America/New_York", "America/Chicago", "America/Denver",
+  "Asia/Dhaka", "UTC", "America/New_York", "America/Chicago", "America/Denver",
   "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo",
   "Asia/Kolkata", "Australia/Sydney",
 ];
@@ -29,7 +29,7 @@ interface AutomationConfig {
   channelId: string;
   automationEnabled: boolean;
   status: "active" | "paused" | "error";
-  sourceType?: "youtube" | "tiktok";
+  sourceType?: "tiktok" | "instagram";
   sourceIdentity?: string;
   postsPerDay: number;
   scheduleLogic: "fixed" | "random";
@@ -53,7 +53,7 @@ interface ChannelAutomation {
 
 type FormState = {
   automationEnabled: boolean;
-  sourceType: "youtube" | "tiktok";
+  sourceType: "tiktok" | "instagram";
   sourceIdentity: string;
   postsPerDay: number;
   scheduleLogic: "fixed" | "random";
@@ -68,11 +68,11 @@ const QUERY_KEY = ["youtube-automations"];
 function defaultForm(a: AutomationConfig | null): FormState {
   return {
     automationEnabled: a?.automationEnabled ?? false,
-    sourceType: a?.sourceType ?? "youtube",
+    sourceType: a?.sourceType ?? "tiktok",
     sourceIdentity: a?.sourceIdentity ?? "",
     postsPerDay: a?.postsPerDay ?? 1,
     scheduleLogic: a?.scheduleLogic ?? "fixed",
-    timezone: a?.timezone ?? "UTC",
+    timezone: a?.timezone ?? "Asia/Dhaka",
     timeSlots: a?.timeSlots ?? [],
     privacyStatus: a?.privacyStatus ?? "public",
     videoType: a?.videoType ?? "long",
@@ -191,16 +191,16 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Source Platform</Label>
-            <Select value={form.sourceType} onValueChange={(v: "youtube" | "tiktok") => update("sourceType", v)}>
+            <Select value={form.sourceType} onValueChange={(v: "tiktok" | "instagram") => update("sourceType", v)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="youtube">
-                  <span className="flex items-center gap-2"><Youtube className="h-4 w-4" /> YouTube</span>
-                </SelectItem>
                 <SelectItem value="tiktok">
                   <span className="flex items-center gap-2"><Globe className="h-4 w-4" /> TikTok</span>
+                </SelectItem>
+                <SelectItem value="instagram">
+                  <span className="flex items-center gap-2"><Camera className="h-4 w-4" /> Instagram</span>
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -208,7 +208,7 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
           <div className="space-y-2">
             <Label>Source Handle / URL</Label>
             <Input
-              placeholder={form.sourceType === "youtube" ? "@channel or URL" : "@tiktok_handle or URL"}
+              placeholder={form.sourceType === "instagram" ? "@username or Instagram Profile URL" : "@username or TikTok Profile URL"}
               value={form.sourceIdentity}
               onChange={(e) => update("sourceIdentity", e.target.value)}
             />
@@ -353,7 +353,7 @@ export default function YoutubeAutomation() {
             YouTube Automation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Automatically source videos from a YouTube channel or TikTok profile and publish them to your own channel on a schedule.
+            Automatically source videos from TikTok or Instagram and publish them to your connected YouTube channel on a schedule.
           </p>
         </div>
 

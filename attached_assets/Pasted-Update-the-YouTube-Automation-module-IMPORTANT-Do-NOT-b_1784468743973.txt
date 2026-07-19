@@ -1,0 +1,109 @@
+Update the YouTube Automation module.
+
+IMPORTANT:
+Do NOT break any existing functionality.
+Do NOT modify the YouTube upload pipeline, OAuth, Scheduler, AI Generator, database schema, or automation engine.
+Only update the automation source options and default timezone behavior.
+
+==================================================
+SOURCE PLATFORM
+==================================================
+
+Current source platforms:
+- YouTube
+- TikTok
+
+Replace them with:
+
+- TikTok
+- Instagram
+
+Remove YouTube completely from the Source Platform dropdown.
+
+Reason:
+This module imports videos from external platforms and publishes them to connected YouTube channels. Since YouTube is already the destination platform, it should not appear as a source option.
+
+==================================================
+SOURCE HANDLE / URL
+==================================================
+
+Update the placeholder dynamically:
+
+TikTok
+- @username
+- TikTok Profile URL
+
+Instagram
+- @username
+- Instagram Profile URL
+
+Update all validation logic accordingly.
+
+==================================================
+DEFAULT TIMEZONE
+==================================================
+
+Set the default timezone to:
+
+Asia/Dhaka (Bangladesh Standard Time)
+UTC+06:00
+
+Every new automation rule must automatically use Asia/Dhaka as the default timezone.
+
+Users should still be able to change the timezone manually if they want.
+
+Do NOT default to UTC.
+
+==================================================
+AUTOMATION REQUIREMENTS
+==================================================
+
+The automation must be reliable and production-ready.
+
+Requirements:
+
+- Stable background execution
+- Proper error handling
+- Automatic retry for temporary failures
+- No duplicate uploads
+- No duplicate workers
+- Queue-safe processing
+- Detailed logs
+- Success logs
+- Failure logs
+- Manual Run Now
+- Enable / Disable
+- Pause / Resume
+- Auto recovery after temporary failures
+
+One failed automation must never stop other automation jobs.
+
+==================================================
+SCALABILITY
+==================================================
+
+Keep the implementation modular.
+
+Future source platforms like Facebook, X (Twitter), Vimeo, etc. should be easy to add without major code changes.
+
+==================================================
+FINAL REQUIREMENTS
+==================================================
+
+Do NOT break:
+
+- YouTube OAuth
+- Connected YouTube Accounts
+- Bulk Upload
+- Single Upload
+- Scheduler
+- AI Generator
+- Existing Automation Engine
+- Database
+- API Routes
+- Settings
+- Authentication
+
+Reuse existing components wherever possible.
+
+Keep the code clean, modular, scalable, maintainable, and production-ready.

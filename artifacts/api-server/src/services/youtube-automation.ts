@@ -29,10 +29,14 @@ import { getValidAccessToken, uploadToYoutube } from "./youtube-poster";
 const execFileAsync = promisify(execFile);
 const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
 const TIKTOK_COOKIES_FILE = process.env["TIKTOK_COOKIES_FILE"];
+const INSTAGRAM_COOKIES_FILE = process.env["INSTAGRAM_COOKIES_FILE"];
 
 function cookiesArgsFor(url: string): string[] {
   if (url.includes("tiktok.com") && TIKTOK_COOKIES_FILE && fs.existsSync(TIKTOK_COOKIES_FILE)) {
     return ["--cookies", TIKTOK_COOKIES_FILE];
+  }
+  if (url.includes("instagram.com") && INSTAGRAM_COOKIES_FILE && fs.existsSync(INSTAGRAM_COOKIES_FILE)) {
+    return ["--cookies", INSTAGRAM_COOKIES_FILE];
   }
   return [];
 }
@@ -132,11 +136,12 @@ async function fetchYouTubeRssVideos(
   }));
 }
 
-async function fetchTikTokProfileVideos(
+async function fetchProfileVideos(
+  platform: "tiktok" | "instagram",
   profileUrl: string,
   limit = 20,
 ): Promise<{ videoId: string; title: string; url: string }[]> {
-  logger.info({ step: "profile-list", profileUrl }, "YouTube automation: listing recent TikTok videos");
+  logger.info({ step: "profile-list", platform, profileUrl }, `YouTube automation: listing recent ${platform} videos`);
   try {
     const fullArgs = [
       ...cookiesArgsFor(profileUrl),
@@ -158,9 +163,17 @@ async function fetchTikTokProfileVideos(
       .filter((v) => v.videoId);
   } catch (err: any) {
     const message: string = err?.stderr || err?.message || String(err);
-    logger.error({ profileUrl, err: message.slice(0, 300) }, "YouTube automation: TikTok profile listing failed");
+    logger.error({ platform, profileUrl, err: message.slice(0, 300) }, `YouTube automation: ${platform} profile listing failed`);
     return [];
   }
+}
+
+/** Normalise a user-supplied handle/URL into a full profile URL for a given platform. */
+function resolveProfileUrl(platform: "tiktok" | "instagram", identity: string): string {
+  const handle = identity.startsWith("http") ? identity : identity.replace(/^@/, "");
+  if (identity.startsWith("http")) return identity;
+  if (platform === "tiktok") return `https://www.tiktok.com/@${handle}`;
+  return `https://www.instagram.com/${handle}/`;
 }
 
 async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
@@ -208,24 +221,20 @@ async function downloadVideoToTempFile(url: string): Promise<string> {
 async function findNextUnseenVideo(
   automation: typeof youtubeAutomationsTable.$inferSelect,
 ): Promise<{ videoId: string; url: string; title: string; description?: string } | null> {
-  if (automation.sourceType === "youtube" && automation.sourceIdentity) {
-    const channelId = await fetchChannelIdFromHandle(automation.sourceIdentity);
-    if (!channelId) return null;
-    const videos = await fetchYouTubeRssVideos(channelId);
-    const idx = automation.lastPostedVideoId ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId) : -1;
-    // RSS is newest-first; the "next" video is the one just before the last one we posted.
-    const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
-    return next ? { videoId: next.videoId, url: next.url, title: next.title, description: next.description } : null;
-  }
+  const platform = automation.sourceType as "tiktok" | "instagram" | null;
+  if (!platform || !automation.sourceIdentity) return null;
 
-  if (automation.sourceType === "tiktok" && automation.sourceIdentity) {
-    const videos = await fetchTikTokProfileVideos(automation.sourceIdentity);
-    const idx = automation.lastPostedVideoId ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId) : -1;
-    const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
-    return next ? { videoId: next.videoId, url: next.url, title: next.title } : null;
-  }
+  const profileUrl = resolveProfileUrl(platform, automation.sourceIdentity);
+  const videos = await fetchProfileVideos(platform, profileUrl);
+  if (!videos.length) return null;
 
-  return null;
+  const idx = automation.lastPostedVideoId
+    ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId)
+    : -1;
+  // List is newest-first; pick the entry just before the last posted one,
+  // or the last entry when nothing has been posted yet.
+  const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
+  return next ? { videoId: next.videoId, url: next.url, title: next.title } : null;
 }
 
 /** Runs one automation: finds, downloads, and uploads the next unseen video to the channel's own YouTube account. */
