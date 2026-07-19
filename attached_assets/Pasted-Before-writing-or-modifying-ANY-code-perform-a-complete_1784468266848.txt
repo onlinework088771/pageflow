@@ -1,0 +1,175 @@
+Before writing or modifying ANY code, perform a complete project audit and architecture analysis.
+
+IMPORTANT:
+DO NOT generate code.
+DO NOT modify files.
+DO NOT refactor.
+DO NOT install packages.
+DO NOT create commits.
+DO NOT make any changes.
+
+This first task is READ-ONLY.
+
+==================================================
+PROJECT OVERVIEW
+==================================================
+
+This project is called PageFlow.
+
+It is a production SaaS platform for Facebook and YouTube automation.
+
+The application is already live and many production features are working.
+
+This is NOT a new project.
+
+Your job is to fully understand the existing architecture before making any modifications.
+
+==================================================
+CURRENT FEATURES
+==================================================
+
+Facebook Module
+- Facebook OAuth
+- Multiple Facebook Accounts
+- Page Management
+- Page Automation
+- Video Scheduler
+- Schedule Manager
+- Analytics
+- Token Management
+
+YouTube Module
+- Google OAuth
+- Dynamic Google OAuth Credentials (stored in Settings, not .env)
+- Multiple YouTube Accounts
+- Single Upload
+- Bulk Upload (under development)
+- Scheduler
+- Automation
+- Analytics
+
+AI Module
+- AI Title Generator
+- AI Description Generator
+- Video Analysis for AI generation
+
+Other Modules
+- Billing
+- API Keys
+- Team
+- Settings
+- Authentication
+- Dashboard
+
+==================================================
+VERY IMPORTANT
+==================================================
+
+Facebook OAuth already uses a dynamic credential system.
+
+Facebook App ID and App Secret are stored in the database through Settings.
+
+The server reads credentials dynamically.
+
+The YouTube module is being migrated to use the same architecture.
+
+Never redesign this architecture without understanding it first.
+
+==================================================
+YOUR TASK
+==================================================
+
+Read the ENTIRE project.
+
+Understand:
+
+1. Folder structure
+2. Frontend architecture
+3. Backend architecture
+4. Database schema
+5. Authentication flow
+6. Facebook OAuth flow
+7. Google OAuth flow
+8. Scheduler architecture
+9. Automation architecture
+10. AI architecture
+11. API routes
+12. Shared utilities
+13. Services
+14. UI component structure
+15. State management
+16. Environment usage
+17. Settings system
+18. Production configuration
+19. Security
+20. Existing reusable components
+
+==================================================
+AFTER ANALYSIS
+==================================================
+
+Create a detailed report containing:
+
+1. Overall architecture
+
+2. Folder structure
+
+3. Module relationships
+
+4. Database overview
+
+5. OAuth flow
+
+6. Facebook architecture
+
+7. YouTube architecture
+
+8. Scheduler architecture
+
+9. AI architecture
+
+10. Existing reusable components
+
+11. Areas that must NEVER be modified
+
+12. Areas safe for extension
+
+13. Technical debt
+
+14. Duplicate code
+
+15. Performance issues
+
+16. Security concerns
+
+17. UI architecture
+
+18. Recommendations
+
+==================================================
+RULES
+==================================================
+
+Do NOT write code.
+
+Do NOT modify code.
+
+Do NOT commit.
+
+Do NOT push.
+
+Do NOT refactor.
+
+Do NOT install dependencies.
+
+Do NOT change the database.
+
+Do NOT change APIs.
+
+Do NOT change OAuth.
+
+Do NOT change business logic.
+
+Only analyze the project and produce a complete architecture report.
+
+After I review your report, I will assign implementation tasks one phase at a time.
