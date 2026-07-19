@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2, Camera } from "lucide-react";
+import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2, Camera, Facebook } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,7 +29,7 @@ interface AutomationConfig {
   channelId: string;
   automationEnabled: boolean;
   status: "active" | "paused" | "error";
-  sourceType?: "tiktok" | "instagram";
+  sourceType?: "tiktok" | "instagram" | "facebook";
   sourceIdentity?: string;
   postsPerDay: number;
   scheduleLogic: "fixed" | "random";
@@ -53,7 +53,7 @@ interface ChannelAutomation {
 
 type FormState = {
   automationEnabled: boolean;
-  sourceType: "tiktok" | "instagram";
+  sourceType: "tiktok" | "instagram" | "facebook";
   sourceIdentity: string;
   postsPerDay: number;
   scheduleLogic: "fixed" | "random";
@@ -191,7 +191,7 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Source Platform</Label>
-            <Select value={form.sourceType} onValueChange={(v: "tiktok" | "instagram") => update("sourceType", v)}>
+            <Select value={form.sourceType} onValueChange={(v: "tiktok" | "instagram" | "facebook") => update("sourceType", v)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -202,13 +202,20 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
                 <SelectItem value="instagram">
                   <span className="flex items-center gap-2"><Camera className="h-4 w-4" /> Instagram</span>
                 </SelectItem>
+                <SelectItem value="facebook">
+                  <span className="flex items-center gap-2"><Facebook className="h-4 w-4" /> Facebook</span>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
             <Label>Source Handle / URL</Label>
             <Input
-              placeholder={form.sourceType === "instagram" ? "@username or Instagram Profile URL" : "@username or TikTok Profile URL"}
+              placeholder={
+                form.sourceType === "instagram" ? "@username or Instagram Profile URL" :
+                form.sourceType === "facebook"  ? "Page name or Facebook Page URL" :
+                                                  "@username or TikTok Profile URL"
+              }
               value={form.sourceIdentity}
               onChange={(e) => update("sourceIdentity", e.target.value)}
             />
@@ -353,7 +360,7 @@ export default function YoutubeAutomation() {
             YouTube Automation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Automatically source videos from TikTok or Instagram and publish them to your connected YouTube channel on a schedule.
+            Automatically source videos from TikTok, Instagram, or Facebook and publish them to your connected YouTube channel on a schedule.
           </p>
         </div>
 

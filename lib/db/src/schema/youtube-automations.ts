@@ -19,8 +19,8 @@ export const youtubeAutomationsTable = pgTable("youtube_automations", {
   automationEnabled: boolean("automation_enabled").notNull().default(false),
   status: text("status", { enum: ["active", "paused", "error"] }).notNull().default("paused"),
 
-  // Content source: another YouTube channel (RSS) or a TikTok profile (yt-dlp).
-  sourceType: text("source_type", { enum: ["youtube", "tiktok"] }),
+  // Content source: TikTok, Instagram, or Facebook profile (all via yt-dlp).
+  sourceType: text("source_type", { enum: ["tiktok", "instagram", "facebook"] }),
   sourceIdentity: text("source_identity"),
 
   postsPerDay: integer("posts_per_day").notNull().default(1),

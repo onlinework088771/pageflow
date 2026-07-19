@@ -30,6 +30,7 @@ const execFileAsync = promisify(execFile);
 const YT_DLP_PATH = process.env["YT_DLP_PATH"] ?? "yt-dlp";
 const TIKTOK_COOKIES_FILE = process.env["TIKTOK_COOKIES_FILE"];
 const INSTAGRAM_COOKIES_FILE = process.env["INSTAGRAM_COOKIES_FILE"];
+const FACEBOOK_COOKIES_FILE = process.env["FACEBOOK_COOKIES_FILE"];
 
 function cookiesArgsFor(url: string): string[] {
   if (url.includes("tiktok.com") && TIKTOK_COOKIES_FILE && fs.existsSync(TIKTOK_COOKIES_FILE)) {
@@ -37,6 +38,9 @@ function cookiesArgsFor(url: string): string[] {
   }
   if (url.includes("instagram.com") && INSTAGRAM_COOKIES_FILE && fs.existsSync(INSTAGRAM_COOKIES_FILE)) {
     return ["--cookies", INSTAGRAM_COOKIES_FILE];
+  }
+  if (url.includes("facebook.com") && FACEBOOK_COOKIES_FILE && fs.existsSync(FACEBOOK_COOKIES_FILE)) {
+    return ["--cookies", FACEBOOK_COOKIES_FILE];
   }
   return [];
 }
@@ -137,7 +141,7 @@ async function fetchYouTubeRssVideos(
 }
 
 async function fetchProfileVideos(
-  platform: "tiktok" | "instagram",
+  platform: "tiktok" | "instagram" | "facebook",
   profileUrl: string,
   limit = 20,
 ): Promise<{ videoId: string; title: string; url: string }[]> {
@@ -169,10 +173,11 @@ async function fetchProfileVideos(
 }
 
 /** Normalise a user-supplied handle/URL into a full profile URL for a given platform. */
-function resolveProfileUrl(platform: "tiktok" | "instagram", identity: string): string {
-  const handle = identity.startsWith("http") ? identity : identity.replace(/^@/, "");
+function resolveProfileUrl(platform: "tiktok" | "instagram" | "facebook", identity: string): string {
   if (identity.startsWith("http")) return identity;
-  if (platform === "tiktok") return `https://www.tiktok.com/@${handle}`;
+  const handle = identity.replace(/^@/, "");
+  if (platform === "tiktok")    return `https://www.tiktok.com/@${handle}`;
+  if (platform === "facebook")  return `https://www.facebook.com/${handle}/videos/`;
   return `https://www.instagram.com/${handle}/`;
 }
 
@@ -221,7 +226,7 @@ async function downloadVideoToTempFile(url: string): Promise<string> {
 async function findNextUnseenVideo(
   automation: typeof youtubeAutomationsTable.$inferSelect,
 ): Promise<{ videoId: string; url: string; title: string; description?: string } | null> {
-  const platform = automation.sourceType as "tiktok" | "instagram" | null;
+  const platform = automation.sourceType as "tiktok" | "instagram" | "facebook" | null;
   if (!platform || !automation.sourceIdentity) return null;
 
   const profileUrl = resolveProfileUrl(platform, automation.sourceIdentity);
