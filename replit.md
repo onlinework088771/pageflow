@@ -17,6 +17,18 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Build**: esbuild (CJS bundle)
 - **Auth**: JWT (jsonwebtoken + bcryptjs), tokens stored in localStorage
 
+## Running on Replit
+
+Three workflows are configured and managed by Replit:
+
+- **`artifacts/fb-agency: web`** — Vite dev server for the React frontend (port 24102, preview at `/`)
+- **`artifacts/api-server: API Server`** — Express API backend (port 8080, serves `/api`)
+- **`DB: Apply Schema`** — one-shot Drizzle schema push; run after any schema change
+
+On first setup, run `pnpm install` from the workspace root, then trigger "DB: Apply Schema" once to create the tables.
+
+The Replit-managed `DATABASE_URL` and `SESSION_SECRET` are automatically available to both services.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
