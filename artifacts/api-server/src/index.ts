@@ -75,5 +75,8 @@ app.listen(port, (err) => {
   runPageAutomation().catch(() => {});
   runCleanupJob().catch(() => {});
   runYoutubeScheduler().catch(() => {});
-  runYoutubeAutomation().catch(() => {});
+  // NOTE: runYoutubeAutomation intentionally NOT called on startup.
+  // The fixed-schedule logic uses exact HH:MM matching, so an immediate call
+  // on server restart would fire at an arbitrary time (not the configured slot).
+  // The 60s interval above handles all scheduling correctly.
 });

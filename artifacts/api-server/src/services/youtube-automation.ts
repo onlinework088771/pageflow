@@ -214,8 +214,10 @@ async function fetchProfileVideos(
 
   logger.info({ platform, profileUrl, count: videos.length }, `[YT-AUTO] Found ${videos.length} videos from ${platform}`);
   if (videos.length === 0) {
-    // Treat empty response as an error too so the user sees it in the dashboard.
-    throw new Error(`Page has no public videos — the ${platform} page exists but returned no accessible videos. The page may be empty, private, or may require authentication.`);
+    // Empty response is NOT a failure — the page exists but has no new videos yet.
+    // Log a warning so it's visible in server logs; the caller will log "No new video found"
+    // to automation_logs without incrementing totalFailed.
+    logger.warn({ platform, profileUrl }, "[YT-AUTO] yt-dlp returned no videos — page may be empty or all videos already posted");
   }
   return videos;
 }
@@ -409,6 +411,27 @@ export async function runChannelAutomation(automation: typeof youtubeAutomations
   }
 }
 
+// Dedup guard: tracks which "channelId:HH:MM" slots have already fired today.
+// Keyed by "<channelId>:<slot>", value is "YYYY-MM-DD" in that channel's timezone.
+// Prevents the same slot from firing more than once per day even if runFixedSchedule
+// is called multiple times within the same minute (e.g. startup call + interval tick).
+const triggeredYtSlots = new Map<string, string>();
+
+function getCurrentDateInTz(timezone: string): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    // en-CA gives YYYY-MM-DD natively
+    return parts.map((p) => p.value).join("");
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 async function runFixedSchedule(): Promise<void> {
   const automations = await db
     .select()
@@ -420,8 +443,19 @@ async function runFixedSchedule(): Promise<void> {
     // next due slot so a transient failure (yt-dlp rate-limit, network blip,
     // Google API outage) does not permanently kill the automation.
     const slots = Array.isArray(automation.timeSlots) ? automation.timeSlots : [];
-    const due = slots.some((slot) => timeSlotDue(slot, automation.timezone));
-    if (due) {
+    for (const slot of slots) {
+      if (!timeSlotDue(slot, automation.timezone)) continue;
+
+      // Dedup: each slot fires at most once per calendar day (in the configured timezone).
+      const dedupKey = `${automation.channelId}:${slot}`;
+      const today = getCurrentDateInTz(automation.timezone);
+      if (triggeredYtSlots.get(dedupKey) === today) {
+        logger.debug({ channelId: automation.channelId, slot }, "[YT-AUTO] Slot already triggered today — skipping duplicate");
+        continue;
+      }
+      triggeredYtSlots.set(dedupKey, today);
+
+      logger.info({ channelId: automation.channelId, slot, timezone: automation.timezone }, "[YT-AUTO] Firing scheduled slot");
       await runChannelAutomation(automation);
     }
   }
