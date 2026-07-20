@@ -145,40 +145,70 @@ async function fetchProfileVideos(
   profileUrl: string,
   limit = 20,
 ): Promise<{ videoId: string; title: string; url: string }[]> {
-  logger.info({ step: "profile-list", platform, profileUrl }, `YouTube automation: listing recent ${platform} videos`);
-  try {
-    const fullArgs = [
-      ...cookiesArgsFor(profileUrl),
-      "--flat-playlist",
-      "--print", "%(id)s\t%(title)s\t%(webpage_url)s",
-      "--playlist-end", String(limit),
-      "--no-warnings",
-      profileUrl,
-    ];
-    const { stdout } = await execFileAsync(YT_DLP_PATH, fullArgs, { timeout: 45_000 });
-    return stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        const [videoId, title, url] = line.split("\t");
-        return { videoId: videoId ?? "", title: title ?? "", url: url ?? "" };
-      })
-      .filter((v) => v.videoId);
-  } catch (err: any) {
-    const message: string = err?.stderr || err?.message || String(err);
-    logger.error({ platform, profileUrl, err: message.slice(0, 300) }, `YouTube automation: ${platform} profile listing failed`);
-    return [];
+  logger.info({ step: "fetch-start", platform, profileUrl }, `[YT-AUTO] Fetching ${platform} video list: ${profileUrl}`);
+  const cookieArgs = cookiesArgsFor(profileUrl);
+  if (cookieArgs.length === 0) {
+    logger.warn({ platform }, `[YT-AUTO] No cookies file configured for ${platform} — anonymous requests may be blocked`);
   }
+  const fullArgs = [
+    ...cookieArgs,
+    "--flat-playlist",
+    "--print", "%(id)s\t%(title)s\t%(webpage_url)s",
+    "--playlist-end", String(limit),
+    "--no-warnings",
+    profileUrl,
+  ];
+  logger.debug({ args: fullArgs.filter((a) => a !== "--cookies").join(" ") }, "[YT-AUTO] yt-dlp list args");
+
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(YT_DLP_PATH, fullArgs, { timeout: 45_000 }));
+  } catch (err: any) {
+    // Preserve the real yt-dlp stderr so callers can surface it to the user.
+    const detail: string = (err?.stderr || err?.message || String(err)).slice(0, 500);
+    logger.error({ platform, profileUrl, detail }, `[YT-AUTO] yt-dlp ${platform} listing failed`);
+    throw new Error(`${platform} video fetch failed: ${detail}`);
+  }
+
+  const videos = stdout
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [videoId, title, url] = line.split("\t");
+      return { videoId: videoId ?? "", title: title ?? "", url: url ?? "" };
+    })
+    .filter((v) => v.videoId);
+
+  logger.info({ platform, profileUrl, count: videos.length }, `[YT-AUTO] Found ${videos.length} videos from ${platform}`);
+  if (videos.length === 0) {
+    logger.warn({ platform, profileUrl }, "[YT-AUTO] yt-dlp returned no videos — page may be empty, private, or require auth");
+  }
+  return videos;
 }
 
 /** Normalise a user-supplied handle/URL into a full profile URL for a given platform. */
 function resolveProfileUrl(platform: "tiktok" | "instagram" | "facebook", identity: string): string {
-  if (identity.startsWith("http")) return identity;
-  const handle = identity.replace(/^@/, "");
-  if (platform === "tiktok")    return `https://www.tiktok.com/@${handle}`;
-  if (platform === "facebook")  return `https://www.facebook.com/${handle}/videos/`;
-  return `https://www.instagram.com/${handle}/`;
+  const trimmed = identity.trim().replace(/\/$/, "");
+
+  // If it already looks like a URL, normalise the host and return as-is.
+  if (trimmed.startsWith("http")) {
+    const normalized = trimmed
+      .replace(/^https?:\/\/(m\.|www\.)?facebook\.com/, "https://www.facebook.com")
+      .replace(/^https?:\/\/(www\.)?tiktok\.com/, "https://www.tiktok.com")
+      .replace(/^https?:\/\/(www\.)?instagram\.com/, "https://www.instagram.com");
+    logger.info({ platform, input: trimmed, resolved: normalized }, "[YT-AUTO] Resolved source URL (from full URL)");
+    return normalized;
+  }
+
+  const handle = trimmed.replace(/^@/, "");
+  let resolved: string;
+  if (platform === "tiktok")   resolved = `https://www.tiktok.com/@${handle}`;
+  else if (platform === "facebook") resolved = `https://www.facebook.com/${handle}/videos/`;
+  else                          resolved = `https://www.instagram.com/${handle}/`;
+
+  logger.info({ platform, input: trimmed, handle, resolved }, "[YT-AUTO] Resolved source URL (from handle)");
+  return resolved;
 }
 
 async function getVideoMetadata(url: string): Promise<{ title: string; description: string; tags: string[] }> {
@@ -227,23 +257,38 @@ async function findNextUnseenVideo(
   automation: typeof youtubeAutomationsTable.$inferSelect,
 ): Promise<{ videoId: string; url: string; title: string; description?: string } | null> {
   const platform = automation.sourceType as "tiktok" | "instagram" | "facebook" | null;
-  if (!platform || !automation.sourceIdentity) return null;
+  if (!platform || !automation.sourceIdentity) {
+    logger.warn({ channelId: automation.channelId }, "[YT-AUTO] Automation has no sourceType or sourceIdentity — skipping");
+    return null;
+  }
 
   const profileUrl = resolveProfileUrl(platform, automation.sourceIdentity);
+  // NOTE: fetchProfileVideos throws on yt-dlp failure; callers must handle.
   const videos = await fetchProfileVideos(platform, profileUrl);
   if (!videos.length) return null;
 
-  const idx = automation.lastPostedVideoId
-    ? videos.findIndex((v) => v.videoId === automation.lastPostedVideoId)
-    : -1;
+  const lastId = automation.lastPostedVideoId;
+  logger.info({ platform, total: videos.length, lastPostedVideoId: lastId ?? "(none)" }, "[YT-AUTO] Selecting next unseen video");
+
+  const idx = lastId ? videos.findIndex((v) => v.videoId === lastId) : -1;
+  if (lastId && idx === -1) {
+    logger.warn({ lastId }, "[YT-AUTO] lastPostedVideoId not found in current video list — may have been deleted; picking oldest available");
+  }
   // List is newest-first; pick the entry just before the last posted one,
   // or the last entry when nothing has been posted yet.
   const next = idx > 0 ? videos[idx - 1] : videos[videos.length - 1];
+  if (next) {
+    logger.info({ videoId: next.videoId, title: next.title, url: next.url }, "[YT-AUTO] Next video selected");
+  } else {
+    logger.info({ platform }, "[YT-AUTO] No unseen video found in current list");
+  }
   return next ? { videoId: next.videoId, url: next.url, title: next.title } : null;
 }
 
 /** Runs one automation: finds, downloads, and uploads the next unseen video to the channel's own YouTube account. */
 export async function runChannelAutomation(automation: typeof youtubeAutomationsTable.$inferSelect): Promise<void> {
+  logger.info({ channelId: automation.channelId, sourceType: automation.sourceType, sourceIdentity: automation.sourceIdentity }, "[YT-AUTO] Starting automation run");
+
   const [channel] = await db.select().from(youtubeChannelsTable).where(eq(youtubeChannelsTable.id, automation.channelId));
   if (!channel) {
     await logAutomation("error", "Automation skipped — channel no longer exists", automation.channelId);
@@ -256,29 +301,52 @@ export async function runChannelAutomation(automation: typeof youtubeAutomations
     return;
   }
 
-  const next = await findNextUnseenVideo(automation);
-  if (!next) {
-    await logAutomation("info", "No new video found from source", automation.channelId, channel.title);
-    return;
-  }
-
   let tmpFile: string | null = null;
   try {
+    // ── Step 1: find next unseen video ──────────────────────────────────────
+    // findNextUnseenVideo now throws (via fetchProfileVideos) when yt-dlp
+    // fails, so any source-fetch error is caught here and written to logs.
+    const next = await findNextUnseenVideo(automation);
+    if (!next) {
+      logger.info({ channelId: automation.channelId }, "[YT-AUTO] No new video found from source — nothing to post");
+      await logAutomation("info", "No new video found from source", automation.channelId, channel.title);
+      return;
+    }
+
+    // ── Step 2: get a valid access token ────────────────────────────────────
+    logger.info({ channelId: automation.channelId }, "[YT-AUTO] Acquiring YouTube access token");
     const accessToken = await getValidAccessToken(account);
 
-    const meta = automation.sourceType === "tiktok" ? await getVideoMetadata(next.url) : { title: "", description: next.description ?? "", tags: [] };
+    // ── Step 3: fetch video metadata (title, description, tags) ─────────────
+    // Fetch rich metadata for TikTok and Facebook via yt-dlp dump-json;
+    // Instagram titles are usually reliable from the flat-playlist listing.
+    const needsMetadata = automation.sourceType === "tiktok" || automation.sourceType === "facebook";
+    logger.info({ url: next.url, needsMetadata }, "[YT-AUTO] Fetching video metadata");
+    const meta = needsMetadata
+      ? await getVideoMetadata(next.url)
+      : { title: "", description: next.description ?? "", tags: [] };
+
     const title = (next.title || meta.title || "Untitled video").slice(0, 100);
     const description = generateCaption(title, meta.description || next.description || "", meta.tags);
+    logger.info({ title, descriptionLength: description.length, tags: meta.tags.length }, "[YT-AUTO] Video metadata resolved");
 
+    // ── Step 4: download ─────────────────────────────────────────────────────
+    logger.info({ url: next.url }, "[YT-AUTO] Downloading video to temp file");
     tmpFile = await downloadVideoToTempFile(next.url);
+    const sizeMb = (fs.statSync(tmpFile).size / 1024 / 1024).toFixed(1);
+    logger.info({ tmpFile, sizeMb: `${sizeMb} MB` }, "[YT-AUTO] Download complete");
 
+    // ── Step 5: upload to YouTube ─────────────────────────────────────────────
+    logger.info({ channelId: automation.channelId, title, privacyStatus: automation.privacyStatus, videoType: automation.videoType }, "[YT-AUTO] Uploading to YouTube");
     const youtubeVideoId = await uploadToYoutube(accessToken, tmpFile, {
       title,
       description,
       privacyStatus: automation.privacyStatus,
       videoType: automation.videoType,
     });
+    logger.info({ youtubeVideoId }, "[YT-AUTO] Upload successful");
 
+    // ── Step 6: persist success state ────────────────────────────────────────
     await db
       .update(youtubeAutomationsTable)
       .set({
@@ -294,13 +362,13 @@ export async function runChannelAutomation(automation: typeof youtubeAutomations
       youtubeVideoId,
     });
   } catch (err: any) {
-    const message = err?.response?.data?.error?.message || err.message || "Automation run failed";
+    const message: string = err?.response?.data?.error?.message || err.message || "Automation run failed";
+    logger.error({ automationId: automation.id, err: message }, "[YT-AUTO] Automation run failed");
     await db
       .update(youtubeAutomationsTable)
       .set({ totalFailed: automation.totalFailed + 1, status: "error" })
       .where(eq(youtubeAutomationsTable.id, automation.id));
     await logAutomation("error", String(message).slice(0, 500), automation.channelId, channel.title);
-    logger.error({ automationId: automation.id, err: message }, "YouTube automation run failed");
   } finally {
     if (tmpFile) {
       try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }

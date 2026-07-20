@@ -97,6 +97,33 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
     setDirty(true);
   }
 
+  // Toggle has its own instant-save mutation so the enabled state is persisted
+  // immediately without requiring the user to also click "Save Changes".
+  const toggleAutomation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const res = await authFetch(apiUrl(`/youtube/automations/${item.channelId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ automationEnabled: enabled }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to update automation");
+      }
+      return res.json();
+    },
+    onMutate: (enabled) => {
+      setForm((f) => ({ ...f, automationEnabled: enabled })); // optimistic
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+    onError: (err: Error, enabled) => {
+      setForm((f) => ({ ...f, automationEnabled: !enabled })); // revert
+      toast({ title: err.message, variant: "destructive" });
+    },
+  });
+
   const save = useMutation({
     mutationFn: async () => {
       const res = await authFetch(apiUrl(`/youtube/automations/${item.channelId}`), {
@@ -183,7 +210,8 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
           </Badge>
           <Switch
             checked={form.automationEnabled}
-            onCheckedChange={(checked) => update("automationEnabled", checked)}
+            onCheckedChange={(checked) => toggleAutomation.mutate(checked)}
+            disabled={toggleAutomation.isPending}
           />
         </div>
       </CardHeader>
