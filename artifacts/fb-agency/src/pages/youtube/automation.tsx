@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2, Camera, Facebook } from "lucide-react";
+import { Youtube, Globe, Clock, Plus, X, Save, Play, CheckCircle2, XCircle, Loader2, Camera, Facebook, Zap, AlertTriangle } from "lucide-react";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -200,8 +200,24 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Automation run started", description: "Check back shortly for the result." });
+      toast({ title: "Post Now started", description: "Video is being fetched and uploaded. Check back in a moment." });
       setTimeout(() => queryClient.invalidateQueries({ queryKey: QUERY_KEY }), 4000);
+    },
+    onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
+  });
+
+  const clearError = useMutation({
+    mutationFn: async () => {
+      const res = await authFetch(apiUrl(`/youtube/automations/${item.channelId}/clear-error`), { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to clear error");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Error cleared", description: "Status and failed count have been reset." });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
     onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
   });
@@ -250,9 +266,27 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Badge variant={statusBadge === "active" ? "default" : statusBadge === "error" ? "destructive" : "secondary"} className="capitalize">
-            {statusBadge}
-          </Badge>
+          {statusBadge === "error" ? (
+            <div className="flex items-center gap-1">
+              <Badge variant="destructive" className="capitalize flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                error
+              </Badge>
+              <button
+                type="button"
+                title="Clear error"
+                disabled={clearError.isPending}
+                onClick={() => clearError.mutate()}
+                className="flex items-center justify-center h-5 w-5 rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors disabled:opacity-50"
+              >
+                {clearError.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+              </button>
+            </div>
+          ) : (
+            <Badge variant={statusBadge === "active" ? "default" : "secondary"} className="capitalize">
+              {statusBadge}
+            </Badge>
+          )}
           <Switch
             checked={form.automationEnabled}
             onCheckedChange={(checked) => toggleAutomation.mutate(checked)}
@@ -415,14 +449,14 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
 
         <div className="flex items-center justify-between gap-2 pt-2 border-t">
           <Button
-            variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
             onClick={() => runNow.mutate()}
             disabled={!configured || runNow.isPending}
+            title={!configured ? "Save source settings first before posting" : "Immediately fetch and upload one video"}
           >
-            {runNow.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            Run now
+            {runNow.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+            {runNow.isPending ? "Posting…" : "Post Now"}
           </Button>
           <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !!identityError} className="gap-2">
             <Save className="h-4 w-4" />

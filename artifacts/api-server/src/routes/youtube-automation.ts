@@ -190,4 +190,35 @@ router.post("/youtube/automations/:channelId/run-now", async (req, res): Promise
   res.json({ status: "running" });
 });
 
+// POST /youtube/automations/:channelId/clear-error - reset error status and failed count.
+router.post("/youtube/automations/:channelId/clear-error", async (req, res): Promise<void> => {
+  const userId = req.user!.userId;
+  const channelId = parseInt(req.params.channelId, 10);
+  if (isNaN(channelId)) {
+    res.status(400).json({ error: "Invalid channel ID" });
+    return;
+  }
+
+  const channel = await getOwnedChannel(userId, channelId);
+  if (!channel) {
+    res.status(404).json({ error: "Channel not found" });
+    return;
+  }
+
+  const [automation] = await db.select().from(youtubeAutomationsTable).where(eq(youtubeAutomationsTable.channelId, channelId));
+  if (!automation) {
+    res.status(404).json({ error: "Automation not found" });
+    return;
+  }
+
+  const newStatus = automation.automationEnabled ? "active" : "paused";
+  const [updated] = await db
+    .update(youtubeAutomationsTable)
+    .set({ status: newStatus, totalFailed: 0 })
+    .where(eq(youtubeAutomationsTable.channelId, channelId))
+    .returning();
+
+  res.json(serialize(updated));
+});
+
 export default router;
