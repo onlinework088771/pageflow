@@ -1,0 +1,137 @@
+Perform a complete root-cause analysis of the YouTube Automation module.
+
+IMPORTANT:
+Do NOT change or break any existing working functionality.
+First investigate the problems, identify the root causes, then fix them properly.
+
+==================================================
+BUG #1
+Automation Toggle State
+==================================================
+
+Current issue:
+
+- Turning the automation ON works visually.
+- The toggle immediately changes to ON.
+- But after refreshing the page it becomes OFF again.
+
+Expected behavior:
+
+- When automation is enabled, the enabled state must be saved permanently.
+- Refreshing the page must restore the exact saved state.
+- The toggle UI must always reflect the actual backend/database state.
+- If automation is ON, it must continue running after refresh.
+- If automation is OFF, it must stay OFF.
+
+Verify:
+
+- Frontend state
+- API request
+- Database persistence
+- Backend loading
+- Initial state hydration
+- Cache issues
+
+==================================================
+BUG #2
+Facebook Source Import
+==================================================
+
+Current issue:
+
+Facebook source does not import any videos.
+
+I tested:
+
+- Facebook username
+- Facebook page URL
+
+Neither works.
+
+Investigate:
+
+- What input format is expected?
+- Username?
+- Page URL?
+- Profile URL?
+- Page ID?
+
+If only one format is supported,
+show a clear placeholder and validation message.
+
+If possible support BOTH:
+
+- Username
+- Full Facebook URL
+
+Examples:
+
+https://facebook.com/PageName
+
+or
+
+PageName
+
+The system should normalize both automatically.
+
+==================================================
+FETCHER
+==================================================
+
+Verify the Facebook importer.
+
+Check:
+
+- Source parser
+- Video discovery
+- Pagination
+- Public video detection
+- Error handling
+- Rate limits
+- Empty responses
+- Logging
+
+If Facebook cannot return videos,
+show the real reason instead of silently failing.
+
+==================================================
+LOGGING
+==================================================
+
+Add detailed logs.
+
+Need logs for:
+
+- Source parsing
+- Source validation
+- Fetch request
+- Videos found
+- Videos skipped
+- Download
+- Upload queue
+- Upload success
+- Upload failure
+- API errors
+
+==================================================
+DO NOT BREAK
+==================================================
+
+Do NOT modify:
+
+- YouTube OAuth
+- Upload engine
+- Scheduler
+- Queue
+- AI Title Generator
+- Existing automation logic
+
+Only fix these bugs while keeping the application stable.
+
+At the end provide:
+
+1. Root cause of each bug.
+2. Files modified.
+3. Database changes (if any).
+4. How the bugs were verified.
+5. Confirmation that existing functionality was not broken.
