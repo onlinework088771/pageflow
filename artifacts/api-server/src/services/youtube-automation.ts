@@ -140,6 +140,38 @@ async function fetchYouTubeRssVideos(
   }));
 }
 
+/**
+ * Translate raw yt-dlp stderr into a short, human-readable reason.
+ * Shown directly in automation_logs so the user knows exactly why it failed.
+ */
+function parseYtDlpError(platform: string, stderr: string): string {
+  const s = stderr.toLowerCase();
+
+  if (s.includes("login required") || s.includes("not logged in") || s.includes("please log in") || s.includes("checkpoint")) {
+    return `Access denied — ${platform} requires authentication. Configure a cookies file (FACEBOOK_COOKIES_FILE / INSTAGRAM_COOKIES_FILE / TIKTOK_COOKIES_FILE) and try again.`;
+  }
+  if (s.includes("does not exist") || s.includes("page not found") || s.includes("this page isn't available") || s.includes("content isn't available") || s.includes("no such page")) {
+    return `Page not found — check the username or URL entered for ${platform}.`;
+  }
+  if (s.includes("no video formats found") || s.includes("no videos found") || s.includes("this playlist is empty")) {
+    return `Page has no public videos — the ${platform} page exists but has not posted any accessible videos.`;
+  }
+  if (s.includes("private") || s.includes("only for friends") || s.includes("restricted")) {
+    return `Access denied — this ${platform} page or its videos are private or restricted.`;
+  }
+  if (s.includes("rate") || s.includes("too many requests") || s.includes("429")) {
+    return `Rate limited by ${platform} — too many requests. Try again in a few minutes.`;
+  }
+  if (s.includes("unable to extract") || s.includes("could not extract") || s.includes("unsupported url")) {
+    return `URL is invalid or unsupported — ${platform} could not extract any videos from this address.`;
+  }
+  if (s.includes("timeout") || s.includes("timed out") || s.includes("connection")) {
+    return `Network error — could not reach ${platform}. Check server connectivity and try again.`;
+  }
+  // Fallback: return the raw stderr trimmed to something readable
+  return stderr.replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
 async function fetchProfileVideos(
   platform: "tiktok" | "instagram" | "facebook",
   profileUrl: string,
@@ -164,10 +196,10 @@ async function fetchProfileVideos(
   try {
     ({ stdout } = await execFileAsync(YT_DLP_PATH, fullArgs, { timeout: 45_000 }));
   } catch (err: any) {
-    // Preserve the real yt-dlp stderr so callers can surface it to the user.
-    const detail: string = (err?.stderr || err?.message || String(err)).slice(0, 500);
-    logger.error({ platform, profileUrl, detail }, `[YT-AUTO] yt-dlp ${platform} listing failed`);
-    throw new Error(`${platform} video fetch failed: ${detail}`);
+    const raw: string = err?.stderr || err?.message || String(err);
+    const friendly = parseYtDlpError(platform, raw);
+    logger.error({ platform, profileUrl, raw: raw.slice(0, 500) }, `[YT-AUTO] yt-dlp ${platform} listing failed`);
+    throw new Error(friendly);
   }
 
   const videos = stdout
@@ -182,7 +214,8 @@ async function fetchProfileVideos(
 
   logger.info({ platform, profileUrl, count: videos.length }, `[YT-AUTO] Found ${videos.length} videos from ${platform}`);
   if (videos.length === 0) {
-    logger.warn({ platform, profileUrl }, "[YT-AUTO] yt-dlp returned no videos — page may be empty, private, or require auth");
+    // Treat empty response as an error too so the user sees it in the dashboard.
+    throw new Error(`Page has no public videos — the ${platform} page exists but returned no accessible videos. The page may be empty, private, or may require authentication.`);
   }
   return videos;
 }

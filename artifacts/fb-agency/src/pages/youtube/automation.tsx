@@ -85,12 +85,50 @@ async function fetchAutomations(): Promise<ChannelAutomation[]> {
   return res.json();
 }
 
+/** Validate the source identity field before saving. Returns an error string or null. */
+function validateSourceIdentity(platform: "tiktok" | "instagram" | "facebook", identity: string): string | null {
+  const trimmed = identity.trim();
+  if (!trimmed) return null; // empty is fine — user just hasn't configured yet
+
+  if (platform === "facebook") {
+    if (trimmed.startsWith("http")) {
+      // Must be a recognisable facebook.com URL
+      if (!/^https?:\/\/(www\.|m\.)?facebook\.com\/[A-Za-z0-9._%-]+/.test(trimmed)) {
+        return "Invalid Facebook URL — use https://facebook.com/PageName";
+      }
+    } else {
+      // Handle: strip leading @, then must be valid Facebook username chars
+      const handle = trimmed.replace(/^@/, "");
+      if (!/^[A-Za-z0-9._-]{1,}$/.test(handle)) {
+        return "Invalid page username — use letters, numbers, dots, or hyphens (e.g. @DoggieDram)";
+      }
+    }
+  }
+
+  if (platform === "tiktok") {
+    const handle = trimmed.startsWith("http") ? trimmed : trimmed.replace(/^@/, "");
+    if (!trimmed.startsWith("http") && !/^[A-Za-z0-9._-]{1,}$/.test(handle)) {
+      return "Invalid TikTok username — use letters, numbers, dots, or underscores";
+    }
+  }
+
+  if (platform === "instagram") {
+    const handle = trimmed.startsWith("http") ? trimmed : trimmed.replace(/^@/, "");
+    if (!trimmed.startsWith("http") && !/^[A-Za-z0-9._]{1,}$/.test(handle)) {
+      return "Invalid Instagram username — use letters, numbers, dots, or underscores";
+    }
+  }
+
+  return null;
+}
+
 function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState<FormState>(() => defaultForm(item.automation));
   const [dirty, setDirty] = useState(false);
   const [newSlot, setNewSlot] = useState("");
+  const [identityError, setIdentityError] = useState<string | null>(null);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -126,6 +164,12 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      // Validate before sending to the API
+      const err = validateSourceIdentity(form.sourceType, form.sourceIdentity);
+      if (err) {
+        setIdentityError(err);
+        throw new Error(err);
+      }
       const res = await authFetch(apiUrl(`/youtube/automations/${item.channelId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -140,6 +184,7 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
     onSuccess: () => {
       toast({ title: "Automation settings saved" });
       setDirty(false);
+      setIdentityError(null);
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
     onError: (err: Error) => toast({ title: err.message, variant: "destructive" }),
@@ -219,7 +264,7 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Source Platform</Label>
-            <Select value={form.sourceType} onValueChange={(v: "tiktok" | "instagram" | "facebook") => update("sourceType", v)}>
+            <Select value={form.sourceType} onValueChange={(v: "tiktok" | "instagram" | "facebook") => { update("sourceType", v); setIdentityError(null); }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -236,17 +281,30 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label>Source Handle / URL</Label>
             <Input
               placeholder={
                 form.sourceType === "instagram" ? "@username or Instagram Profile URL" :
-                form.sourceType === "facebook"  ? "Page name or Facebook Page URL" :
+                form.sourceType === "facebook"  ? "@PageName or https://facebook.com/PageName" :
                                                   "@username or TikTok Profile URL"
               }
               value={form.sourceIdentity}
-              onChange={(e) => update("sourceIdentity", e.target.value)}
+              className={identityError ? "border-destructive focus-visible:ring-destructive" : ""}
+              onChange={(e) => {
+                update("sourceIdentity", e.target.value);
+                setIdentityError(validateSourceIdentity(form.sourceType, e.target.value));
+              }}
             />
+            {identityError ? (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <XCircle className="h-3 w-3 shrink-0" /> {identityError}
+              </p>
+            ) : form.sourceType === "facebook" ? (
+              <p className="text-xs text-muted-foreground">
+                Examples: <span className="font-mono">@DoggieDram</span> · <span className="font-mono">DoggieDram</span> · <span className="font-mono">https://facebook.com/DoggieDram</span>
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -366,7 +424,7 @@ function ChannelAutomationCard({ item }: { item: ChannelAutomation }) {
             {runNow.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
             Run now
           </Button>
-          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending} className="gap-2">
+          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending || !!identityError} className="gap-2">
             <Save className="h-4 w-4" />
             {save.isPending ? "Saving..." : "Save Changes"}
           </Button>
