@@ -1,0 +1,116 @@
+Before making any changes, analyze the existing YouTube Bulk Upload implementation to understand why the channel-based filtering is not working correctly.
+
+The YouTube Scheduler already supports channel-based filtering and is working as expected. Reuse the same architecture and logic where appropriate instead of creating a separate implementation.
+
+==================================================
+TASK
+==================================================
+
+Complete the channel-based filtering for the YouTube Bulk Upload module.
+
+Currently, after selecting a YouTube channel in Step 1, the Schedule Manager still displays uploads from all channels. This is incorrect.
+
+The selected YouTube Channel must become the active filter for the entire Bulk Upload workflow.
+
+==================================================
+REQUIRED BEHAVIOR
+==================================================
+
+When a YouTube channel is selected in Step 1:
+
+• The Schedule Manager must display ONLY uploads belonging to that selected channel.
+
+Apply this filtering consistently to:
+
+- All
+- Pending
+- Published / Completed
+- Failed
+
+The statistics and counters must also reflect only the selected channel.
+
+Example:
+
+Channel A selected
+→ Display only Channel A uploads
+→ All counters are calculated only for Channel A
+
+Switch to Channel B
+→ Immediately refresh the Schedule Manager
+→ Display only Channel B uploads
+→ No page reload required
+
+==================================================
+DATABASE
+==================================================
+
+Use the stored YouTube Channel ID (foreign key) for all filtering.
+
+Do NOT filter by:
+
+- Channel Name
+- Channel Handle
+- Channel Title
+
+Every Schedule Manager query must include the selected YouTube Channel ID.
+
+==================================================
+STATE MANAGEMENT
+==================================================
+
+The selected channel must persist throughout the entire Bulk Upload workflow.
+
+Do not lose the selected channel when navigating between:
+
+- Step 1 – Channel
+- Step 2 – Upload
+- Step 3 – Scheduler
+- Step 4 – Details
+
+If the user returns to a previous step, the selected channel should remain selected.
+
+==================================================
+UI / UX
+==================================================
+
+Whenever the selected YouTube channel changes:
+
+- Refresh the Schedule Manager automatically.
+- Refresh all counters automatically.
+- Refresh all tabs automatically.
+- Never display uploads from another channel.
+
+Filtering should happen instantly without requiring a page refresh.
+
+==================================================
+IMPORTANT
+==================================================
+
+This task applies ONLY to the YouTube Bulk Upload module.
+
+Do NOT modify:
+
+- Facebook Accounts
+- Facebook Page Management
+- Facebook Automation
+- Facebook Scheduler
+- Facebook Bulk Posting
+- Facebook APIs
+- Existing YouTube Scheduler filtering (it is already working correctly)
+- Existing YouTube Automation functionality
+
+Reuse the existing YouTube Scheduler filtering architecture wherever possible to maintain consistency across the project.
+
+==================================================
+VALIDATION
+==================================================
+
+After implementation provide:
+
+1. Root cause of the issue.
+2. Files modified.
+3. Database queries updated.
+4. How the selected channel state is preserved.
+5. Confirmation that filtering is based on YouTube Channel ID.
+6. Confirmation that Bulk Upload now behaves exactly like the YouTube Scheduler.
+7. Confirmation that no Facebook modules or other existing functionality were modified or broken.

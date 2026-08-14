@@ -1,0 +1,107 @@
+Analyze the existing codebase first. Implement this feature ONLY for the YouTube modules. Do NOT modify or break any Facebook modules, automation, scheduler, posting, OAuth, or existing functionality.
+
+==================================================
+FEATURE: CHANNEL-BASED FILTERING
+==================================================
+
+Implement channel-specific filtering similar to the Facebook module.
+
+When a YouTube channel is selected, ONLY data belonging to that selected channel should be displayed.
+
+Apply this behavior consistently in ALL YouTube pages:
+
+1. YouTube Scheduler
+2. YouTube Bulk Upload
+3. YouTube Automation
+
+==================================================
+YOUTUBE SCHEDULER
+==================================================
+
+After selecting a YouTube channel:
+
+- Upload Queue should show only uploads for that channel.
+- Pending tab should show only pending uploads for that channel.
+- Posted/Published tab should show only uploaded videos for that channel.
+- Failed tab should show only failed uploads for that channel.
+
+Changing the selected channel should instantly refresh the list without reloading the page.
+
+==================================================
+YOUTUBE BULK UPLOAD
+==================================================
+
+After selecting a channel:
+
+Display only that channel's:
+
+- Pending uploads
+- Completed uploads
+- Failed uploads
+- Queue
+
+No videos from other channels should appear.
+
+==================================================
+YOUTUBE AUTOMATION
+==================================================
+
+Each automation is linked to a YouTube channel.
+
+When viewing an automation:
+
+Show only data belonging to that automation's selected YouTube channel, including:
+
+- Pending Queue
+- Uploaded Videos
+- Failed Uploads
+- Queue Statistics
+- Upload History
+- Facebook Sync Queue (if applicable)
+
+==================================================
+DATABASE
+==================================================
+
+Filter using the YouTube Channel ID (or the channel foreign key already stored in the database).
+
+Do NOT filter by title or channel name.
+
+==================================================
+UI
+==================================================
+
+Display summary counts for the selected channel only:
+
+Pending
+Published
+Failed
+Total
+
+Switching channels should immediately update all counters and lists.
+
+==================================================
+IMPORTANT
+==================================================
+
+This feature must be isolated to the YouTube module only.
+
+Do NOT modify:
+
+- Facebook Accounts
+- Facebook Scheduler
+- Facebook Automation
+- Facebook Posting
+- Facebook Bulk Upload
+- Facebook APIs
+
+==================================================
+AFTER IMPLEMENTATION
+==================================================
+
+Provide:
+
+1. Files modified.
+2. Database queries updated.
+3. Confirmation that filtering is based on YouTube Channel ID.
+4. Confirmation that no Facebook module was changed.

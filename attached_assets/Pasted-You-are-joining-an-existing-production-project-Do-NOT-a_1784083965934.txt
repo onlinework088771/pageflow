@@ -1,0 +1,317 @@
+You are joining an existing production project. Do NOT assume anything. First understand the entire project before making any changes.
+
+# PROJECT OVERVIEW
+
+Project Name:
+PageFlow
+
+Current Production:
+https://aipageflow.site
+
+Purpose:
+PageFlow is a production-ready social media automation platform.
+
+The Facebook module is already live and working in production.
+It supports:
+- Multiple Facebook account connection
+- Facebook OAuth
+- Page Management
+- Page Automation
+- Video Scheduler
+- Schedule Manager
+- Analytics
+- Settings
+- Automatic posting
+- Production scheduler
+- Existing database
+- Existing Docker deployment
+- Existing VPS deployment
+
+The Facebook system is considered STABLE and must never be broken.
+
+--------------------------------------------------
+
+# IMPORTANT RULE
+
+Before writing a single line of code:
+
+Analyze the ENTIRE project.
+
+Understand:
+
+• Project architecture
+• Folder structure
+• Backend
+• Frontend
+• Shared components
+• Database schema
+• Drizzle ORM
+• Docker
+• Environment variables
+• Authentication
+• Existing scheduler
+• Existing automation
+• Existing API routes
+• OAuth implementations
+• Production deployment flow
+• Existing coding style
+• Existing UI patterns
+
+Do not assume anything.
+
+--------------------------------------------------
+
+# FACEBOOK MODULE
+
+Treat the Facebook module as production code.
+
+Never modify it unless I explicitly ask.
+
+Never refactor it.
+
+Never optimize it.
+
+Never rename anything.
+
+Never move files.
+
+Never change logic.
+
+Never change database.
+
+Never change scheduler.
+
+Never change automation.
+
+Never change OAuth.
+
+Never change API responses.
+
+Never change UI behavior.
+
+Only read it to understand how the project works.
+
+--------------------------------------------------
+
+# YOUTUBE MODULE
+
+A new YouTube module is currently being built.
+
+The goal is to make YouTube behave like the Facebook module while keeping both systems completely isolated.
+
+The planned YouTube module contains:
+
+1. YouTube Dashboard
+
+2. YouTube Accounts
+- Google OAuth
+- Multiple Google accounts
+- Multiple YouTube channels
+- Channel refresh
+- Disconnect
+- Reconnect
+
+3. YouTube Automation
+- Import videos from Facebook pages
+- Import videos from TikTok accounts
+- Automatically upload to YouTube
+- Queue system
+- Scheduler integration
+
+4. YouTube Scheduler
+- Single upload
+- Bulk upload
+- Shorts
+- Long videos
+- Queue management
+- Scheduling
+- Timezone support
+
+5. AI Generator
+Inside the upload page ONLY.
+
+The AI Generator should:
+- Generate SEO-optimized titles.
+- Generate SEO-optimized descriptions.
+- Generate hashtags.
+- Be reliable and fast.
+- Never affect any existing module.
+- Be available only when the user manually uploads a video (single or bulk upload).
+
+No AI generation should run automatically.
+
+6. Analytics
+
+7. Settings
+
+--------------------------------------------------
+
+# CURRENT STATUS
+
+Some YouTube phases have already been implemented and pushed.
+
+However I need you to VERIFY everything.
+
+Do NOT trust previous work.
+
+Audit the entire YouTube module.
+
+Tell me exactly:
+
+✓ Which phases exist.
+
+✓ Which pages exist.
+
+✓ Which backend routes exist.
+
+✓ Which frontend pages exist.
+
+✓ Which OAuth routes exist.
+
+✓ Which database tables exist.
+
+✓ Which APIs are connected.
+
+✓ Which features are placeholders.
+
+✓ Which features are production ready.
+
+--------------------------------------------------
+
+# CURRENT PROBLEMS
+
+The current production has these issues:
+
+1.
+Mobile sidebar does not scroll to the bottom.
+
+Some YouTube menu items cannot be reached.
+
+2.
+YouTube Dashboard still shows placeholder/Coming Soon.
+
+3.
+There is no visible Google Connect button.
+
+4.
+There is no Magic Auth (one-click Google OAuth entry point).
+
+5.
+Users currently cannot connect a YouTube account from the UI.
+
+6.
+Audit whether the OAuth backend already exists but is simply not connected to the frontend.
+
+--------------------------------------------------
+
+# MAGIC AUTH REQUIREMENT
+
+Do NOT invent a new authentication system.
+
+Magic Auth simply means:
+
+User presses:
+
+"Connect Google Account"
+
+↓
+
+Google OAuth opens immediately.
+
+↓
+
+User grants permission.
+
+↓
+
+Returns to PageFlow.
+
+↓
+
+Google account is stored.
+
+↓
+
+Available YouTube channels are fetched automatically.
+
+↓
+
+Channels appear in UI.
+
+↓
+
+User can select channels.
+
+Nothing more.
+
+--------------------------------------------------
+
+# IMPORTANT SAFETY RULES
+
+Do NOT modify:
+
+Facebook
+
+TikTok
+
+Production Scheduler
+
+Production Automation
+
+Authentication
+
+Existing API logic
+
+Database schema
+
+Migrations
+
+Docker
+
+Environment Variables
+
+Production deployment
+
+Existing business logic
+
+Existing UI outside YouTube
+
+--------------------------------------------------
+
+# WORKFLOW
+
+Step 1
+
+Analyze the entire project.
+
+Step 2
+
+Analyze the YouTube module.
+
+Step 3
+
+Tell me what already exists.
+
+Step 4
+
+Tell me what is missing.
+
+Step 5
+
+Explain why the current UI behaves this way.
+
+Step 6
+
+Wait for my approval.
+
+Do NOT start coding.
+
+Do NOT create commits.
+
+Do NOT push anything.
+
+Do NOT modify any file.
+
+Only provide a complete audit report first.
+
+After I approve the audit, we will continue phase by phase.

@@ -1,0 +1,232 @@
+PageFlow - Page Automation Fix, Enhancement & GitHub Deployment
+
+Project Name: PageFlow
+
+This task is ONLY for the Page Automation module.
+
+This is an existing production SaaS application. Do NOT redesign the UI or modify unrelated modules. Follow the existing architecture, coding style, and database structure.
+
+---
+
+TASK 1 – Fix the Complete Automation Engine
+
+Currently, Page Automation is NOT working correctly.
+
+The automation should:
+
+- Download videos from:
+  
+  - YouTube
+  - Instagram
+  - TikTok
+
+- Process the downloaded videos.
+
+- Automatically upload them to the selected Facebook Page.
+
+- Follow the configured posting schedule.
+
+- Continue posting automatically every day according to the saved automation settings.
+
+At the moment this workflow is broken.
+
+Find the root cause and fix the entire automation pipeline.
+
+Carefully inspect everything involved, including:
+
+- Scheduler
+- Background Jobs
+- Queue System
+- Downloader
+- Source Parser
+- Facebook Upload Logic
+- Facebook Page Access Tokens
+- Database
+- Cron Jobs
+- Worker Process
+- API Calls
+- Error Handling
+- Logging
+- Retry Logic
+
+Do NOT hardcode anything.
+
+The automation must become reliable and production-ready.
+
+---
+
+TASK 2 – Improve the Page Automation UI
+
+Currently the Page Automation page displays every connected Facebook page.
+
+This is NOT the desired behavior.
+
+Instead:
+
+Only Facebook pages that have been configured for automation should appear inside the Page Automation page.
+
+Regular connected pages should NOT appear here.
+
+This page should become an Automation Management Dashboard.
+
+Each automation card should display:
+
+- Page Name
+- Automation Status
+- Content Source
+- Source URL / Username
+- Posts Per Day
+- Schedule Logic
+- Timezone
+- Posting Times
+- Last Post Time
+- Next Scheduled Post
+- Success Count
+- Failed Count
+
+---
+
+TASK 3 – Remove Automation
+
+Each automation card must include:
+
+Remove Automation
+
+When clicked:
+
+Show a confirmation dialog.
+
+After confirmation:
+
+- Delete only the automation configuration.
+- Stop the scheduler.
+- Remove queued jobs.
+- Keep the Facebook Page connected.
+- Keep the Facebook Account connected.
+- Do NOT revoke Facebook tokens.
+- Do NOT delete the Facebook account.
+
+Only remove automation.
+
+---
+
+TASK 4 – Improve Add Automation Flow
+
+The flow should remain:
+
+Select Facebook Account
+
+↓
+
+Select Facebook Page
+
+↓
+
+Configure Automation
+
+↓
+
+Save
+
+After saving:
+
+- The selected page should disappear from the available page list.
+- It should immediately appear inside the Automation page.
+- The same page cannot be added twice.
+- Only pages that are NOT already automated should be available during selection.
+
+---
+
+TASK 5 – Validation
+
+Prevent:
+
+- Duplicate Automation
+- Missing Content Source
+- Missing Schedule
+- Invalid Source URL
+- Invalid Posting Times
+- Missing Facebook Page Token
+- Invalid Configuration
+
+Show clear validation messages.
+
+---
+
+TASK 6 – Testing
+
+After implementation verify:
+
+✓ YouTube Automation Works
+
+✓ Instagram Automation Works
+
+✓ TikTok Automation Works
+
+✓ Videos Download Successfully
+
+✓ Videos Upload Successfully
+
+✓ Facebook Posting Works
+
+✓ Scheduler Works Correctly
+
+✓ Automation Continues After Server Restart
+
+✓ Remove Automation Works
+
+✓ Duplicate Pages Cannot Be Added
+
+✓ Existing Features Continue Working
+
+---
+
+IMPORTANT DEVELOPMENT RULES
+
+Before changing any code:
+
+1. Explain the root cause.
+2. List every file that will be modified.
+3. Explain your implementation plan.
+
+Then begin coding.
+
+Do NOT redesign the UI.
+
+Do NOT modify unrelated modules.
+
+Do NOT break existing functionality.
+
+Reuse the existing architecture.
+
+Maintain backward compatibility.
+
+---
+
+FINAL GITHUB DEPLOYMENT
+
+After all requested work is completed:
+
+1. Run a full build.
+2. Verify there are no frontend, backend, API, scheduler, automation, or database errors.
+3. Test the complete Page Automation workflow.
+4. Ensure existing features still work.
+5. Commit all changes using a clear and meaningful commit message.
+6. Push the changes to the existing connected GitHub repository.
+7. Do NOT create a new repository.
+8. Do NOT create a new branch unless I explicitly request it.
+9. Push to the project's existing default branch.
+10. Confirm that GitHub has been updated successfully.
+
+Finally provide:
+
+- Commit Hash
+- Commit Message
+- Files Changed
+- Database Changes (if any)
+- APIs Changed
+- Summary of All Fixes
+- Summary of New Improvements
+- Any Remaining Known Issues
+
+The final GitHub repository must be production-ready so I can simply pull the latest code on my VPS and restart the application without making any additional code changes.

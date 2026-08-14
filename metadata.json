@@ -1,0 +1,6 @@
+{
+  "name": "PageFlow",
+  "description": "Facebook and YouTube page automation, scheduling, and multi-channel video management system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

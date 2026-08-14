@@ -1,0 +1,173 @@
+PageFlow - Add Page Management Module
+
+Create a brand new module named Page Management.
+
+Do NOT modify existing modules except where necessary for navigation.
+
+Follow the existing PageFlow UI and architecture.
+
+---
+
+Feature 1 – Connected Facebook Accounts
+
+Display all connected Facebook accounts.
+
+Each account card should show:
+
+- Profile Name
+- Facebook ID
+- Total Connected Pages
+- Connection Status
+- Last Sync Time
+
+Clicking an account should open its pages.
+
+---
+
+Feature 2 – Pages List
+
+After selecting a Facebook account, display all pages connected to that account.
+
+Each page card should show:
+
+- Page Name
+- Profile Picture
+- Category
+- Followers
+- Likes
+- Total Posts
+- Page Status
+
+Clicking a page opens the Post Manager.
+
+---
+
+Feature 3 – Post Manager
+
+Load every post from that Facebook Page.
+
+Support pagination so even pages with thousands of posts can be managed.
+
+For every post display:
+
+- Thumbnail
+- Post Type
+  - Text
+  - Image
+  - Video
+  - Reel
+- Publish Date
+- Caption Preview
+- Likes
+- Comments
+- Shares
+
+Provide filters:
+
+- All
+- Text
+- Images
+- Videos
+- Reels
+
+Provide Search.
+
+Provide Sort by:
+
+- Newest
+- Oldest
+
+---
+
+Feature 4 – Delete Options
+
+Allow selecting one or multiple posts.
+
+Provide these actions:
+
+- Delete Selected Posts
+- Delete All Text Posts
+- Delete All Image Posts
+- Delete All Video Posts
+- Delete All Reel Posts
+- Delete All Posts
+
+Before deletion always show a confirmation dialog that clearly explains the action.
+
+Display progress while deleting.
+
+If a post cannot be deleted, continue deleting the remaining posts and log the failures.
+
+At the end display:
+
+- Successfully Deleted
+- Failed
+- Remaining
+
+---
+
+Feature 5 – Performance
+
+Use pagination and batch processing.
+
+Do not load every post at once.
+
+Avoid Facebook API rate limits.
+
+Handle expired tokens gracefully.
+
+---
+
+Feature 6 – Logging
+
+Maintain deletion logs including:
+
+- Page Name
+- Post ID
+- Post Type
+- Deleted Time
+- Success/Failure
+- Error Message (if any)
+
+---
+
+Feature 7 – Security
+
+Only allow deletion for pages connected by the authenticated user.
+
+Never delete anything without explicit confirmation.
+
+---
+
+Final Testing
+
+Verify:
+
+✓ All connected Facebook accounts load correctly.
+
+✓ Clicking an account loads all its pages.
+
+✓ Clicking a page loads its posts.
+
+✓ Filters work correctly.
+
+✓ Search works.
+
+✓ Single post deletion works.
+
+✓ Bulk deletion works.
+
+✓ Delete All works.
+
+✓ Text/Image/Video/Reel deletion works.
+
+✓ Progress bar updates correctly.
+
+✓ Existing PageFlow features remain unaffected.
+
+After successful implementation:
+
+1. Test everything.
+2. Commit the changes.
+3. Push to the connected GitHub repository.
+4. Provide the commit hash, commit message, changed files, and a summary of the implementation.

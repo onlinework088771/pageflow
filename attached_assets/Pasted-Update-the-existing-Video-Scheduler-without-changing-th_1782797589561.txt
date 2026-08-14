@@ -1,0 +1,101 @@
+Update the existing Video Scheduler without changing the current UI or design.
+
+IMPORTANT:
+- Do NOT redesign the UI.
+- Do NOT change colors, spacing, typography, cards, or layout.
+- Keep the current Video Scheduler wizard exactly the same.
+- Only update the filtering logic of the Schedule Manager.
+
+Current Problem:
+The Schedule Manager always displays scheduled posts from all Facebook accounts and all pages, regardless of what the user has selected in the scheduler.
+
+Required Behavior:
+
+1. Step 1 - Facebook Account Selection
+- When a user selects a Facebook Account, immediately filter the Schedule Manager.
+- Show ONLY scheduled posts that belong to the selected Facebook Account.
+- Hide posts from every other Facebook Account.
+- The Schedule Manager should update instantly without reloading the page.
+
+2. Step 2 - Page Selection
+- After the user selects one or multiple Pages, immediately update the Schedule Manager.
+- Show ONLY scheduled posts belonging to the selected page(s).
+- Hide every other page.
+- If only one page is selected, show only that page's scheduled posts.
+- If multiple pages are selected, show scheduled posts from only those pages.
+- If "Select All" is checked, show all pages under the selected Facebook Account only.
+
+3. Step 3 - Content Type
+- After selecting Reel, Video, Image, or Text, filter the Schedule Manager again.
+- Example:
+  Selected Account → Diya Chowdhury
+  Selected Page → Hope For Strays
+  Content Type → Reel
+  Result:
+  Show only Reel schedules for Hope For Strays.
+
+4. Status Tabs
+The existing status tabs (All, Pending, Completed, Failed) must continue working together with all filters.
+
+Final filter order should always be:
+1. Facebook Account
+2. Selected Page(s)
+3. Content Type
+4. Status
+
+5. Dynamic Updates
+Whenever the user changes:
+- Facebook Account
+- Selected Page
+- Content Type
+- Status Tab
+
+The Schedule Manager must refresh instantly.
+No page refresh.
+No manual refresh button.
+No UI flickering.
+
+6. Empty State
+If no scheduled posts match the current filters, show:
+"No scheduled posts found for the current filters."
+Do not display unrelated scheduled posts.
+
+7. Performance
+- Do not fetch schedules repeatedly.
+- Load schedules once and cache them locally.
+- Filter locally whenever possible.
+- Only fetch new data when necessary.
+- Avoid duplicate API requests.
+
+8. Keep Existing Features
+Do NOT modify:
+- Video Scheduler wizard
+- Upload flow
+- Scheduling flow
+- Schedule Manager design
+- Card layout
+- Existing API endpoints (unless absolutely necessary)
+
+Only improve the filtering behavior.
+
+Expected Result:
+
+Example Flow:
+
+Select Facebook Account
+↓
+Schedule Manager shows only schedules from that Facebook Account.
+
+Select Page "Hope For Strays"
+↓
+Schedule Manager now shows only schedules from Hope For Strays.
+
+Select Content Type "Reel"
+↓
+Schedule Manager shows only Reel schedules from Hope For Strays.
+
+Select "Pending"
+↓
+Schedule Manager shows only Pending Reel schedules from Hope For Strays.
+
+This behavior must work consistently on both Desktop and Mobile while keeping the existing UI exactly the same.

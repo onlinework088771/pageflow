@@ -1,0 +1,57 @@
+import { pgTable, text, serial, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import { z } from "zod/v4";
+import { usersTable } from "./users";
+
+export const scheduledVideosTable = pgTable("scheduled_videos", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  postType: text("post_type", { enum: ["reel", "video", "image", "text"] }).notNull().default("video"),
+  publishMode: text("publish_mode", { enum: ["video", "reel"] }),
+  reelId: text("reel_id"),
+  publishedReelIds: jsonb("published_reel_ids").$type<Record<string, string>>().default({}),
+  collaborationEnabled: boolean("collaboration_enabled").default(false),
+  collaboratorPageIds: jsonb("collaborator_page_ids").$type<string[]>().default([]),
+  collaborationStatus: text("collaboration_status"),
+  collaborationResults: jsonb("collaboration_results").$type<Record<string, { status: string; error?: string }>>().default({}),
+  collaborationError: text("collaboration_error"),
+  videoUrl: text("video_url"),
+  videoPath: text("video_path"),
+  thumbnailUrl: text("thumbnail_url"),
+  pageIds: jsonb("page_ids").$type<string[]>().notNull().default([]),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  timezone: text("timezone").notNull().default("UTC"),
+  status: text("status", { enum: ["pending", "processing", "posted", "failed"] }).notNull().default("pending"),
+  errorMessage: text("error_message"),
+  postedCount: integer("posted_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type ScheduledVideo = typeof scheduledVideosTable.$inferSelect;
+
+export const ScheduledVideoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  postType: z.enum(["reel", "video", "image", "text"]).optional(),
+  publishMode: z.enum(["video", "reel"]).optional().nullable(),
+  reelId: z.string().optional().nullable(),
+  publishedReelIds: z.record(z.string(), z.string()).optional().nullable(),
+  collaborationEnabled: z.boolean().optional().nullable(),
+  collaboratorPageIds: z.array(z.string()).optional().nullable(),
+  collaborationStatus: z.string().optional().nullable(),
+  collaborationResults: z.record(z.string(), z.any()).optional().nullable(),
+  collaborationError: z.string().optional().nullable(),
+  videoUrl: z.string().optional(),
+  videoPath: z.string().optional(),
+  thumbnailUrl: z.string().optional(),
+  pageIds: z.array(z.string()),
+  scheduledAt: z.string(),
+  timezone: z.string(),
+  status: z.enum(["pending", "processing", "posted", "failed"]),
+  errorMessage: z.string().optional(),
+  postedCount: z.number(),
+  createdAt: z.string(),
+});

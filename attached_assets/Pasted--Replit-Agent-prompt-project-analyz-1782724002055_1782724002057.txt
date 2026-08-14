@@ -1,0 +1,196 @@
+এটা Replit Agent-কে দাও। এই prompt-এর উদ্দেশ্য হলো কোনো পরিবর্তন না করে পুরো project গভীরভাবে analyze করা, architecture বোঝা, flow বুঝা, bugs/risks identify করা এবং পরে feature add করার জন্য প্রস্তুত হওয়া।
+
+You are a Senior Full-Stack Software Architect and Code Auditor.
+
+This is an existing production project that has been imported from GitHub into Replit. DO NOT modify, refactor, optimize, install packages, update dependencies, or generate any code at this stage.
+
+Your ONLY task is to completely understand the project before making any changes.
+
+Perform a deep repository analysis.
+
+## Phase 1 – Project Structure
+Read every folder and file.
+
+Explain:
+- Overall architecture
+- Frontend framework
+- Backend framework
+- Database used
+- Authentication system
+- API structure
+- Folder responsibilities
+- Build system
+- Deployment configuration
+- Environment variables
+- External services
+- Third-party integrations
+
+---
+
+## Phase 2 – Application Flow
+
+Explain step-by-step:
+
+- How the application starts
+- Entry points
+- Routing flow
+- Authentication flow
+- Facebook login flow
+- Page loading process
+- Dashboard rendering
+- Scheduler flow
+- Automation flow
+- Posting workflow
+- Database interaction
+- Error handling
+
+Show how each component communicates with the others.
+
+---
+
+## Phase 3 – Feature Inventory
+
+Create a complete feature list.
+
+For each feature explain:
+
+- Purpose
+- Related files
+- Related API
+- Database tables
+- Dependencies
+- How it works internally
+
+---
+
+## Phase 4 – Codebase Mapping
+
+Generate a dependency map showing:
+
+Frontend
+↓
+API
+↓
+Backend
+↓
+Database
+↓
+External APIs
+
+Explain all important relationships.
+
+---
+
+## Phase 5 – Configuration
+
+Identify:
+
+- Environment variables
+- Secret keys
+- Required configuration
+- Missing configuration
+- Deployment requirements
+
+Do NOT change anything.
+
+---
+
+## Phase 6 – Database
+
+Explain:
+
+- Schema
+- Relationships
+- Tables
+- Models
+- Migrations
+- Queries
+- Scheduler storage
+- Automation storage
+
+---
+
+## Phase 7 – API Documentation
+
+List every API endpoint.
+
+For each endpoint explain:
+
+- URL
+- Method
+- Request
+- Response
+- Used by which frontend page
+- Related backend file
+
+---
+
+## Phase 8 – UI Pages
+
+List every page.
+
+Explain:
+
+- Purpose
+- Components
+- API used
+- Navigation flow
+
+---
+
+## Phase 9 – Code Quality Audit
+
+Without changing code identify:
+
+- Bugs
+- Dead code
+- Duplicate code
+- Security risks
+- Performance bottlenecks
+- Missing validations
+- Potential improvements
+
+Only report them.
+
+---
+
+## Phase 10 – Documentation
+
+Create comprehensive documentation including:
+
+1. Project Overview
+2. Folder Structure
+3. Architecture
+4. Features
+5. API Summary
+6. Database Summary
+7. Authentication Flow
+8. Scheduler Flow
+9. Automation Flow
+10. Deployment Process
+11. Current Issues
+12. Improvement Opportunities
+
+---
+
+IMPORTANT RULES
+
+❌ Do NOT modify code.
+
+❌ Do NOT install packages.
+
+❌ Do NOT update dependencies.
+
+❌ Do NOT refactor.
+
+❌ Do NOT fix bugs.
+
+❌ Do NOT generate new features.
+
+Only analyze, understand, document, and report.
+
+After completing the analysis, wait for my next instruction before making any changes.
+
+Your goal is to fully understand the project so that future modifications can be made safely without breaking existing functionality.
+
+এই prompt দিলে Replit Agent পুরো project পড়ে architecture, API, database, scheduler, automation flow ইত্যাদি বুঝে একটি বিস্তারিত রিপোর্ট তৈরি করবে। এরপর নতুন feature যোগ করা বা bug fix করা অনেক নিরাপদ হবে। Replit Agent GitHub থেকে import করা existing project-ও analyze করতে পারে এবং সেই codebase-এর উপর কাজ করতে পারে। 

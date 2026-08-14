@@ -1,0 +1,256 @@
+Analyze the existing YouTube Automation module before making any changes.
+
+Redesign ONLY the YouTube Automation module into a professional, production-ready automation dashboard.
+
+Do NOT modify or break any Facebook modules, YouTube Scheduler, Bulk Upload, OAuth, or existing working functionality.
+
+==================================================
+GOAL
+==================================================
+
+The YouTube Automation page should become the central dashboard for automatically uploading videos from external platforms (Facebook, Instagram, TikTok) to a selected YouTube channel.
+
+The workflow must be clean, intuitive, modern, and easy to use on both desktop and mobile.
+
+==================================================
+STEP 1 — SELECT YOUTUBE CHANNEL
+==================================================
+
+At the top of the page, display all connected YouTube channels.
+
+Allow the user to select one channel.
+
+After selecting a channel, every automation created on this page belongs ONLY to that selected YouTube Channel.
+
+Display:
+
+• Channel avatar
+• Channel name
+• @Handle
+• Subscriber count
+
+Highlight the currently selected channel.
+
+==================================================
+STEP 2 — CREATE AUTOMATION
+==================================================
+
+Below the selected channel, show a "Create Automation" card.
+
+User configures:
+
+Source Platform
+
+• Facebook
+• Instagram
+• TikTok
+
+Depending on the selected source, display only the relevant input fields.
+
+Example:
+
+Facebook
+→ Public Page URL / Username
+
+Instagram
+→ Username / Profile URL
+
+TikTok
+→ Username / Profile URL
+
+==================================================
+AUTOMATION SETTINGS
+==================================================
+
+Allow the user to configure:
+
+• Automation Name
+• Source
+• Source URL
+• Video Type
+    - Shorts
+    - Long Video
+    - Both
+• Upload Privacy
+    - Public (default)
+    - Unlisted
+    - Private
+• Upload Interval
+• Start Time
+• Timezone (default Asia/Dhaka)
+• AI Title
+    ON / OFF
+• AI Description
+    ON / OFF
+• Auto Hashtags
+    ON / OFF
+• Auto Publish
+    ON / OFF
+
+==================================================
+AUTOMATION LIST
+==================================================
+
+Below the form, display all automations for ONLY the selected YouTube channel.
+
+Each automation card should show:
+
+Automation Name
+
+Source Platform
+
+Current Status
+
+Running / Paused
+
+Connected Source
+
+YouTube Channel
+
+Discovered Videos
+
+Pending Queue
+
+Uploaded
+
+Failed
+
+Last Scan
+
+Last Upload
+
+Next Upload
+
+Created Date
+
+==================================================
+AUTOMATION ACTIONS
+==================================================
+
+Each automation should support:
+
+Start
+
+Pause
+
+Resume
+
+Edit
+
+Duplicate
+
+Delete
+
+Manual Sync
+
+View Queue
+
+View Upload History
+
+==================================================
+QUEUE PANEL
+==================================================
+
+Each automation has its own queue.
+
+Display:
+
+Pending
+
+Uploading
+
+Uploaded
+
+Failed
+
+Retry
+
+Skipped
+
+Show only videos belonging to that automation.
+
+==================================================
+CHANNEL FILTERING
+==================================================
+
+Changing the selected YouTube channel should instantly update:
+
+Automation List
+
+Queue
+
+History
+
+Statistics
+
+Pending
+
+Uploaded
+
+Failed
+
+No page reload.
+
+==================================================
+EMPTY STATE
+==================================================
+
+If no YouTube channels are connected:
+
+Show a professional empty state with:
+
+"No YouTube channels connected"
+
+Display a button:
+
+Connect YouTube Channel
+
+After connecting a channel, automatically refresh this page.
+
+==================================================
+UI
+==================================================
+
+Modern SaaS dashboard.
+
+Rounded cards.
+
+Proper spacing.
+
+Responsive layout.
+
+Excellent mobile UI.
+
+Fast loading.
+
+No overlapping elements.
+
+==================================================
+IMPORTANT
+==================================================
+
+Implement ONLY inside the YouTube Automation module.
+
+Do NOT modify:
+
+• Facebook modules
+• Facebook Scheduler
+• Facebook Automation
+• Facebook APIs
+• YouTube Scheduler
+• YouTube Bulk Upload
+
+Reuse existing services, APIs, database schema, and architecture wherever possible.
+
+==================================================
+AFTER IMPLEMENTATION
+==================================================
+
+Provide:
+
+1. Root cause analysis.
+2. Files modified.
+3. Database changes (if any).
+4. APIs updated.
+5. Confirmation that automation is linked to the selected YouTube Channel.
+6. Confirmation that no Facebook modules or existing YouTube functionality were broken.

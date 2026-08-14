@@ -1,0 +1,287 @@
+Completely redesign the Video Scheduler module of PageFlow. Do not modify the existing working backend unless necessary. Replace the current upload workflow with the following professional scheduling system.
+
+==========================
+NEW WORKFLOW
+==========================
+
+STEP 1
+Select Facebook Account.
+
+Show only connected Facebook IDs.
+
+STEP 2
+
+After selecting an account, load ONLY the pages belonging to that account.
+
+STEP 3
+
+Select one or multiple pages.
+
+STEP 4
+
+Choose Content Type.
+
+Options:
+
+• Reel
+• Video
+• Image
+• Text Post
+
+The upload form must automatically change depending on the selected content type.
+
+==================================
+UPLOAD MODE
+==================================
+
+Two modes:
+
+1. Single Upload
+
+2. Bulk Upload
+
+==================================
+SINGLE UPLOAD
+==================================
+
+Upload one file.
+
+Configure:
+
+Title
+
+Caption
+
+Hashtags
+
+Schedule Date
+
+Schedule Time
+
+Timezone
+
+Post Now
+
+Schedule Later
+
+==================================
+BULK UPLOAD
+==================================
+
+Allow selecting or dragging multiple files.
+
+Support at least
+
+150+
+
+300+
+
+or more files.
+
+Display
+
+Upload Progress
+
+Total Files
+
+Completed
+
+Remaining
+
+Failed
+
+==================================
+AUTO SCHEDULER
+==================================
+
+After uploading bulk files show:
+
+Posts Per Day
+
+Example
+
+90 uploaded
+
+Posts per day = 3
+
+Automatically create a complete 30 day schedule.
+
+Example
+
+Day 1
+3 posts
+
+Day 2
+3 posts
+
+...
+
+Day 30
+3 posts
+
+No manual scheduling required.
+
+==================================
+POSTING TIMES
+==================================
+
+Allow
+
+Auto Generate Posting Times
+
+OR
+
+Manual Posting Times
+
+Support up to 10 posting slots.
+
+Example
+
+09:00 AM
+
+01:00 PM
+
+07:00 PM
+
+Automatically rotate uploaded videos through those slots.
+
+==================================
+TITLE & HASHTAGS
+==================================
+
+Provide
+
+Default Title
+
+Default Caption
+
+Default Hashtags
+
+Checkbox:
+
+Apply same Title to all posts
+
+Apply same Caption to all posts
+
+Apply same Hashtags to all posts
+
+OR
+
+Generate sequential titles
+
+Example
+
+Cute Cat Rescue #1
+
+Cute Cat Rescue #2
+
+Cute Cat Rescue #3
+
+...
+
+==================================
+ADVANCED OPTIONS
+==================================
+
+Shuffle upload order
+
+Keep upload order
+
+Repeat failed uploads
+
+Skip duplicate videos
+
+Auto retry
+
+Maximum retry count
+
+==================================
+LIVE PREVIEW
+==================================
+
+Show Facebook preview.
+
+Desktop
+
+Mobile
+
+Dark Mode
+
+==================================
+SCHEDULE MANAGER
+==================================
+
+After scheduling show:
+
+Pending
+
+Scheduled
+
+Completed
+
+Failed
+
+Missed
+
+Each scheduled post can be
+
+Edit
+
+Pause
+
+Resume
+
+Delete
+
+Duplicate
+
+==================================
+FILTERS
+==================================
+
+Filter by
+
+Facebook Account
+
+Page
+
+Content Type
+
+Status
+
+Date
+
+==================================
+MOBILE UI
+==================================
+
+Fully responsive.
+
+Optimized for desktop and mobile.
+
+==================================
+PERFORMANCE
+==================================
+
+Support large uploads without freezing.
+
+Chunk uploads.
+
+Background processing.
+
+==================================
+TESTING
+==================================
+
+Test complete scheduling flow.
+
+Fix all bugs.
+
+Build frontend.
+
+Commit changes.
+
+Push everything to GitHub.
+
+Do not remove any existing working features.
+Only improve the Video Scheduler into a professional bulk scheduling system.

@@ -1,0 +1,220 @@
+Before writing or modifying any code, perform a complete architectural analysis of this project.
+
+This is a production SaaS application called "PageFlow". The project is already functional and contains multiple interconnected modules. Your first responsibility is to understand the existing architecture before making any changes.
+
+==================================================
+PROJECT OVERVIEW
+==================================================
+
+PageFlow is a multi-platform social media automation platform.
+
+Current major modules include:
+
+• Dashboard
+• Facebook Accounts
+• Facebook Page Management
+• Facebook Automation
+• Facebook Scheduler
+• Facebook Bulk Posting
+• YouTube Accounts
+• YouTube Scheduler
+• YouTube Bulk Upload
+• YouTube Automation
+• Analytics
+• Settings
+• Team
+• Billing
+
+The system supports multiple connected accounts and multiple connected channels/pages.
+
+==================================================
+CORE ARCHITECTURE ANALYSIS
+==================================================
+
+Analyze the complete project and understand:
+
+• Folder structure
+• Backend architecture
+• Frontend architecture
+• API routes
+• Services
+• Database schema
+• Authentication
+• State management
+• Scheduler
+• Queue system
+• File uploads
+• Background jobs
+• UI components
+• Shared utilities
+• Existing reusable services
+
+Create a mental map of how every module communicates.
+
+==================================================
+DATABASE ANALYSIS
+==================================================
+
+Analyze every important database table.
+
+Understand:
+
+• Relationships
+• Foreign keys
+• Primary keys
+• Constraints
+• Queue tables
+• Scheduler tables
+• YouTube tables
+• Facebook tables
+• Automation tables
+
+Identify how data flows through the system.
+
+==================================================
+FACEBOOK MODULE
+==================================================
+
+The Facebook module is production-ready.
+
+Treat it as stable.
+
+Do NOT modify Facebook functionality unless explicitly requested.
+
+Understand:
+
+• Facebook Accounts
+• Page Management
+• Scheduler
+• Bulk Posting
+• Automation
+• Queue
+• OAuth
+• APIs
+
+==================================================
+YOUTUBE MODULE
+==================================================
+
+The current development focus is the YouTube system.
+
+Analyze:
+
+• YouTube Accounts
+• Scheduler
+• Bulk Upload
+• Automation
+• Queue
+• Upload engine
+• Channel management
+
+Understand how YouTube channels are stored, selected, filtered and managed.
+
+==================================================
+CHANNEL-BASED ARCHITECTURE
+==================================================
+
+The project supports multiple YouTube channels.
+
+Every:
+
+• Upload
+• Schedule
+• Queue
+• Automation
+• History
+
+belongs to one specific YouTube Channel.
+
+Filtering should always use the stored YouTube Channel ID.
+
+Never rely on channel names.
+
+==================================================
+CODING RULES
+==================================================
+
+Before implementing anything:
+
+1. Analyze first.
+2. Find the root cause.
+3. Reuse existing architecture.
+4. Avoid duplicate logic.
+5. Keep implementations modular.
+6. Keep code production-ready.
+7. Maintain backward compatibility.
+8. Never break existing features.
+
+==================================================
+UI REQUIREMENTS
+==================================================
+
+Maintain a modern SaaS dashboard.
+
+Requirements:
+
+• Responsive desktop UI
+• Responsive mobile UI
+• Consistent spacing
+• Clean cards
+• Reusable components
+• No duplicated layouts
+• No overlapping elements
+• Fast loading
+
+==================================================
+SAFETY RULES
+==================================================
+
+Unless explicitly instructed:
+
+DO NOT modify:
+
+• Facebook Accounts
+• Facebook Automation
+• Facebook Scheduler
+• Facebook Bulk Posting
+• Facebook APIs
+• Existing OAuth implementation
+
+Never change unrelated modules while fixing another module.
+
+==================================================
+WORKFLOW
+==================================================
+
+For every future task:
+
+1. Analyze existing implementation.
+2. Explain the root cause.
+3. Explain the implementation plan.
+4. Implement the solution.
+5. Verify no regressions.
+6. List modified files.
+7. Explain why the solution is production-ready.
+
+==================================================
+FIRST TASK
+==================================================
+
+Do NOT start coding immediately.
+
+First perform a complete project analysis and provide a structured report containing:
+
+1. Overall architecture
+2. Folder structure
+3. Database structure
+4. API architecture
+5. Frontend architecture
+6. Shared services
+7. Scheduler flow
+8. Queue flow
+9. Authentication flow
+10. Facebook module overview
+11. YouTube module overview
+12. Potential improvements
+13. Potential risks
+14. Reusable components
+15. Coding recommendations
+
+Only after completing this analysis should future implementation work begin.
