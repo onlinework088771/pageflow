@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN npm install -g pnpm@10 --no-update-notifier
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY lib/ ./lib/
 COPY artifacts/api-server/ ./artifacts/api-server/
 
