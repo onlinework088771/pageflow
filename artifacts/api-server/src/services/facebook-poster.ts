@@ -376,7 +376,7 @@ async function postReelToPage(
 
 /**
  * Invite a collaborator Facebook Page to a published Reel using Meta Graph API.
- * Endpoint: POST /v19.0/{reelVideoId} with collaborator_page_id & access_token.
+ * Endpoint: POST /v19.0/{reelVideoId}/collaborators with target_id & access_token.
  * Isolated execution: Returns structured status object, never throws unhandled errors.
  */
 async function inviteReelCollaborator(
@@ -387,11 +387,11 @@ async function inviteReelCollaborator(
   try {
     logger.info({ reelVideoId, collaboratorFbPageId }, "Sending Reel collaboration invitation");
     const res = await axios.post(
-      `${FB_API}/${reelVideoId}`,
+      `${FB_API}/${reelVideoId}/collaborators`,
       null,
       {
         params: {
-          collaborator_page_id: collaboratorFbPageId,
+          target_id: collaboratorFbPageId,
           access_token: hostPageToken,
         },
         timeout: 30_000,
