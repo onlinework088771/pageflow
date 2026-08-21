@@ -114,8 +114,9 @@ router.get("/youtube/auth/callback", async (req, res): Promise<void> => {
   // Validate JWT → extract userId
   let userId: number;
   try {
-    const decoded = jwt.verify(jwtToken, JWT_SECRET) as { id: number };
-    userId = decoded.id;
+    const decoded = jwt.verify(jwtToken, JWT_SECRET) as { userId?: number };
+    if (!decoded.userId) throw new Error("JWT does not contain a userId claim");
+    userId = decoded.userId;
   } catch {
     res.redirect(`${frontendUrl}/youtube-accounts?error=invalid_token`);
     return;

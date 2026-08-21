@@ -1,7 +1,7 @@
 import { pgTable, text, serial, timestamp, boolean, integer, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { youtubeChannelsTable } from "./youtube-accounts";
+import { youtubeChannelsTable } from "./youtube";
 
 // Phase 5 — YouTube Automation.
 // Independent counterpart to Facebook's `facebook_pages` automation columns /

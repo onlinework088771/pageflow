@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { db, youtubeAutomationsTable, youtubeChannelsTable, youtubeAccountsTable, youtubeAutomationQueueTable } from "@workspace/db";
-import { runChannelAutomation } from "../services/youtube-automation";
+import { runYouTubeAutomation } from "../services/youtube-automation";
 
 // Phase 5 — YouTube Automation.
 // Fully independent of Facebook's `/pages/:pageId/automation` route: separate
@@ -91,9 +91,9 @@ router.get("/youtube/automations", async (req, res): Promise<void> => {
 
       return {
         channelId: String(channel.id),
-        channelTitle: channel.title,
-        channelThumbnail: channel.thumbnail ?? undefined,
-        channelHandle: channel.customUrl ?? undefined,
+        channelTitle: channel.name,
+        channelThumbnail: channel.thumbnailUrl ?? undefined,
+        channelHandle: undefined,
         channelSubscriberCount: channel.subscriberCount ?? 0,
         automation: automation
           ? { ...serialize(automation), ...(queueCounts ?? {}) }
@@ -228,8 +228,8 @@ router.post("/youtube/automations/:channelId/run-now", async (req, res): Promise
     return;
   }
 
-  runChannelAutomation(automation).catch(() => {
-    /* runChannelAutomation already records failures via automation_logs and the row itself */
+  runYouTubeAutomation().catch(() => {
+    /* runYouTubeAutomation records failures through the existing automation service */
   });
 
   res.json({ status: "running" });

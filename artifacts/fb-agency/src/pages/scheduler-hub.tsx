@@ -7,30 +7,35 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Facebook, Youtube, CalendarClock, ArrowRight, PenSquare, UploadCloud, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
+import { QueryErrorState } from "@/components/query-error-state";
 
 interface SV { id: string; status: string; scheduledAt: string }
+
+async function readApiList(res: Response, label: string): Promise<SV[]> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `${label} request failed (${res.status})`);
+  }
+  return res.json();
+}
 
 function useScheduleCounts() {
   const fb = useQuery<SV[]>({
     queryKey: ["scheduled-videos", "hub"],
-    queryFn: async () => {
-      const res = await authFetch(apiUrl("/scheduled-videos"));
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => authFetch(apiUrl("/scheduled-videos")).then((res) => readApiList(res, "Facebook scheduler")),
   });
   const yt = useQuery<SV[]>({
     queryKey: ["youtube-scheduled-videos", "hub"],
-    queryFn: async () => {
-      const res = await authFetch(apiUrl("/youtube/scheduled-videos"));
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => authFetch(apiUrl("/youtube/scheduled-videos")).then((res) => readApiList(res, "YouTube scheduler")),
   });
-  const count = (list?: SV[], ...statuses: string[]) =>
+  const count = (list: SV[] | undefined, ...statuses: string[]) =>
     (list ?? []).filter((v) => statuses.includes(v.status)).length;
   return {
     loading: fb.isLoading || yt.isLoading,
+    fbError: fb.error,
+    ytError: yt.error,
+    fbRefetch: fb.refetch,
+    ytRefetch: yt.refetch,
     fb: {
       pending: count(fb.data, "pending", "processing"),
       posted: count(fb.data, "posted"),
@@ -45,7 +50,7 @@ function useScheduleCounts() {
 }
 
 export default function SchedulerHub() {
-  const { loading, fb, yt } = useScheduleCounts();
+  const { loading, fb, yt, fbError, ytError, fbRefetch, ytRefetch } = useScheduleCounts();
 
   return (
     <Layout>
@@ -75,6 +80,8 @@ export default function SchedulerHub() {
             createHref="/upload"
             createLabel="Create Facebook Post"
             {...fb}
+            error={fbError}
+            onRetry={() => void fbRefetch()}
           />
           <PlatformScheduleCard
             loading={loading}
@@ -84,6 +91,8 @@ export default function SchedulerHub() {
             createHref="/youtube/bulk-upload"
             createLabel="Upload YouTube Video"
             {...yt}
+            error={ytError}
+            onRetry={() => void ytRefetch()}
           />
         </div>
       </div>
@@ -91,9 +100,10 @@ export default function SchedulerHub() {
   );
 }
 
-function PlatformScheduleCard({ loading, icon, title, href, createHref, createLabel, pending, posted, failed }: {
+function PlatformScheduleCard({ loading, icon, title, href, createHref, createLabel, pending, posted, failed, error, onRetry }: {
   loading: boolean; icon: React.ReactNode; title: string; href: string;
   createHref: string; createLabel: string; pending: number; posted: number; failed: number;
+  error?: unknown; onRetry?: () => void;
 }) {
   const items = [
     { label: "Pending", value: pending, cls: "text-blue-600 dark:text-blue-400" },
@@ -115,6 +125,10 @@ function PlatformScheduleCard({ loading, icon, title, href, createHref, createLa
         {loading ? (
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14" />)}
+          </div>
+        ) : error ? (
+          <div className="mt-4">
+            <QueryErrorState error={error} compact onRetry={onRetry} />
           </div>
         ) : (
           <dl className="mt-4 grid grid-cols-3 gap-3">

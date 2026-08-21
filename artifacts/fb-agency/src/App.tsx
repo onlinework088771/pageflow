@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { type ComponentType, Suspense, lazy } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,43 +6,84 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/auth-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Spinner } from "@/components/ui/spinner";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 // Route-level code splitting keeps the initial bundle small; heavy pages
 // (analytics, upload wizards) load on demand.
-const NotFound = lazy(() => import("@/pages/not-found"));
-const Login = lazy(() => import("@/pages/login"));
-const Signup = lazy(() => import("@/pages/signup"));
-const Overview = lazy(() => import("@/pages/overview"));
-const Accounts = lazy(() => import("@/pages/accounts"));
-const PagesManagement = lazy(() => import("@/pages/pages-management"));
-const PageDetail = lazy(() => import("@/pages/page-detail"));
-const FbSuccess = lazy(() => import("@/pages/fb-success"));
-const FbConnect = lazy(() => import("@/pages/fb-connect"));
-const SettingsHub = lazy(() => import("@/pages/settings-hub"));
-const FbAppSettings = lazy(() => import("@/pages/settings"));
-const FbDeveloperSettings = lazy(() => import("@/pages/fb-developer-settings"));
-const UploadScheduler = lazy(() => import("@/pages/upload-scheduler"));
-const AnalyticsHub = lazy(() => import("@/pages/analytics-hub"));
-const Analytics = lazy(() => import("@/pages/analytics"));
-const FacebookOverview = lazy(() => import("@/pages/facebook/overview"));
-const SchedulerHub = lazy(() => import("@/pages/scheduler-hub"));
-const PageManagement = lazy(() => import("@/pages/page-management"));
-const YouTubeAccounts = lazy(() => import("@/pages/youtube-accounts"));
-const YouTubeAutomation = lazy(() => import("@/pages/youtube-automation"));
-const YouTubeChannelDetail = lazy(() => import("@/pages/youtube-channel-detail"));
-const AcceptInvite = lazy(() => import("@/pages/accept-invite"));
-const ScheduleManager = lazy(() => import("@/pages/schedule-manager"));
-const Team = lazy(() => import("@/pages/team"));
-const Billing = lazy(() => import("@/pages/billing"));
-const ApiKeys = lazy(() => import("@/pages/api-keys"));
-const Privacy = lazy(() => import("@/pages/privacy"));
-const Terms = lazy(() => import("@/pages/terms"));
-const DataDeletion = lazy(() => import("@/pages/data-deletion"));
-const YoutubeDashboard = lazy(() => import("@/pages/youtube/dashboard"));
-const YoutubeBulkUpload = lazy(() => import("@/pages/youtube/bulk-upload"));
-const YoutubeScheduler = lazy(() => import("@/pages/youtube/scheduler"));
-const YoutubeAnalytics = lazy(() => import("@/pages/youtube/analytics"));
-const YoutubeDeveloperSettings = lazy(() => import("@/pages/youtube/developer-settings"));
+// A single retry handles stale/missing chunks after a deploy. If the module
+// still fails, the mounted ErrorBoundary renders the recovery screen instead
+// of allowing the whole application to become blank.
+function lazyWithRecovery<T extends ComponentType<any>>(
+  importer: () => Promise<{ default: T }>,
+) {
+  return lazy(async () => {
+    const retryKey = `pageflow:lazy-retry:${window.location.pathname}`;
+    try {
+      const module = await importer();
+      try {
+        window.sessionStorage.removeItem(retryKey);
+      } catch {
+        // Storage can be unavailable in privacy-restricted browsers.
+      }
+      return module;
+    } catch (error) {
+      let alreadyRetried = false;
+      try {
+        alreadyRetried = window.sessionStorage.getItem(retryKey) === "1";
+      } catch {
+        alreadyRetried = true;
+      }
+
+      if (!alreadyRetried) {
+        try {
+          window.sessionStorage.setItem(retryKey, "1");
+        } catch {
+          // Continue to the boundary if storage cannot be written.
+        }
+        window.location.reload();
+        return new Promise<never>(() => undefined);
+      }
+
+      console.error("[PageFlow] Lazy route failed after retry", error);
+      throw error;
+    }
+  });
+}
+
+const NotFound = lazyWithRecovery(() => import("@/pages/not-found"));
+const Login = lazyWithRecovery(() => import("@/pages/login"));
+const Signup = lazyWithRecovery(() => import("@/pages/signup"));
+const Overview = lazyWithRecovery(() => import("@/pages/overview"));
+const Accounts = lazyWithRecovery(() => import("@/pages/accounts"));
+const PagesManagement = lazyWithRecovery(() => import("@/pages/pages-management"));
+const PageDetail = lazyWithRecovery(() => import("@/pages/page-detail"));
+const FbSuccess = lazyWithRecovery(() => import("@/pages/fb-success"));
+const FbConnect = lazyWithRecovery(() => import("@/pages/fb-connect"));
+const SettingsHub = lazyWithRecovery(() => import("@/pages/settings-hub"));
+const FbAppSettings = lazyWithRecovery(() => import("@/pages/settings"));
+const FbDeveloperSettings = lazyWithRecovery(() => import("@/pages/fb-developer-settings"));
+const UploadScheduler = lazyWithRecovery(() => import("@/pages/upload-scheduler"));
+const AnalyticsHub = lazyWithRecovery(() => import("@/pages/analytics-hub"));
+const Analytics = lazyWithRecovery(() => import("@/pages/analytics"));
+const FacebookOverview = lazyWithRecovery(() => import("@/pages/facebook/overview"));
+const SchedulerHub = lazyWithRecovery(() => import("@/pages/scheduler-hub"));
+const PageManagement = lazyWithRecovery(() => import("@/pages/page-management"));
+const YouTubeAccounts = lazyWithRecovery(() => import("@/pages/youtube-accounts"));
+const YouTubeAutomation = lazyWithRecovery(() => import("@/pages/youtube-automation"));
+const YouTubeChannelDetail = lazyWithRecovery(() => import("@/pages/youtube-channel-detail"));
+const AcceptInvite = lazyWithRecovery(() => import("@/pages/accept-invite"));
+const ScheduleManager = lazyWithRecovery(() => import("@/pages/schedule-manager"));
+const Team = lazyWithRecovery(() => import("@/pages/team"));
+const Billing = lazyWithRecovery(() => import("@/pages/billing"));
+const ApiKeys = lazyWithRecovery(() => import("@/pages/api-keys"));
+const Privacy = lazyWithRecovery(() => import("@/pages/privacy"));
+const Terms = lazyWithRecovery(() => import("@/pages/terms"));
+const DataDeletion = lazyWithRecovery(() => import("@/pages/data-deletion"));
+const YoutubeDashboard = lazyWithRecovery(() => import("@/pages/youtube/dashboard"));
+const YoutubeBulkUpload = lazyWithRecovery(() => import("@/pages/youtube/bulk-upload"));
+const YoutubeScheduler = lazyWithRecovery(() => import("@/pages/youtube/scheduler"));
+const YoutubeAnalytics = lazyWithRecovery(() => import("@/pages/youtube/analytics"));
+const YoutubeDeveloperSettings = lazyWithRecovery(() => import("@/pages/youtube/developer-settings"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -159,7 +200,8 @@ function Router() {
 
 export function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -168,7 +210,8 @@ export function App() {
           <Toaster />
         </AuthProvider>
       </TooltipProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

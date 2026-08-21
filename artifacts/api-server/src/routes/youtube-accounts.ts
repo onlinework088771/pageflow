@@ -18,6 +18,12 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+export function getGoogleCredentialsForService(): { clientId: string; clientSecret: string } | null {
+  const clientId = process.env["GOOGLE_CLIENT_ID"] ?? "";
+  const clientSecret = process.env["GOOGLE_CLIENT_SECRET"] ?? "";
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -70,7 +76,7 @@ async function getRefreshedAccessToken(
 // ---------------------------------------------------------------------------
 
 router.get("/youtube-accounts", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
 
   const accounts = await db
     .select()
@@ -113,7 +119,7 @@ router.get("/youtube-accounts", async (req, res): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 router.delete("/youtube-accounts/:id", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const accountId = parseInt(req.params["id"], 10);
 
   const [account] = await db
@@ -145,7 +151,7 @@ router.delete("/youtube-accounts/:id", async (req, res): Promise<void> => {
 router.post(
   "/youtube-accounts/:id/sync-channels",
   async (req, res): Promise<void> => {
-    const userId = (req as any).user.id as number;
+    const userId = (req as any).user.userId as number;
     const accountId = parseInt(req.params["id"], 10);
 
     const [account] = await db

@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { TIMEZONES } from "@/components/schedule-management-utils";
+import { QueryErrorState } from "@/components/query-error-state";
 
 const SOURCE_LABELS: Record<string, string> = {
   youtube: "YouTube",
@@ -79,7 +80,7 @@ export default function YouTubeChannelDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: channel, isLoading } = useGetYoutubeChannel(id, {
+  const { data: channel, isLoading, error: channelError, refetch: refetchChannel } = useGetYoutubeChannel(id, {
     query: { queryKey: getGetYoutubeChannelQueryKey(id), enabled: !!id },
   });
 
@@ -208,6 +209,16 @@ export default function YouTubeChannelDetail() {
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 w-full" />
           <Skeleton className="h-64 w-full" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (channelError) {
+    return (
+      <Layout>
+        <div className="space-y-4 py-10">
+          <QueryErrorState error={channelError} onRetry={() => void refetchChannel()} />
         </div>
       </Layout>
     );

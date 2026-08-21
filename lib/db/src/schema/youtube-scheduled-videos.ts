@@ -1,7 +1,7 @@
 import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
-import { youtubeChannelsTable } from "./youtube-accounts";
+import { youtubeChannelsTable } from "./youtube";
 
 // Phase 3 — YouTube Scheduler.
 // Completely independent of `scheduled_videos` (Facebook). This table only stores

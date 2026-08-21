@@ -2,22 +2,15 @@ import { Layout } from "@/components/layout";
 import { PageHeader } from "@/components/page-header";
 import { Facebook, Youtube, BarChart2, ArrowRight, Users, Eye, TrendingUp, MonitorPlay } from "lucide-react";
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { authFetch, apiUrl } from "@/components/schedule-management-utils";
+import { useListYoutubeChannels, getListYoutubeChannelsQueryKey } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface YtChannel { id: number; title: string; subscriberCount: number; videoCount: number }
+import { QueryErrorState } from "@/components/query-error-state";
 
 export default function AnalyticsHub() {
-  const { data: channels, isLoading } = useQuery<YtChannel[]>({
-    queryKey: ["youtube-channels", "analytics-hub"],
-    queryFn: async () => {
-      const res = await authFetch(apiUrl("/youtube/channels"));
-      if (!res.ok) return [];
-      return res.json();
-    },
+  const { data: channels, isLoading, error, refetch } = useListYoutubeChannels({
+    query: { queryKey: getListYoutubeChannelsQueryKey() },
   });
-  const ytSubs = (channels ?? []).reduce((s, c) => s + (c.subscriberCount ?? 0), 0);
+  const ytSubs = (channels ?? []).reduce((sum, channel) => sum + (channel.subscriberCount ?? 0), 0);
 
   return (
     <Layout>
@@ -27,6 +20,8 @@ export default function AnalyticsHub() {
           icon={<BarChart2 className="h-5 w-5" />}
           description="Performance insights for your Facebook pages and YouTube channels."
         />
+
+        {error && <QueryErrorState error={error} onRetry={() => void refetch()} />}
 
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Facebook analytics card */}
@@ -74,6 +69,8 @@ export default function AnalyticsHub() {
             <ul className="mt-5 grid grid-cols-3 gap-2 text-sm">
               {isLoading ? (
                 <li className="col-span-3"><Skeleton className="h-8 w-full" /></li>
+              ) : error ? (
+                <li className="col-span-3 text-xs text-destructive">YouTube analytics data is unavailable.</li>
               ) : (
                 <>
                   <InsightPill icon={<MonitorPlay className="h-3.5 w-3.5" />} label={`${channels?.length ?? 0} channels`} />

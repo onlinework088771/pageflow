@@ -56,7 +56,7 @@ router.get("/youtube/scrape", async (req, res): Promise<void> => {
     if (handle.startsWith("UC") && handle.length === 24) {
       resolvedChannelId = handle;
     } else {
-      resolvedChannelId = (await fetchYouTubeChannelId(handle)) ?? undefined;
+      resolvedChannelId = (await fetchYouTubeChannelId(handle)) ?? "";
     }
   }
 
@@ -67,7 +67,7 @@ router.get("/youtube/scrape", async (req, res): Promise<void> => {
       if (identity.startsWith("UC") && identity.length === 24) {
         resolvedChannelId = identity;
       } else {
-        resolvedChannelId = (await fetchYouTubeChannelId(identity)) ?? undefined;
+        resolvedChannelId = (await fetchYouTubeChannelId(identity)) ?? "";
       }
     }
   }

@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <Button
             variant="outline"
             className="gap-2"
-            onClick={() => this.setState({ error: null })}
+            onClick={() => window.location.reload()}
           >
             <RefreshCw className="h-4 w-4" />
             Try again

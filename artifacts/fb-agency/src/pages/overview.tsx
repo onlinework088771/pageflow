@@ -1,6 +1,18 @@
 import { Layout } from "@/components/layout";
 import { PageHeader } from "@/components/page-header";
-import { useGetOverviewStats, getGetOverviewStatsQueryKey, useAddTokens, useListAccounts, useListPages, getListAccountsQueryKey, getListPagesQueryKey } from "@workspace/api-client-react";
+import {
+  useGetOverviewStats,
+  getGetOverviewStatsQueryKey,
+  useAddTokens,
+  useListAccounts,
+  getListAccountsQueryKey,
+  useListPages,
+  getListPagesQueryKey,
+  useListYoutubeAccounts,
+  getListYoutubeAccountsQueryKey,
+  useListYoutubeChannels,
+  getListYoutubeChannelsQueryKey,
+} from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,8 +23,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 import { Link } from "wouter";
+import { QueryErrorState } from "@/components/query-error-state";
 
-interface YtAccount { id: number; name: string; status: string; channels: { id: number }[] }
 interface ScheduledVideo { id: string; title: string; postType?: string; scheduledAt: string; timezone: string; status: string; pageIds: string[] }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -26,25 +38,21 @@ export default function Overview() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: stats, isLoading: statsLoading } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
+  const { data: stats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
   const addTokens = useAddTokens();
-  const { data: fbAccounts, isLoading: fbLoading } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
-  const { data: fbPages, isLoading: pagesLoading } = useListPages(undefined, { query: { queryKey: getListPagesQueryKey() } });
+  const { data: fbAccounts, isLoading: fbLoading, error: fbAccountsError, refetch: refetchFbAccounts } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
+  const { data: fbPages, isLoading: pagesLoading, error: fbPagesError, refetch: refetchFbPages } = useListPages(undefined, { query: { queryKey: getListPagesQueryKey() } });
+  const { data: ytAccounts, isLoading: ytAccountsLoading, error: ytAccountsError, refetch: refetchYtAccounts } = useListYoutubeAccounts({ query: { queryKey: getListYoutubeAccountsQueryKey() } });
+  const { data: ytChannels, isLoading: ytChannelsLoading, error: ytChannelsError, refetch: refetchYtChannels } = useListYoutubeChannels({ query: { queryKey: getListYoutubeChannelsQueryKey() } });
 
-  const { data: ytAccounts } = useQuery<YtAccount[]>({
-    queryKey: ["youtube-accounts"],
-    queryFn: async () => {
-      const res = await authFetch(apiUrl("/youtube/accounts"));
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  const { data: scheduled } = useQuery<ScheduledVideo[]>({
+  const { data: scheduled, error: scheduledError, refetch: refetchScheduled } = useQuery<ScheduledVideo[]>({
     queryKey: ["scheduled-videos", "overview"],
     queryFn: async () => {
       const res = await authFetch(apiUrl("/scheduled-videos"));
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Scheduled content request failed (${res.status})`);
+      }
       return res.json();
     },
   });
@@ -54,7 +62,7 @@ export default function Overview() {
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
     .slice(0, 5);
 
-  const ytChannels = ytAccounts?.reduce((s, a) => s + a.channels.length, 0) ?? 0;
+  const ytChannelCount = ytChannels?.length ?? 0;
   const isOnline = stats?.systemStatus !== "offline" && stats?.systemStatus !== "degraded";
 
   const handleAddTokens = () => {
@@ -87,6 +95,20 @@ export default function Overview() {
           }
         />
 
+        {(statsError || fbAccountsError || fbPagesError || ytAccountsError || ytChannelsError || scheduledError) && (
+          <QueryErrorState
+            error={statsError ?? fbAccountsError ?? fbPagesError ?? ytAccountsError ?? ytChannelsError ?? scheduledError}
+            onRetry={() => {
+              void refetchStats();
+              void refetchFbAccounts();
+              void refetchFbPages();
+              void refetchYtAccounts();
+              void refetchYtChannels();
+              void refetchScheduled();
+            }}
+          />
+        )}
+
         {/* System status strip */}
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
@@ -105,7 +127,7 @@ export default function Overview() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard loading={statsLoading} label="Active Pages" value={stats?.activePagesCount ?? 0} sub={`of ${stats?.totalPagesCount ?? 0} total`} icon={<Facebook className="h-4 w-4" />} />
           <StatCard loading={statsLoading} label="Automations Running" value={stats?.automationActiveCount ?? 0} sub="pages actively automating" icon={<Activity className="h-4 w-4" />} />
-          <StatCard loading={false} label="Scheduled Content" value={upcoming.length} sub="pending Facebook posts" icon={<CalendarClock className="h-4 w-4" />} />
+          <StatCard             loading={!!scheduledError} label="Scheduled Content" value={upcoming.length} sub="pending Facebook posts" icon={<CalendarClock className="h-4 w-4" />} />
           <StatCard
             loading={statsLoading}
             label="Token Balance"
@@ -137,13 +159,13 @@ export default function Overview() {
             emptyText="Connect a Facebook account to start managing pages."
           />
           <PlatformCard
-            loading={false}
+            loading={ytAccountsLoading || ytChannelsLoading}
             icon={<Youtube className="h-5 w-5 text-[#FF0000]" />}
             title="YouTube"
             href="/youtube"
             stats={[
               { label: "Accounts", value: ytAccounts?.length ?? 0 },
-              { label: "Channels", value: ytChannels },
+              { label: "Channels", value: ytChannelCount },
             ]}
             primaryAction={{ label: "Upload Video", href: "/youtube/bulk-upload" }}
             empty={!ytAccounts?.length}

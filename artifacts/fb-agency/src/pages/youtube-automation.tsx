@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { QueryErrorState } from "@/components/query-error-state";
 import { Layout } from "@/components/layout";
 import {
   useListYoutubeChannels,
@@ -82,10 +83,10 @@ export default function YouTubeAutomation() {
     sourceIdentity: string;
   }>({ open: false, channelId: "", sourceType: "youtube", sourceIdentity: "" });
 
-  const { data: channels = [], isLoading: channelsLoading } = useListYoutubeChannels({
+  const { data: channels = [], isLoading: channelsLoading, error: channelsError, refetch: refetchChannels } = useListYoutubeChannels({
     query: { queryKey: getListYoutubeChannelsQueryKey() },
   });
-  const { data: accounts = [], isLoading: accountsLoading } = useListYoutubeAccounts({
+  const { data: accounts = [], isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useListYoutubeAccounts({
     query: { queryKey: getListYoutubeAccountsQueryKey() },
   });
 
@@ -188,8 +189,18 @@ export default function YouTubeAutomation() {
         </Button>
       </div>
 
+      {(channelsError || accountsError) && (
+        <QueryErrorState
+          error={channelsError ?? accountsError}
+          onRetry={() => {
+            void refetchChannels();
+            void refetchAccounts();
+          }}
+        />
+      )}
+
       {/* Stats row */}
-      {channels.length > 0 && (
+      {!channelsError && !accountsError && channels.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
           {[
             { label: "Total Channels", value: channels.length, icon: Youtube },
@@ -239,7 +250,7 @@ export default function YouTubeAutomation() {
             </Card>
           ))}
         </div>
-      ) : channels.length > 0 ? (
+      ) : channelsError || accountsError ? null : channels.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {channels.map((ch, i) => (
             <motion.div

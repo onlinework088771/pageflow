@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-utils";
+import { useListYoutubeChannels, getListYoutubeChannelsQueryKey } from "@workspace/api-client-react";
+import { QueryErrorState } from "@/components/query-error-state";
 
 /* ─── Timezone helpers ───────────────────────────────────────────────────── */
 
@@ -90,15 +92,9 @@ type PrivacyStatus = "public" | "unlisted" | "private";
 type ScheduledStatus = "pending" | "processing" | "posted" | "failed";
 
 interface YoutubeChannel {
-  id: number;
-  title: string;
-  thumbnail: string | null;
-}
-
-interface YoutubeAccount {
-  id: number;
+  id: string;
   name: string;
-  channels: YoutubeChannel[];
+  thumbnailUrl?: string;
 }
 
 interface YoutubeScheduledVideo {
@@ -117,13 +113,6 @@ interface YoutubeScheduledVideo {
 }
 
 /* ─── API helpers ───────────────────────────────────────────────────── */
-
-async function fetchChannels(): Promise<YoutubeChannel[]> {
-  const res = await authFetch(apiUrl("/youtube/accounts"));
-  if (!res.ok) throw new Error("Failed to load YouTube channels");
-  const accounts: YoutubeAccount[] = await res.json();
-  return accounts.flatMap((a) => a.channels);
-}
 
 async function fetchScheduled(): Promise<YoutubeScheduledVideo[]> {
   const res = await authFetch(apiUrl("/youtube/scheduled-videos"));
@@ -144,12 +133,11 @@ export default function YoutubeScheduler() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: channels, isLoading: channelsLoading } = useQuery({
-    queryKey: ["youtube-channels-for-scheduler"],
-    queryFn: fetchChannels,
+  const { data: channels = [], isLoading: channelsLoading, error: channelsError, refetch: refetchChannels } = useListYoutubeChannels({
+    query: { queryKey: getListYoutubeChannelsQueryKey() },
   });
 
-  const { data: scheduled, isLoading: scheduledLoading } = useQuery({
+  const { data: scheduled, isLoading: scheduledLoading, error: scheduledError, refetch: refetchScheduled } = useQuery({
     queryKey: ["youtube-scheduled-videos"],
     queryFn: fetchScheduled,
   });
@@ -264,7 +252,10 @@ export default function YoutubeScheduler() {
           </p>
         </div>
 
-        {!channelsLoading && !channels?.length && (
+        {channelsError && <QueryErrorState error={channelsError} onRetry={() => void refetchChannels()} />}
+        {scheduledError && <QueryErrorState error={scheduledError} onRetry={() => void refetchScheduled()} />}
+
+        {!channelsLoading && !channelsError && !channels.length && (
           <Card className="border-dashed">
             <CardHeader>
               <CardTitle>No channels connected yet</CardTitle>
@@ -302,7 +293,7 @@ export default function YoutubeScheduler() {
                   <SelectContent>
                     {(channels ?? []).map((c) => (
                       <SelectItem key={c.id} value={String(c.id)}>
-                        {c.title}
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -403,7 +394,7 @@ export default function YoutubeScheduler() {
                 <CardTitle>Upload queue</CardTitle>
                 <CardDescription>
                   {channelId
-                    ? `Showing uploads for ${channelMap.get(channelId)?.title ?? "selected channel"}. Select a different channel above to change the filter.`
+                    ? `Showing uploads for ${channelMap.get(channelId)?.name ?? "selected channel"}. Select a different channel above to change the filter.`
                     : "Showing all channels. Select a channel above to filter."}
                 </CardDescription>
               </div>
@@ -431,7 +422,7 @@ export default function YoutubeScheduler() {
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
               </div>
-            ) : !filteredScheduled.length ? (
+            ) : scheduledError ? null : !filteredScheduled.length ? (
               <p className="text-sm text-muted-foreground">
                 {channelId ? "No uploads for this channel yet." : "Nothing scheduled yet."}
               </p>
@@ -464,7 +455,7 @@ export default function YoutubeScheduler() {
 
                       {/* ── Row 2: channel · scheduled time (in stored TZ) ── */}
                       <p className="text-xs text-muted-foreground mt-1">
-                        {channel?.title ?? "Unknown channel"} ·{" "}
+                        {channel?.name ?? "Unknown channel"} ·{" "}
                         <CalendarClock className="inline h-3 w-3 -mt-0.5" />{" "}
                         {fmtScheduledAt(v.scheduledAt, v.timezone)} ({v.timezone})
                       </p>

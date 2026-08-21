@@ -85,7 +85,7 @@ function serializeChannel(ch: typeof youtubeChannelsTable.$inferSelect) {
 // ---------------------------------------------------------------------------
 
 router.get("/youtube-channels", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const accountIds = await getUserAccountIds(userId);
 
   if (!accountIds.length) {
@@ -106,7 +106,7 @@ router.get("/youtube-channels", async (req, res): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 router.post("/youtube-channels", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const {
     accountId,
     channelId,
@@ -162,7 +162,7 @@ router.post("/youtube-channels", async (req, res): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 router.get("/youtube-channels/:id", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const id = parseInt(req.params["id"], 10);
 
   const channel = await getUserChannel(id, userId);
@@ -179,7 +179,7 @@ router.get("/youtube-channels/:id", async (req, res): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 router.put("/youtube-channels/:id", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const id = parseInt(req.params["id"], 10);
 
   const channel = await getUserChannel(id, userId);
@@ -208,7 +208,7 @@ router.put("/youtube-channels/:id", async (req, res): Promise<void> => {
 // ---------------------------------------------------------------------------
 
 router.delete("/youtube-channels/:id", async (req, res): Promise<void> => {
-  const userId = (req as any).user.id as number;
+  const userId = (req as any).user.userId as number;
   const id = parseInt(req.params["id"], 10);
 
   const channel = await getUserChannel(id, userId);
@@ -228,7 +228,7 @@ router.delete("/youtube-channels/:id", async (req, res): Promise<void> => {
 router.patch(
   "/youtube-channels/:id/automation",
   async (req, res): Promise<void> => {
-    const userId = (req as any).user.id as number;
+    const userId = (req as any).user.userId as number;
     const id = parseInt(req.params["id"], 10);
 
     const channel = await getUserChannel(id, userId);
@@ -266,7 +266,7 @@ router.patch(
 router.patch(
   "/youtube-channels/:id/source",
   async (req, res): Promise<void> => {
-    const userId = (req as any).user.id as number;
+    const userId = (req as any).user.userId as number;
     const id = parseInt(req.params["id"], 10);
 
     const channel = await getUserChannel(id, userId);

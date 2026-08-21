@@ -23,11 +23,11 @@ import { authFetch, apiUrl } from "@/components/schedule-management-utils";
 interface AnalyticsChannel {
   id: string;
   channelId: string;
-  title: string;
-  thumbnail: string | null;
-  customUrl: string | null;
+  name: string;
+  thumbnailUrl: string | null;
+  handle?: string;
   subscriberCount: number;
-  videoCount: number;
+  totalPosted: number;
 }
 
 interface Video_ {
@@ -42,7 +42,7 @@ interface Video_ {
 }
 
 interface AnalyticsData {
-  channel: { id: string; channelId: string; title: string; thumbnail: string | null; customUrl: string | null };
+  channel: { id: string; channelId: string; name: string; thumbnailUrl: string | null; handle?: string };
   summary: {
     subscriberCount: number; totalChannelViews: number; totalChannelVideos: number;
     recentVideosFetched: number; totalViews: number; totalLikes: number; totalComments: number;
@@ -263,14 +263,14 @@ export default function YoutubeAnalytics() {
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3 mb-4">
                       <Avatar className="h-12 w-12 border shadow-sm flex-shrink-0">
-                        <AvatarImage src={ch.thumbnail ?? undefined} />
+                        <AvatarImage src={ch.thumbnailUrl ?? undefined} />
                         <AvatarFallback className="bg-red-500/10 text-red-600 font-bold">
                           <Youtube className="h-5 w-5" />
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{ch.title}</p>
-                        {ch.customUrl && <p className="text-xs text-muted-foreground truncate">{ch.customUrl}</p>}
+                        <p className="font-semibold truncate">{ch.name}</p>
+                        {ch.handle && <p className="text-xs text-muted-foreground truncate">{ch.handle}</p>}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs mb-4">
@@ -279,7 +279,7 @@ export default function YoutubeAnalytics() {
                         <p className="text-muted-foreground mt-0.5">Subscribers</p>
                       </div>
                       <div className="text-center p-2 rounded-lg bg-muted/40">
-                        <p className="text-base font-bold">{fmt(ch.videoCount)}</p>
+                        <p className="text-base font-bold">{fmt(ch.totalPosted)}</p>
                         <p className="text-muted-foreground mt-0.5">Videos</p>
                       </div>
                     </div>
@@ -326,18 +326,18 @@ export default function YoutubeAnalytics() {
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
           <button onClick={goChannels} className="hover:text-foreground font-medium transition-colors">Analytics</button>
           <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="text-foreground font-medium">{selectedChannel!.title}</span>
+          <span className="text-foreground font-medium">{selectedChannel!.name}</span>
         </div>
 
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Avatar className="h-12 w-12 border shadow-sm flex-shrink-0">
-              <AvatarImage src={effectiveData?.channel.thumbnail ?? selectedChannel!.thumbnail ?? undefined} />
+              <AvatarImage src={effectiveData?.channel.thumbnailUrl ?? selectedChannel!.thumbnailUrl ?? undefined} />
               <AvatarFallback className="font-bold"><Youtube className="h-5 w-5 text-red-500" /></AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-bold leading-tight">{effectiveData?.channel.title ?? selectedChannel!.title}</h2>
-              {effectiveData?.channel.customUrl && <p className="text-sm text-muted-foreground">{effectiveData.channel.customUrl}</p>}
+              <h2 className="text-xl font-bold leading-tight">{effectiveData?.channel.name ?? selectedChannel!.name}</h2>
+              {effectiveData?.channel.handle && <p className="text-sm text-muted-foreground">{effectiveData.channel.handle}</p>}
               {effectiveData?.fromCache && <p className="text-[10px] text-muted-foreground">Cached · refreshes every 60s</p>}
             </div>
           </div>

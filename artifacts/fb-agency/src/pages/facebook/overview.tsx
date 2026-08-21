@@ -13,6 +13,7 @@ import {
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { authFetch, apiUrl } from "@/components/schedule-management-utils";
+import { QueryErrorState } from "@/components/query-error-state";
 
 interface ScheduledVideo {
   id: string; title: string; postType?: string; scheduledAt: string;
@@ -36,15 +37,18 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function FacebookOverview() {
-  const { data: accounts, isLoading: accountsLoading } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
-  const { data: pages, isLoading: pagesLoading } = useListPages(undefined, { query: { queryKey: getListPagesQueryKey() } });
-  const { data: stats } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
+  const { data: accounts, isLoading: accountsLoading, error: accountsError, refetch: refetchAccounts } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
+  const { data: pages, isLoading: pagesLoading, error: pagesError, refetch: refetchPages } = useListPages(undefined, { query: { queryKey: getListPagesQueryKey() } });
+  const { data: stats, error: statsError, refetch: refetchStats } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
 
-  const { data: scheduled } = useQuery<ScheduledVideo[]>({
+  const { data: scheduled, error: scheduledError, refetch: refetchScheduled } = useQuery<ScheduledVideo[]>({
     queryKey: ["scheduled-videos", "fb-overview"],
     queryFn: async () => {
       const res = await authFetch(apiUrl("/scheduled-videos"));
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Facebook scheduled posts request failed (${res.status})`);
+      }
       return res.json();
     },
   });
@@ -68,6 +72,18 @@ export default function FacebookOverview() {
             </Button>
           }
         />
+
+        {(accountsError || pagesError || statsError || scheduledError) && (
+          <QueryErrorState
+            error={accountsError ?? pagesError ?? statsError ?? scheduledError}
+            onRetry={() => {
+              void refetchAccounts();
+              void refetchPages();
+              void refetchStats();
+              void refetchScheduled();
+            }}
+          />
+        )}
 
         {/* Summary strip */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

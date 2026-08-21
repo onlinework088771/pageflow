@@ -8,6 +8,8 @@ import {
   useGenerateMagicLink,
   useGetAgencySettings,
   getGetAgencySettingsQueryKey,
+  getListPagesQueryKey,
+  getGetOverviewStatsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { QueryErrorState } from "@/components/query-error-state";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -66,7 +69,7 @@ async function authFetch(url: string) {
 }
 
 export default function Accounts() {
-  const { data: accounts, isLoading } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
+  const { data: accounts, isLoading, error: accountsError, refetch: refetchAccounts } = useListAccounts({ query: { queryKey: getListAccountsQueryKey() } });
   const { data: settings } = useGetAgencySettings({ query: { queryKey: getGetAgencySettingsQueryKey() } });
   const deleteAccount = useDeleteAccount();
   const syncPages = useSyncAccountPages();
@@ -75,6 +78,19 @@ export default function Accounts() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  const refreshFacebookData = useCallback(() => {
+    const queryKeys = [
+      getListAccountsQueryKey(),
+      getListPagesQueryKey(),
+      getGetOverviewStatsQueryKey(),
+      ["scheduled-videos", "overview"],
+      ["scheduled-videos", "fb-overview"],
+    ];
+    for (const queryKey of queryKeys) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
+  }, [queryClient]);
 
   const [isConnectOpen, setIsConnectOpen] = useState(false);
   const [magicLinkUrl, setMagicLinkUrl] = useState<string | null>(null);
@@ -122,7 +138,7 @@ export default function Accounts() {
 
     if (connected === "1") {
       toast({ title: "Facebook account connected!", description: "Your pages have been synced automatically." });
-      queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+      refreshFacebookData();
       window.history.replaceState({}, "", window.location.pathname);
     } else if (fbError) {
       const messages: Record<string, string> = {
@@ -142,11 +158,13 @@ export default function Accounts() {
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, []);
+  }, [refreshFacebookData, toast]);
 
   function handleDirectConnect() {
     const token = localStorage.getItem("pf_auth_token");
-    window.location.href = `${BASE}/api/auth/facebook?token=${encodeURIComponent(token ?? "")}`;
+    // Replace the current app entry so the provider round-trip does not leave
+    // an extra Accounts/OAuth entry in the Back-button history chain.
+    window.location.replace(`${BASE}/api/auth/facebook?token=${encodeURIComponent(token ?? "")}`);
   }
 
   function handleReconnect(accountId: string) {
@@ -179,7 +197,7 @@ export default function Accounts() {
       { accountId: id },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+          refreshFacebookData();
           toast({ title: "Account disconnected" });
         },
         onError: () => {
@@ -195,7 +213,7 @@ export default function Accounts() {
       {
         onSuccess: (data) => {
           toast({ title: `Synced ${data.synced} pages from Facebook` });
-          queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+          refreshFacebookData();
         },
         onError: () => {
           toast({ title: "Sync failed", variant: "destructive" });
@@ -223,7 +241,7 @@ export default function Accounts() {
       }
     }
     setIsDeletingAll(false);
-    queryClient.invalidateQueries({ queryKey: getListAccountsQueryKey() });
+    refreshFacebookData();
     if (failed > 0) {
       toast({
         title: `Removed ${removed} account${removed === 1 ? "" : "s"}, ${failed} failed`,
@@ -301,6 +319,8 @@ export default function Accounts() {
               <Card key={i}><CardContent className="p-6"><Skeleton className="h-32 w-full" /></CardContent></Card>
             ))}
           </div>
+        ) : accountsError ? (
+          <QueryErrorState error={accountsError} onRetry={() => void refetchAccounts()} />
         ) : !accounts?.length ? (
           <Card className="border-dashed bg-muted/50">
             <CardContent className="flex flex-col items-center justify-center p-12 text-center">

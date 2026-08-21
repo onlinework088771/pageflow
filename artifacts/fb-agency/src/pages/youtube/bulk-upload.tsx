@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { authFetch, apiUrl, TIMEZONES } from "@/components/schedule-management-utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useListYoutubeChannels, getListYoutubeChannelsQueryKey } from "@workspace/api-client-react";
+import { QueryErrorState } from "@/components/query-error-state";
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -33,9 +35,9 @@ type ScheduledVideoStatus = "pending" | "processing" | "posted" | "failed";
 
 interface YoutubeChannel {
   id: string;
-  title: string;       // API returns `title`, not `name`
-  thumbnail?: string;  // API returns `thumbnail`, not `thumbnailUrl`
-  customUrl?: string;  // API returns `customUrl`, not `handle`
+  name: string;
+  thumbnailUrl?: string;
+  handle?: string;
   subscriberCount?: number;
 }
 
@@ -483,8 +485,8 @@ function YtScheduleManager({
                   onClick={() => setFilterChannelId(id)}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1.5 ${filterChannelId === id ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/40 text-muted-foreground"}`}
                 >
-                  {ch.thumbnail && <img src={ch.thumbnail} className="h-3.5 w-3.5 rounded-full object-cover" alt="" />}
-                  {ch.title ?? "Unnamed"}
+                  {ch.thumbnailUrl && <img src={ch.thumbnailUrl} className="h-3.5 w-3.5 rounded-full object-cover" alt="" />}
+                  {ch.name ?? "Unnamed"}
                 </button>
               ))}
             </div>
@@ -497,8 +499,8 @@ function YtScheduleManager({
             <div className="mt-3 flex items-center gap-2">
               <span className="text-xs text-muted-foreground shrink-0">Showing channel:</span>
               <span className="text-xs px-2.5 py-1 rounded-full border bg-primary text-primary-foreground border-primary flex items-center gap-1.5">
-                {activeCh.thumbnail && <img src={activeCh.thumbnail} className="h-3.5 w-3.5 rounded-full object-cover" alt="" />}
-                {activeCh.title ?? "Unnamed"}
+                {activeCh.thumbnailUrl && <img src={activeCh.thumbnailUrl} className="h-3.5 w-3.5 rounded-full object-cover" alt="" />}
+                {activeCh.name ?? "Unnamed"}
               </span>
             </div>
           ) : null;
@@ -559,7 +561,7 @@ function YtScheduleManager({
                               {statusBadge(video.status)}
                             </div>
                             <p className="text-xs text-muted-foreground"><Calendar className="h-3 w-3 inline mr-1" />{fmtDate(video.scheduledAt, video.timezone)}</p>
-                            {ch && <p className="text-xs text-muted-foreground"><PlayCircle className="h-3 w-3 inline mr-1" />{ch.title}</p>}
+                            {ch && <p className="text-xs text-muted-foreground"><PlayCircle className="h-3 w-3 inline mr-1" />{ch.name}</p>}
                             {video.errorMessage && <p className="text-xs text-red-500 truncate">{video.errorMessage}</p>}
                             {video.youtubeVideoId && (
                               <a href={`https://youtube.com/watch?v=${video.youtubeVideoId}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">View on YouTube ↗</a>
@@ -600,8 +602,11 @@ function YoutubeBulkUploadInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* ── Channels ── */
-  const [channels, setChannels] = useState<YoutubeChannel[]>([]);
-  const [channelsLoading, setChannelsLoading] = useState(true);
+  const channelsQuery = useListYoutubeChannels({
+    query: { queryKey: getListYoutubeChannelsQueryKey() },
+  });
+  const channels = channelsQuery.data ?? [];
+  const channelsLoading = channelsQuery.isLoading;
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 
   /* ── Wizard ── */
@@ -640,18 +645,6 @@ function YoutubeBulkUploadInner() {
   const [managerLoading, setManagerLoading] = useState(true);
   const [postingNow, setPostingNow] = useState<Set<string>>(new Set());
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-
-  /* ── Load channels ── */
-  useEffect(() => {
-    authFetch(apiUrl("/youtube/accounts"))
-      .then((r) => r.json())
-      .then((data: unknown) => {
-        const accounts = Array.isArray(data) ? (data as { channels: YoutubeChannel[] }[]) : [];
-        setChannels(accounts.flatMap((a) => Array.isArray(a?.channels) ? a.channels : []));
-      })
-      .catch(() => {})
-      .finally(() => setChannelsLoading(false));
-  }, []);
 
   const channelMap = useMemo(
     () => new Map(channels.map((c) => [String(c.id), c])),
@@ -947,6 +940,8 @@ function YoutubeBulkUploadInner() {
                 </div>
                 {channelsLoading ? (
                   <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+                ) : channelsQuery.error ? (
+                  <QueryErrorState error={channelsQuery.error} onRetry={() => void channelsQuery.refetch()} />
                 ) : channels.length === 0 ? (
                   <div className="py-6 text-center">
                     <p className="text-sm text-muted-foreground">No channels connected.</p>
@@ -960,12 +955,11 @@ function YoutubeBulkUploadInner() {
                         <div key={ch.id} onClick={() => setSelectedChannelId(String(ch.id))}
                           className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${active ? "border-primary bg-primary/8 shadow-sm" : "border-border hover:border-primary/40 hover:bg-muted/40"}`}>
                           <Avatar className="h-10 w-10 shrink-0">
-                            <AvatarImage src={ch.thumbnail} />
-                            <AvatarFallback className="text-xs bg-red-100 text-red-600">{(ch.title ?? "YT").slice(0, 2).toUpperCase()}</AvatarFallback>
+                            <AvatarImage src={ch.thumbnailUrl} />
+                            <AvatarFallback className="text-xs bg-red-100 text-red-600">{(ch.name ?? "YT").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm truncate">{ch.title ?? "Unnamed channel"}</p>
-                            {ch.customUrl && <p className="text-xs text-muted-foreground">{ch.customUrl}</p>}
+                            <p className="font-semibold text-sm truncate">{ch.name ?? "Unnamed channel"}</p>
                             {ch.subscriberCount != null && (
                               <p className="text-xs text-muted-foreground">{ch.subscriberCount.toLocaleString()} subscribers</p>
                             )}

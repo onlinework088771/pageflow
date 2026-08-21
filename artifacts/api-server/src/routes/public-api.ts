@@ -65,7 +65,7 @@ router.get("/v1/analytics", async (req, res): Promise<void> => {
     youtube: {
       channels: channels.length,
       totalSubscribers: channels.reduce((s, c) => s + (c.subscriberCount ?? 0), 0),
-      totalVideos: channels.reduce((s, c) => s + (c.videoCount ?? 0), 0),
+      totalVideos: channels.reduce((s, c) => s + (c.totalPosted ?? 0), 0),
     },
   });
 });
@@ -150,8 +150,8 @@ router.get("/v1/youtube/channels", async (req, res): Promise<void> => {
   if (!accounts.length) { res.json([]); return; }
   const channels = await db.select().from(youtubeChannelsTable).where(inArray(youtubeChannelsTable.accountId, accounts.map((a) => a.id)));
   res.json(channels.map((c) => ({
-    id: String(c.id), channelId: c.channelId, title: c.title,
-    subscriberCount: c.subscriberCount, videoCount: c.videoCount,
+    id: String(c.id), channelId: c.channelId, title: c.name,
+    subscriberCount: c.subscriberCount, videoCount: c.totalPosted,
   })));
 });
 

@@ -186,6 +186,13 @@ router.get("/auth/facebook/callback", async (req, res): Promise<void> => {
           .from(facebookPagesTable)
           .where(eq(facebookPagesTable.fbPageId, page.id));
 
+        // The current schema has a globally unique Facebook Page ID. Never
+        // reassign a page owned by another account while syncing this user.
+        if (existingPage && existingPage.accountId !== accountId) {
+          logger.warn({ fbPageId: page.id, accountId, existingAccountId: existingPage.accountId }, "Skipping page owned by another account");
+          continue;
+        }
+
         const pageData = {
           fbPageId: page.id,
           name: page.name,
@@ -299,13 +306,16 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
       }
     } catch {}
 
-    const [settings] = magicUserIdForSettings
-      ? await db
-          .select()
-          .from(agencySettingsTable)
-          .where(eq(agencySettingsTable.userId, magicUserIdForSettings))
-          .limit(1)
-      : await db.select().from(agencySettingsTable).limit(1);
+    if (!magicUserIdForSettings) {
+      res.redirect(`${frontendBase}/fb-connect?fb_error=invalid_state`);
+      return;
+    }
+
+    const [settings] = await db
+      .select()
+      .from(agencySettingsTable)
+      .where(eq(agencySettingsTable.userId, magicUserIdForSettings))
+      .limit(1);
 
     if (!settings?.appId || !settings?.appSecret) {
       res.redirect(`${frontendBase}/fb-connect?fb_error=app_not_configured`);
@@ -349,20 +359,15 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
     const { id: fbUserId, name, email, picture } = profileRes.data;
     const profilePicture = picture?.data?.url;
 
-    // Decode userId from the OAuth state parameter
-    let magicUserId: number | null = null;
-    try {
-      const { state: stateParam } = req.query as Record<string, string>;
-      if (stateParam) {
-        const decoded = JSON.parse(Buffer.from(stateParam, "base64").toString());
-        magicUserId = decoded.userId ?? null;
-      }
-    } catch {}
+    // The settings lookup above validated the magic-link state. Reuse that
+    // owner identity for every account and page write below.
+    const magicUserId = magicUserIdForSettings;
 
-    // Upsert the Facebook account scoped to the magic link's user (if known)
-    const accountWhere = magicUserId
-      ? and(eq(facebookAccountsTable.fbUserId, fbUserId), eq(facebookAccountsTable.userId, magicUserId))
-      : eq(facebookAccountsTable.fbUserId, fbUserId);
+    // Upsert the Facebook account strictly within the magic-link owner scope.
+    const accountWhere = and(
+      eq(facebookAccountsTable.fbUserId, fbUserId),
+      eq(facebookAccountsTable.userId, magicUserId),
+    );
 
     const [existing] = await db
       .select()
@@ -381,7 +386,7 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
       const [account] = await db
         .insert(facebookAccountsTable)
         .values({
-          userId: magicUserId ?? undefined,
+          userId: magicUserId,
           fbUserId,
           name,
           email: email ?? null,
@@ -405,6 +410,13 @@ router.get("/auth/facebook/magic-callback", async (req, res): Promise<void> => {
           .select()
           .from(facebookPagesTable)
           .where(eq(facebookPagesTable.fbPageId, page.id));
+
+        // The current schema has a globally unique Facebook Page ID. Never
+        // reassign a page owned by another account while syncing this user.
+        if (existingPage && existingPage.accountId !== accountId) {
+          logger.warn({ fbPageId: page.id, accountId, existingAccountId: existingPage.accountId }, "Skipping page owned by another account");
+          continue;
+        }
 
         const pageData = {
           fbPageId: page.id,

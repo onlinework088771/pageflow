@@ -9,7 +9,9 @@ export * from "./scheduled-videos";
 export * from "./api-keys";
 export * from "./subscriptions";
 export * from "./team-members";
-export * from "./youtube-accounts";
+// The managed YouTube schema is the source of truth for the generated API
+// contract and the registered account/channel/automation routes.
+export * from "./youtube";
 export * from "./youtube-automation-queue";
 export * from "./youtube-automations";
 export * from "./youtube-scheduled-videos";

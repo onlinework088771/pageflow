@@ -24,7 +24,7 @@ const YOUTUBE_UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 
 /** Returns a valid access token for this account, refreshing it first if expired or about to expire. */
 export async function getValidAccessToken(account: typeof youtubeAccountsTable.$inferSelect): Promise<string> {
-  const expiresAt = account.tokenExpiresAt ? new Date(account.tokenExpiresAt).getTime() : 0;
+  const expiresAt = account.tokenExpiry ? new Date(account.tokenExpiry).getTime() : 0;
   const isExpiring = !expiresAt || expiresAt - Date.now() < 60_000;
 
   if (!isExpiring) return account.accessToken;
@@ -50,11 +50,11 @@ export async function getValidAccessToken(account: typeof youtubeAccountsTable.$
     );
 
     const { access_token: accessToken, expires_in: expiresIn } = tokenRes.data;
-    const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+    const tokenExpiry = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
     await db
       .update(youtubeAccountsTable)
-      .set({ accessToken, tokenExpiresAt, status: "connected" })
+      .set({ accessToken, tokenExpiry, status: "connected" })
       .where(eq(youtubeAccountsTable.id, account.id));
 
     return accessToken;

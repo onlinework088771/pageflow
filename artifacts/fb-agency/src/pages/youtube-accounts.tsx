@@ -4,6 +4,7 @@ import { Layout } from "@/components/layout";
 import {
   useListYoutubeAccounts,
   getListYoutubeAccountsQueryKey,
+  getListYoutubeChannelsQueryKey,
   useDeleteYoutubeAccount,
   useSyncYoutubeAccountChannels,
 } from "@workspace/api-client-react";
@@ -14,7 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/auth-context";
+import { getAuthToken } from "@/contexts/auth-context";
+import { QueryErrorState } from "@/components/query-error-state";
 import {
   Youtube,
   Plus,
@@ -35,7 +37,6 @@ export default function YouTubeAccounts() {
   const [location] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: authData } = useAuth() as any;
 
   // Read query params for post-OAuth feedback
   useEffect(() => {
@@ -51,7 +52,8 @@ export default function YouTubeAccounts() {
       });
       // Clean up URL params
       window.history.replaceState({}, "", window.location.pathname);
-      queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListYoutubeChannelsQueryKey() });
     } else if (error) {
       const messages: Record<string, string> = {
         access_denied: "You cancelled the Google authorisation.",
@@ -68,14 +70,15 @@ export default function YouTubeAccounts() {
     }
   }, []);
 
-  const { data: accounts = [], isLoading } = useListYoutubeAccounts({
+  const { data: accounts = [], isLoading, error: accountsError, refetch: refetchAccounts } = useListYoutubeAccounts({
     query: { queryKey: getListYoutubeAccountsQueryKey() },
   });
 
   const deleteMutation = useDeleteYoutubeAccount({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListYoutubeChannelsQueryKey() });
         toast({ title: "YouTube account disconnected" });
       },
       onError: () => {
@@ -87,7 +90,8 @@ export default function YouTubeAccounts() {
   const syncMutation = useSyncYoutubeAccountChannels({
     mutation: {
       onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: getListYoutubeAccountsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getListYoutubeChannelsQueryKey() });
         toast({ title: `Synced ${(data as any)?.synced ?? 0} channel(s)` });
       },
       onError: () => {
@@ -97,13 +101,13 @@ export default function YouTubeAccounts() {
   });
 
   function handleConnect() {
-    const token = localStorage.getItem("pf_auth_token");
+    const token = getAuthToken();
     if (!token) {
       toast({ title: "Not logged in", variant: "destructive" });
       return;
     }
     const base = getApiBase();
-    window.location.href = `${base}/api/youtube/auth/start?token=${encodeURIComponent(token)}`;
+    window.location.replace(`${base}/api/youtube/auth/start?token=${encodeURIComponent(token)}`);
   }
 
   function statusBadge(status: string) {
@@ -148,7 +152,7 @@ export default function YouTubeAccounts() {
       </div>
 
       {/* Setup notice */}
-      {accounts.length === 0 && !isLoading && (
+      {accounts.length === 0 && !isLoading && !accountsError && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -190,6 +194,8 @@ export default function YouTubeAccounts() {
             </Card>
           ))}
         </div>
+      ) : accountsError ? (
+        <QueryErrorState error={accountsError} onRetry={() => void refetchAccounts()} />
       ) : accounts.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((account, i) => (

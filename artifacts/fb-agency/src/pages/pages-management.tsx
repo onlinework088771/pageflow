@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { QueryErrorState } from "@/components/query-error-state";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -152,7 +153,7 @@ export default function PagesManagement() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused">("all");
   const [search, setSearch] = useState("");
 
-  const { data: pages, isLoading } = useListPages(
+  const { data: pages, isLoading, error: pagesError, refetch: refetchPages } = useListPages(
     { status: "all" },
     { query: { queryKey: getListPagesQueryKey({ status: "all" }) } }
   );
@@ -437,6 +438,8 @@ export default function PagesManagement() {
               <Skeleton key={i} className="h-64 rounded-xl" />
             ))}
           </div>
+        ) : pagesError ? (
+          <QueryErrorState error={pagesError} onRetry={() => void refetchPages()} />
         ) : !filtered.length ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <div className="bg-primary/10 p-4 rounded-full mb-4">

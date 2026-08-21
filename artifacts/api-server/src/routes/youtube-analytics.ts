@@ -63,11 +63,10 @@ router.get("/youtube-analytics/channels", async (req, res): Promise<void> => {
     rows.map(({ channel }) => ({
       id: String(channel.id),
       channelId: channel.channelId,
-      title: channel.title,
-      thumbnail: channel.thumbnail ?? null,
-      customUrl: channel.customUrl ?? null,
+      name: channel.name,
+      thumbnailUrl: channel.thumbnailUrl ?? null,
       subscriberCount: channel.subscriberCount ?? 0,
-      videoCount: channel.videoCount ?? 0,
+      totalPosted: channel.totalPosted ?? 0,
     })),
   );
 });
@@ -179,9 +178,9 @@ router.get("/youtube-analytics/channels/:channelId", async (req, res): Promise<v
       channel: {
         id: String(channel.id),
         channelId: channel.channelId,
-        title: channelData.snippet?.title ?? channel.title,
-        thumbnail: channelData.snippet?.thumbnails?.medium?.url ?? channel.thumbnail,
-        customUrl: channelData.snippet?.customUrl ?? channel.customUrl,
+        name: channelData.snippet?.title ?? channel.name,
+        thumbnailUrl: channelData.snippet?.thumbnails?.medium?.url ?? channel.thumbnailUrl,
+        handle: channelData.snippet?.customUrl ?? undefined,
       },
       summary: {
         subscriberCount: n(stats.subscriberCount),

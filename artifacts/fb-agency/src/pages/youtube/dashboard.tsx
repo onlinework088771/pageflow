@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,27 +6,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Youtube, Plus, Users, Video, ArrowRight } from "lucide-react";
-import { authFetch, apiUrl } from "@/components/schedule-management-utils";
+import {
+  useListYoutubeAccounts,
+  getListYoutubeAccountsQueryKey,
+  useListYoutubeChannels,
+  getListYoutubeChannelsQueryKey,
+} from "@workspace/api-client-react";
+import { apiUrl } from "@/components/schedule-management-utils";
 import { getAuthToken } from "@/contexts/auth-context";
-
-interface YoutubeChannel {
-  id: number;
-  channelId: string;
-  title: string;
-  thumbnail: string | null;
-  customUrl: string | null;
-  subscriberCount: number;
-  videoCount: number;
-}
-
-interface YoutubeAccount {
-  id: number;
-  name: string;
-  email: string | null;
-  profilePicture: string | null;
-  status: "connected" | "expired" | "error";
-  channels: YoutubeChannel[];
-}
+import { QueryErrorState } from "@/components/query-error-state";
 
 function formatCount(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -37,29 +24,27 @@ function formatCount(n: number) {
 
 function handleConnect() {
   const token = getAuthToken();
-  window.location.href = `${apiUrl("/auth/youtube")}?token=${encodeURIComponent(token ?? "")}`;
+  window.location.replace(`${apiUrl("/youtube/auth/start")}?token=${encodeURIComponent(token ?? "")}`);
 }
 
 export default function YoutubeDashboard() {
   const [, navigate] = useLocation();
-
-  const { data: accounts, isLoading } = useQuery<YoutubeAccount[]>({
-    queryKey: ["youtube-accounts"],
-    queryFn: async () => {
-      const res = await authFetch(apiUrl("/youtube/accounts"));
-      if (!res.ok) throw new Error("Failed to load YouTube accounts");
-      return res.json();
-    },
+  const accountsQuery = useListYoutubeAccounts({
+    query: { queryKey: getListYoutubeAccountsQueryKey() },
+  });
+  const channelsQuery = useListYoutubeChannels({
+    query: { queryKey: getListYoutubeChannelsQueryKey() },
   });
 
-  const totalChannels = accounts?.reduce((sum, a) => sum + a.channels.length, 0) ?? 0;
-  const connectedAccounts = accounts?.filter((a) => a.status === "connected") ?? [];
-  const allChannels = accounts?.flatMap((a) => a.channels) ?? [];
+  const accounts = accountsQuery.data ?? [];
+  const channels = channelsQuery.data ?? [];
+  const isLoading = accountsQuery.isLoading || channelsQuery.isLoading;
+  const totalChannels = channels.length;
+  const connectedAccounts = accounts.filter((account) => account.status === "connected");
 
   return (
     <Layout>
       <div className="flex flex-col gap-8">
-        {/* Header */}
         <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2.5">
@@ -76,7 +61,16 @@ export default function YoutubeDashboard() {
           </Button>
         </div>
 
-        {/* Stats row */}
+        {(accountsQuery.error || channelsQuery.error) && (
+          <QueryErrorState
+            error={accountsQuery.error ?? channelsQuery.error}
+            onRetry={() => {
+              void accountsQuery.refetch();
+              void channelsQuery.refetch();
+            }}
+          />
+        )}
+
         {isLoading ? (
           <div className="grid grid-cols-2 gap-4">
             <Skeleton className="h-24 w-full" />
@@ -87,7 +81,7 @@ export default function YoutubeDashboard() {
             <Card>
               <CardContent className="p-5">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Google Accounts</p>
-                <p className="text-3xl font-bold mt-1">{accounts?.length ?? 0}</p>
+                <p className="text-3xl font-bold mt-1">{accounts.length}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {connectedAccounts.length} connected
                 </p>
@@ -105,8 +99,7 @@ export default function YoutubeDashboard() {
           </div>
         )}
 
-        {/* No accounts — big CTA */}
-        {!isLoading && accounts?.length === 0 && (
+        {!isLoading && !accountsQuery.error && !channelsQuery.error && accounts.length === 0 && (
           <Card className="border-dashed">
             <CardHeader className="text-center pb-2">
               <div className="flex justify-center mb-3">
@@ -128,8 +121,7 @@ export default function YoutubeDashboard() {
           </Card>
         )}
 
-        {/* Channel list */}
-        {!isLoading && allChannels.length > 0 && (
+        {!isLoading && channels.length > 0 && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Connected Channels</h2>
@@ -144,30 +136,27 @@ export default function YoutubeDashboard() {
               </Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {allChannels.map((channel) => (
+              {channels.map((channel) => (
                 <Card key={channel.id}>
                   <CardContent className="p-4 flex items-center gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarImage src={channel.thumbnail ?? undefined} />
+                      <AvatarImage src={channel.thumbnailUrl ?? undefined} />
                       <AvatarFallback>
                         <Youtube className="h-4 w-4 text-red-500" />
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{channel.title}</p>
-                      {channel.customUrl && (
-                        <p className="text-xs text-muted-foreground truncate">{channel.customUrl}</p>
-                      )}
+                      <p className="text-sm font-medium truncate">{channel.name}</p>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                         <span className="flex items-center gap-1">
-                          <Users className="h-3 w-3" /> {formatCount(channel.subscriberCount)}
+                          <Users className="h-3 w-3" /> {formatCount(channel.subscriberCount ?? 0)}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Video className="h-3 w-3" /> {formatCount(channel.videoCount)} videos
+                          <Video className="h-3 w-3" /> {formatCount(channel.totalPosted)} posted
                         </span>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-xs shrink-0">Active</Badge>
+                    <Badge variant="outline" className="text-xs shrink-0">{channel.status}</Badge>
                   </CardContent>
                 </Card>
               ))}
@@ -175,7 +164,6 @@ export default function YoutubeDashboard() {
           </div>
         )}
 
-        {/* Quick links */}
         {!isLoading && totalChannels > 0 && (
           <div className="grid gap-3 sm:grid-cols-3">
             <Card
