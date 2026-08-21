@@ -85,6 +85,9 @@ const YoutubeBulkUpload = lazyWithRecovery(() => import("@/pages/youtube/bulk-up
 const YoutubeScheduler = lazyWithRecovery(() => import("@/pages/youtube/scheduler"));
 const YoutubeAnalytics = lazyWithRecovery(() => import("@/pages/youtube/analytics"));
 const YoutubeDeveloperSettings = lazyWithRecovery(() => import("@/pages/youtube/developer-settings"));
+const GroupAutomation = lazyWithRecovery(() => import("@/pages/group-automation"));
+const GroupConnectedGroups = lazyWithRecovery(() => import("@/pages/group-connected-groups"));
+const GroupAutoApprovalFinder = lazyWithRecovery(() => import("@/pages/group-auto-approval-finder"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -183,6 +186,15 @@ function Router() {
         </Route>
         <Route path="/youtube/developer-settings">
           <ProtectedRoute component={YoutubeDeveloperSettings} />
+        </Route>
+        <Route path="/group-automation/connected-groups">
+          <ProtectedRoute component={GroupConnectedGroups} />
+        </Route>
+        <Route path="/group-automation/auto-approval-finder">
+          <ProtectedRoute component={GroupAutoApprovalFinder} />
+        </Route>
+        <Route path="/group-automation">
+          <ProtectedRoute component={GroupAutomation} />
         </Route>
         <Route path="/youtube-accounts">
           <ProtectedRoute component={YouTubeAccounts} />

@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Facebook, Youtube, CalendarClock, BarChart2, Settings,
   Users, Files, PenSquare, ListVideo, Layers, FolderOpen,
-  MonitorPlay, UploadCloud, Bot, Clock, LineChart,
+  MonitorPlay, UploadCloud, Bot, Clock, LineChart, UsersRound, Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -68,6 +68,18 @@ export const NAV: NavEntry[] = [
       { href: "/youtube/automation", label: "Automation", icon: Bot },
       { href: "/youtube/scheduler", label: "Scheduler", icon: Clock },
       { href: "/youtube/analytics", label: "Analytics", icon: LineChart },
+    ],
+  },
+  {
+    href: "/group-automation",
+    label: "Group Automation",
+    icon: UsersRound,
+    accent: "default",
+    section: "Group Automation",
+    children: [
+      { href: "/group-automation", label: "Overview", icon: LayoutDashboard },
+      { href: "/group-automation/connected-groups", label: "Connected Groups", icon: UsersRound },
+      { href: "/group-automation/auto-approval-finder", label: "Auto Approval Finder", icon: Search },
     ],
   },
   { href: "/scheduler", label: "Scheduler", icon: CalendarClock, section: "Workspace" },
