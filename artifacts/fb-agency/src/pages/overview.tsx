@@ -82,7 +82,7 @@ export default function Overview() {
       <div className="flex flex-col gap-6">
         <PageHeader
           title={`Welcome back, ${user?.name?.split(" ")[0] ?? "there"}`}
-          description={format(new Date(), "EEEE, MMMM d — here's what's happening across your workspace.")}
+          description={format(new Date(), "EEEE, MMMM d — 'here''s what''s happening across your workspace.'")}
           actions={
             <>
               <Button variant="outline" size="sm" asChild className="gap-2">
