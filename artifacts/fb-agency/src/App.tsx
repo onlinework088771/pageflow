@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/auth-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { UiInteractionSound } from "@/components/ui-interaction-sound";
 
 // Route-level code splitting keeps the initial bundle small; heavy pages
 // (analytics, upload wizards) load on demand.
@@ -208,6 +209,7 @@ export function App() {
             <Router />
           </WouterRouter>
           <Toaster />
+          <UiInteractionSound />
         </AuthProvider>
       </TooltipProvider>
       </QueryClientProvider>

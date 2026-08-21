@@ -21,7 +21,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@/contexts/auth-context";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -216,7 +216,7 @@ function AppSidebar({ pendingCount }: { pendingCount: number }) {
 /* ─── Mobile bottom tab bar ───────────────────────────────────────────────── */
 
 const MOBILE_TAB_CLASSES =
-  "flex min-h-[52px] flex-col items-center justify-center gap-1 py-1.5 transition-colors";
+  "flex min-h-[52px] flex-col items-center justify-center gap-1 py-1.5 transition-[transform,color,background-color] duration-180 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97]";
 
 function MobileTabBar({ onMore }: { onMore: () => void }) {
   const [location] = useLocation();
@@ -235,6 +235,7 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
           <div className="grid grid-cols-5 px-1.5 py-1.5">
             <Link
               href="/"
+              data-ui-sound="true"
               aria-current={location === "/" ? "page" : undefined}
               className={`${MOBILE_TAB_CLASSES} ${location === "/" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
             >
@@ -244,6 +245,7 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
 
             <Link
               href="/facebook"
+              data-ui-sound="true"
               aria-current={isFbActive ? "page" : undefined}
               className={`${MOBILE_TAB_CLASSES} ${isFbActive ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
             >
@@ -257,16 +259,18 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
             {/* Center create action */}
             <Link
               href="/upload"
+              data-ui-sound="true"
               aria-label="Create content"
               className="flex items-end justify-center"
             >
-              <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.6)] transition-transform duration-150 active:scale-95">
+              <span className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.6)] transition-[transform,box-shadow,filter] duration-180 ease-[cubic-bezier(0.22,1,0.36,1)] hover:brightness-[1.04] active:scale-[0.97]">
                 <Plus className="h-6 w-6" aria-hidden="true" />
               </span>
             </Link>
 
             <Link
               href="/youtube"
+              data-ui-sound="true"
               aria-current={isYtActive ? "page" : undefined}
               className={`${MOBILE_TAB_CLASSES} ${isYtActive ? "text-red-400" : "text-muted-foreground hover:text-foreground"}`}
             >
@@ -277,8 +281,9 @@ function MobileTabBar({ onMore }: { onMore: () => void }) {
               <span className="text-[10px] font-medium">YouTube</span>
             </Link>
 
-            <button
+              <button
               type="button"
+              data-ui-sound="true"
               onClick={onMore}
               className={`${MOBILE_TAB_CLASSES} text-muted-foreground hover:text-foreground`}
               aria-label="Open menu"
@@ -338,6 +343,7 @@ function ChevronsRight() {
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { data: stats } = useGetOverviewStats({ query: { queryKey: getGetOverviewStatsQueryKey() } });
+  const prefersReducedMotion = useReducedMotion();
   const [pendingCount, setPendingCount] = useState(0);
 
   const fetchPendingCount = useCallback(async () => {
@@ -366,7 +372,10 @@ export function Layout({ children }: { children: ReactNode }) {
               key={location}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
+              transition={{
+                duration: prefersReducedMotion ? 0 : 0.18,
+                ease: [0.22, 1, 0.36, 1],
+              }}
             >
               {children}
             </motion.div>
