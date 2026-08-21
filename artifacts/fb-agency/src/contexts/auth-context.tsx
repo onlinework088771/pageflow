@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { AUTH_UNAUTHORIZED_EVENT, setAuthTokenGetter } from "@workspace/api-client-react";
 
 interface UserProfile {
   id: string;
@@ -35,15 +35,21 @@ export function getAuthToken(): string | null {
 // Re-fetches the current user (including role) from the server so a stale
 // cached copy in localStorage never keeps admin-only UI hidden after a role
 // change. Best-effort: on failure it silently keeps the cached user as-is.
-async function fetchFreshUser(token: string): Promise<UserProfile | null> {
+interface FreshUserResult {
+  user: UserProfile | null;
+  unauthorized: boolean;
+}
+
+async function fetchFreshUser(token: string): Promise<FreshUserResult> {
   try {
     const res = await fetch(`${BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return null;
-    return (await res.json()) as UserProfile;
+    if (res.status === 401) return { user: null, unauthorized: true };
+    if (!res.ok) return { user: null, unauthorized: false };
+    return { user: (await res.json()) as UserProfile, unauthorized: false };
   } catch {
-    return null;
+    return { user: null, unauthorized: false };
   }
 }
 
@@ -69,8 +75,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // that role-gated UI (e.g. the "Delete All Schedules" admin button) is
       // evaluated against authoritative server data, not a potentially stale
       // localStorage snapshot.  Fall back to the cached user only when the
-      // request fails (network error, expired token, etc.).
-      fetchFreshUser(storedToken).then((freshUser) => {
+      // request fails because of a transient network or server error.
+      fetchFreshUser(storedToken).then(({ user: freshUser, unauthorized }) => {
+        if (unauthorized) {
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
+          setState({ user: null, token: null, isLoading: false });
+          return;
+        }
+
         const userToUse = freshUser ?? cachedUser!;
         if (freshUser) {
           localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
@@ -84,7 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
-    return () => setAuthTokenGetter(null);
+
+    const handleUnauthorized = () => {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      setState({ user: null, token: null, isLoading: false });
+    };
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => {
+      setAuthTokenGetter(null);
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    };
   }, []);
 
   const login = useCallback((token: string, user: UserProfile) => {
@@ -94,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Re-fetch immediately after login too, in case the login response's
     // user snapshot is ever out of date relative to the server.
-    fetchFreshUser(token).then((freshUser) => {
+    fetchFreshUser(token).then(({ user: freshUser }) => {
       if (freshUser) {
         localStorage.setItem(USER_KEY, JSON.stringify(freshUser));
         setState((prev) => (prev.token === token ? { ...prev, user: freshUser } : prev));

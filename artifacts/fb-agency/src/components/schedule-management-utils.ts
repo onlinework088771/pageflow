@@ -1,4 +1,5 @@
 import { getAuthToken } from "@/contexts/auth-context";
+import { AUTH_UNAUTHORIZED_EVENT } from "@workspace/api-client-react";
 
 export const TIMEZONES = [
   "UTC", "America/New_York", "America/Chicago", "America/Denver",
@@ -16,11 +17,17 @@ export function apiUrl(path: string) {
 
 export async function authFetch(url: string, options: RequestInit = {}) {
   const token = getAuthToken();
-  return fetch(url, {
+  const response = await fetch(url, {
     ...options,
     headers: {
       ...(options.headers || {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  }
+
+  return response;
 }

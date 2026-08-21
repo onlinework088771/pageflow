@@ -10,6 +10,7 @@ export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
+export const AUTH_UNAUTHORIZED_EVENT = "pageflow-auth-unauthorized";
 
 // ---------------------------------------------------------------------------
 // Module-level configuration
@@ -361,6 +362,10 @@ export async function customFetch<T = unknown>(
   const requestInfo = { method, url: resolveUrl(input) };
 
   const response = await fetch(input, { ...init, method, headers });
+
+  if (response.status === 401 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
