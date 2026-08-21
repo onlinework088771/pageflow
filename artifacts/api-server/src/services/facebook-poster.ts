@@ -334,6 +334,12 @@ async function postReelToPage(
         Authorization: `OAuth ${pageToken}`,
         offset: "0",
         file_size: String(fileSize),
+        // Facebook's rupload endpoint requires the entity length to be
+        // declared explicitly for a streamed binary upload. Without both
+        // headers Facebook returns ParameterValidationError 400 before the
+        // Reel can reach the finish/publish step.
+        "Content-Length": String(fileSize),
+        "X-Entity-Length": String(fileSize),
         "Content-Type": "application/octet-stream",
       },
       maxContentLength: Infinity,
@@ -434,7 +440,11 @@ export async function executeScheduledPost(videoId: number, _publicBaseUrl?: str
 
   const storedDescription = video.description ?? undefined;
   const postType = video.postType ?? "video";
-  const publishMode = video.publishMode ?? (postType === "reel" ? "reel" : "video");
+  // Existing scheduled records created before the Reel architecture have
+  // postType="reel" but no explicit publishMode. Keep those records on the
+  // proven /videos publisher. New Reel records explicitly set publishMode="reel"
+  // at creation time and use the dedicated video_reels flow below.
+  const publishMode = video.publishMode ?? "video";
   const isReel = publishMode === "reel";
 
   let postedCount = 0;

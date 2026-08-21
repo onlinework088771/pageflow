@@ -274,6 +274,85 @@ export async function downloadVideoToTempFile(url: string, label = "auto"): Prom
 }
 
 /**
+ * Extract public TikTok video entries embedded in the profile HTML. This is a
+ * compatibility fallback for TikTok's user extractor; it never signs in,
+ * bypasses a challenge, or fabricates a video URL. A direct video URL is still
+ * handed to yt-dlp later, where the existing cookie/privacy rules apply.
+ */
+function extractTikTokEmbeddedVideos(
+  html: string,
+  handle: string,
+  limit: number,
+): { videoId: string; title: string; url: string }[] {
+  const scripts = html.matchAll(
+    /<script[^>]+id=["'](?:__UNIVERSAL_DATA_FOR_REHYDRATION__|SIGI_STATE|__NEXT_DATA__)["'][^>]*>([\s\S]*?)<\/script>/gi,
+  );
+  const roots: unknown[] = [];
+
+  for (const match of scripts) {
+    try {
+      roots.push(JSON.parse(match[1].trim()));
+    } catch {
+      // TikTok sometimes returns a partial/challenge script; ignore it.
+    }
+  }
+
+  const found = new Map<string, { videoId: string; title: string; url: string }>();
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 12 || value == null || found.size >= limit) return;
+
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, depth + 1);
+      return;
+    }
+
+    if (typeof value !== "object") return;
+    const node = value as Record<string, unknown>;
+    const rawId = node.id ?? node.videoId ?? node.video_id;
+    const videoId = rawId == null ? "" : String(rawId);
+    const title = String(node.desc ?? node.title ?? node.text ?? "").trim();
+    const rawUrl = node.shareUrl ?? node.share_url ?? node.webpage_url ?? node.url;
+    const candidateUrl = typeof rawUrl === "string" ? rawUrl : "";
+    const hasVideoShape = Boolean(node.video || node.videoData || node.itemModule || node.createTime || candidateUrl.includes("/video/"));
+
+    if (/^\d{8,}$/.test(videoId) && title && hasVideoShape) {
+      const url = candidateUrl.startsWith("http")
+        ? candidateUrl
+        : `https://www.tiktok.com/@${handle}/video/${videoId}`;
+      found.set(videoId, { videoId, title, url });
+    }
+
+    for (const child of Object.values(node)) visit(child, depth + 1);
+  };
+
+  for (const root of roots) visit(root, 0);
+  return [...found.values()].slice(0, limit);
+}
+
+async function fetchTikTokEmbeddedVideos(
+  profileUrl: string,
+  limit: number,
+): Promise<{ videoId: string; title: string; url: string }[]> {
+  const handle = profileUrl.match(/tiktok\.com\/@([^/?#]+)/i)?.[1] ?? "";
+  if (!handle) return [];
+
+  const response = await fetch(profileUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; PageFlow/1.0)",
+      Accept: "text/html,application/xhtml+xml",
+    },
+  });
+  if (!response.ok) throw new Error(`TikTok public profile returned HTTP ${response.status}`);
+
+  const html = await response.text();
+  if (/captcha|verify you are human|access denied|too many requests/i.test(html)) {
+    throw new Error("TikTok returned a challenge or access-denied page");
+  }
+
+  return extractTikTokEmbeddedVideos(html, handle, limit);
+}
+
+/**
  * Fetch a list of recent video IDs + URLs from any yt-dlp-supported
  * playlist/profile URL. Returns newest-first (as yt-dlp provides them).
  */
@@ -308,15 +387,31 @@ export async function fetchProfileVideos(
     logger.info({ step: "profile-list", profileUrl, count: videos.length }, "Pipeline step 3/8: profile listing complete");
     return videos;
   } catch (err: any) {
-    // Surface WHY the listing failed — this is the exact spot where Instagram
-    // now fails for every account (anonymous scraping blocked platform-side),
-    // vs. TikTok/YouTube which still succeed anonymously as of this fix.
     logger.error(
       { profileUrl, kind: err.ytDlpKind, err: err.message },
       err.ytDlpKind === "auth_wall"
-        ? "Pipeline step 3/8 FAILED: platform requires an authenticated session (cookies) to list videos — see INSTAGRAM_COOKIES_FILE"
+        ? "Pipeline step 3/8 FAILED: platform requires an authenticated session (cookies) to list videos — see platform cookie configuration"
         : "Pipeline step 3/8 FAILED: yt-dlp --flat-playlist failed",
     );
+
+    if (profileUrl.includes("tiktok.com")) {
+      try {
+        const fallbackVideos = await fetchTikTokEmbeddedVideos(profileUrl, limit);
+        if (fallbackVideos.length) {
+          logger.info(
+            { step: "profile-list-fallback", profileUrl, count: fallbackVideos.length },
+            "Pipeline step 3/8: recovered public TikTok videos from embedded profile data",
+          );
+          return fallbackVideos;
+        }
+      } catch (fallbackErr: any) {
+        logger.warn(
+          { step: "profile-list-fallback", profileUrl, err: fallbackErr.message },
+          "Pipeline step 3/8 fallback: TikTok public profile data unavailable",
+        );
+      }
+    }
+
     return [];
   }
 }
