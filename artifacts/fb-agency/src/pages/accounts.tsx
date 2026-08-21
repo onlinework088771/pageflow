@@ -244,7 +244,7 @@ export default function Accounts() {
               <span className="mx-1">›</span>
               <span>FB Accounts</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Facebook Accounts</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Facebook Accounts</h1>
             <p className="text-muted-foreground mt-1">Manage your connected Facebook accounts and their permissions.</p>
           </div>
 

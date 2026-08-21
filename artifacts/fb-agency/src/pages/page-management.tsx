@@ -406,7 +406,7 @@ export default function PageManagement() {
         <div className="flex flex-col gap-6">
           <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Page Management</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Page Management</h1>
               <p className="text-muted-foreground mt-1">Select a Facebook account to manage its pages and posts.</p>
             </div>
             <Button variant="outline" onClick={() => refetchAccounts()} className="gap-2" size="sm">

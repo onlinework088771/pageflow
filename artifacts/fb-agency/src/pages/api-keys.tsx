@@ -83,7 +83,7 @@ export default function ApiKeys() {
       <div className="flex flex-col gap-6">
         <div className="flex items-end justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2.5">
               <KeyRound className="h-7 w-7 text-primary" />
               API Keys
             </h1>

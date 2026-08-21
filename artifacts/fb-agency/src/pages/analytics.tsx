@@ -413,7 +413,7 @@ export default function Analytics() {
         <div className="flex flex-col gap-6">
           <div className="flex items-end justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
               <p className="text-muted-foreground mt-1">Real-time Facebook insights from the Graph API.</p>
             </div>
             <Button variant="outline" size="sm" onClick={() => accountsQuery.refetch()} disabled={loadingAcc} className="gap-2">
@@ -597,18 +597,18 @@ export default function Analytics() {
 
   const statCardDefs = s ? [
     { icon: Users,         label: "Followers",     value: s.followers,         color: "bg-blue-500",    show: hasMetric(s.followers) },
-    { icon: Heart,         label: "Page Fans",      value: s.fans,              color: "bg-pink-500",    show: hasMetric(s.fans) },
+    { icon: Heart,         label: "Page Fans",      value: s.fans,              color: "bg-blue-400",    show: hasMetric(s.fans) },
     { icon: TrendingUp,    label: "New Fans",       value: s.newFans,           color: "bg-emerald-500", show: hasMetric(s.newFans),    sub: s.lostFans > 0 ? `-${fmt(s.lostFans)} lost` : undefined },
-    { icon: Eye,           label: "Impressions",    value: s.impressions,       color: "bg-violet-500",  show: hasMetric(s.impressions), sub: s.organicImpressions > 0 ? `${fmt(s.organicImpressions)} organic` : undefined },
+    { icon: Eye,           label: "Impressions",    value: s.impressions,       color: "bg-blue-600",    show: hasMetric(s.impressions), sub: s.organicImpressions > 0 ? `${fmt(s.organicImpressions)} organic` : undefined },
     { icon: Globe,         label: "Unique Reach",   value: s.reach,             color: "bg-cyan-500",    show: hasMetric(s.reach) },
     { icon: Activity,      label: "Engagement",     value: s.engagement,        color: "bg-orange-500",  show: hasMetric(s.engagement) },
-    { icon: Users,         label: "Engaged Users",  value: s.engagedUsers,      color: "bg-indigo-500",  show: hasMetric(s.engagedUsers) },
+    { icon: Users,         label: "Engaged Users",  value: s.engagedUsers,      color: "bg-blue-700",  show: hasMetric(s.engagedUsers) },
     { icon: BookOpen,      label: "Page Views",     value: s.pageViews,         color: "bg-slate-500",   show: hasMetric(s.pageViews) },
-    { icon: Video,         label: "Video Views",    value: s.videoViews,        color: "bg-purple-500",  show: hasMetric(s.videoViews) },
-    { icon: PlayCircle,    label: "Reel Views",     value: s.reelViews,         color: "bg-fuchsia-500", show: hasMetric(s.reelViews) },
+    { icon: Video,         label: "Video Views",    value: s.videoViews,        color: "bg-blue-500",  show: hasMetric(s.videoViews) },
+    { icon: PlayCircle,    label: "Reel Views",     value: s.reelViews,         color: "bg-blue-400", show: hasMetric(s.reelViews) },
     { icon: Clock,         label: "Watch Time",     value: s.watchTimeMinutes,  color: "bg-teal-500",    show: hasMetric(s.watchTimeMinutes), fmtFn: (v: number) => `${fmt(v)}m` },
     { icon: Zap,           label: "Reactions",      value: s.totalReactions,    color: "bg-yellow-500",  show: hasMetric(s.totalReactions) },
-    { icon: MessageCircle, label: "Comments",       value: s.totalComments,     color: "bg-rose-500",    show: hasMetric(s.totalComments) },
+    { icon: MessageCircle, label: "Comments",       value: s.totalComments,     color: "bg-blue-400",    show: hasMetric(s.totalComments) },
     { icon: Share2,        label: "Shares",         value: s.totalShares,       color: "bg-sky-500",     show: hasMetric(s.totalShares) },
     { icon: FileText,      label: "Total Posts",    value: s.totalPosts,        color: "bg-gray-500",    show: hasMetric(s.totalPosts) },
     {
@@ -721,7 +721,7 @@ export default function Analytics() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {pubToday > 0  && <SmallStatCard icon={Calendar}  label="Today"        value={pubToday}  iconColor="bg-green-500" />}
                   {pubWeek  > 0  && <SmallStatCard icon={Calendar}  label="This Week"    value={pubWeek}   iconColor="bg-blue-500" />}
-                  {pubMonth > 0  && <SmallStatCard icon={Calendar}  label="This Month"   value={pubMonth}  iconColor="bg-violet-500" />}
+                  {pubMonth > 0  && <SmallStatCard icon={Calendar}  label="This Month"   value={pubMonth}  iconColor="bg-blue-500" />}
                   {pubTotal > 0  && <SmallStatCard icon={FileText}   label="Total Fetched" value={pubTotal} iconColor="bg-slate-500" />}
                 </div>
               </div>
@@ -738,15 +738,15 @@ export default function Analytics() {
                       <AreaChart data={charts!.impressions}>
                         <defs>
                           <linearGradient id="gImp" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.15} />
-                            <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
                         <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
                         <RechartTooltip content={<ChartTip />} />
-                        <Area type="monotone" dataKey="value" name="Impressions" stroke="#7c3aed" fill="url(#gImp)" strokeWidth={2} dot={false} />
+                        <Area type="monotone" dataKey="value" name="Impressions" stroke="#3b82f6" fill="url(#gImp)" strokeWidth={2} dot={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -808,7 +808,7 @@ export default function Analytics() {
                         <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
                         <YAxis tickFormatter={fmt} tick={{ fontSize: 10 }} width={40} />
                         <RechartTooltip content={<ChartTip />} />
-                        <Bar dataKey="value" name="Video Views" fill="#a855f7" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="value" name="Video Views" fill="#60a5fa" radius={[3, 3, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>

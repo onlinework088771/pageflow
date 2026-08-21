@@ -275,7 +275,7 @@ export default function FbDeveloperSettings() {
             <ChevronRight className="h-3 w-3" />
             <span>Facebook Developer Settings</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Facebook Developer Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Facebook Developer Settings</h1>
           <p className="text-muted-foreground mt-1">
             Update your Facebook App ID and App Secret. Changes apply immediately — no restart required.
           </p>

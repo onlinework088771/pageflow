@@ -230,7 +230,7 @@ export default function YoutubeAnalytics() {
         <div className="flex flex-col gap-6">
           <div className="flex items-end justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2.5">
                 <Youtube className="h-7 w-7 text-red-500" />
                 YouTube Analytics
               </h1>
@@ -301,12 +301,12 @@ export default function YoutubeAnalytics() {
 
   // ---- Dashboard view ----
 
-  const statCardDefs = s ? [
+    const statCardDefs = s ? [
     { icon: Users, label: "Subscribers", value: s.subscriberCount, color: "bg-red-500", show: true },
-    { icon: Eye, label: "Total Channel Views", value: s.totalChannelViews, color: "bg-violet-500", show: hasMetric(s.totalChannelViews) },
+    { icon: Eye, label: "Total Channel Views", value: s.totalChannelViews, color: "bg-blue-600", show: hasMetric(s.totalChannelViews) },
     { icon: Video, label: "Total Videos", value: s.totalChannelVideos, color: "bg-amber-500", show: hasMetric(s.totalChannelVideos) },
     { icon: Eye, label: "Views (Recent Uploads)", value: s.totalViews, color: "bg-cyan-500", show: hasMetric(s.totalViews), sub: `${s.recentVideosFetched} videos` },
-    { icon: ThumbsUp, label: "Likes (Recent)", value: s.totalLikes, color: "bg-pink-500", show: hasMetric(s.totalLikes) },
+    { icon: ThumbsUp, label: "Likes (Recent)", value: s.totalLikes, color: "bg-red-500", show: hasMetric(s.totalLikes) },
     { icon: MessageCircle, label: "Comments (Recent)", value: s.totalComments, color: "bg-orange-500", show: hasMetric(s.totalComments) },
     { icon: BarChart2, label: "Avg Views / Video", value: s.avgViews, color: "bg-emerald-500", show: hasMetric(s.avgViews) },
   ] : [];
@@ -380,7 +380,7 @@ export default function YoutubeAnalytics() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {pubToday > 0 && <SmallStatCard icon={Calendar} label="Today" value={pubToday} iconColor="bg-green-500" />}
                   {pubWeek > 0 && <SmallStatCard icon={Calendar} label="This Week" value={pubWeek} iconColor="bg-blue-500" />}
-                  {pubMonth > 0 && <SmallStatCard icon={Calendar} label="This Month" value={pubMonth} iconColor="bg-violet-500" />}
+                  {pubMonth > 0 && <SmallStatCard icon={Calendar} label="This Month" value={pubMonth} iconColor="bg-blue-500" />}
                 </div>
               </div>
             )}

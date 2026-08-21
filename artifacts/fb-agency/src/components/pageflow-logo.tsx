@@ -16,8 +16,8 @@ const sizeMap: Record<string, string> = {
 };
 
 const filterMap: Record<string, string> = {
-  dark: "brightness(0) invert(1) drop-shadow(0 0 14px rgba(139,92,246,0.55))",
-  nav:  "brightness(1.3) saturate(1.2) drop-shadow(0 0 6px rgba(139,92,246,0.2))",
+  dark: "brightness(0) invert(1) drop-shadow(0 0 14px rgba(59,130,246,0.55))",
+  nav:  "brightness(1.3) saturate(1.2) drop-shadow(0 0 6px rgba(59,130,246,0.2))",
 };
 
 export function PageFlowLogo({ size = "sm", variant = "nav", className = "" }: PageFlowLogoProps) {

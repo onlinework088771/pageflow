@@ -718,10 +718,10 @@ function AutomationConfigCard({ item }: { item: ChannelAutomation }) {
           </p>
           <div className="rounded-xl border bg-muted/20 divide-y">
             {([
-              { key: "aiTitle"       as const, label: "AI Title",         desc: "Auto-generate optimized video titles",        icon: <Bot className="h-3.5 w-3.5 text-purple-500" /> },
-              { key: "aiDescription" as const, label: "AI Description",   desc: "Auto-write descriptions with keywords",       icon: <Sparkles className="h-3.5 w-3.5 text-purple-500" /> },
-              { key: "autoHashtags"  as const, label: "Auto Hashtags",    desc: "Append relevant hashtags automatically",      icon: <Hash className="h-3.5 w-3.5 text-purple-500" /> },
-              { key: "autoPublish"   as const, label: "Auto Publish",     desc: "Publish immediately on upload",               icon: <Eye className="h-3.5 w-3.5 text-purple-500" /> },
+              { key: "aiTitle"       as const, label: "AI Title",         desc: "Auto-generate optimized video titles",        icon: <Bot className="h-3.5 w-3.5 text-blue-500" /> },
+              { key: "aiDescription" as const, label: "AI Description",   desc: "Auto-write descriptions with keywords",       icon: <Sparkles className="h-3.5 w-3.5 text-blue-500" /> },
+              { key: "autoHashtags"  as const, label: "Auto Hashtags",    desc: "Append relevant hashtags automatically",      icon: <Hash className="h-3.5 w-3.5 text-blue-500" /> },
+              { key: "autoPublish"   as const, label: "Auto Publish",     desc: "Publish immediately on upload",               icon: <Eye className="h-3.5 w-3.5 text-blue-500" /> },
             ]).map(({ key, label, desc, icon }) => (
               <div key={key} className="flex items-center justify-between gap-3 px-3 py-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">

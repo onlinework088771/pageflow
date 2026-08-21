@@ -494,7 +494,7 @@ export default function Settings() {
             <ChevronRight className="h-3 w-3" />
             <span>Settings</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Agency Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Agency Settings</h1>
           <p className="text-muted-foreground mt-1">Manage your agency configuration and API credentials.</p>
         </div>
 

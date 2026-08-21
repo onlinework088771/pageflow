@@ -39,6 +39,11 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
   --color-chart-3: hsl(var(--chart-3));
@@ -66,65 +71,79 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* LIGHT MODE */
+/* PageFlow DARK PREMIUM THEME — dark-first, electric-blue identity.
+   `:root` carries the dark palette so the app is dark even before React mounts;
+   the `.dark` block below mirrors it so `dark:*` utilities behave consistently. */
 :root {
-  --button-outline: rgba(0,0,0, .10);
-  --badge-outline: rgba(0,0,0, .05);
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
 
   /* Automatic computation of border around primary / danger buttons */
-  --opaque-button-border-intensity: -8; /* In terms of percentages */
+  --opaque-button-border-intensity: 9; /* In terms of percentages */
 
   /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .08);
+  --elevate-1: rgba(255,255,255, .05);
+  --elevate-2: rgba(255,255,255, .10);
 
-  --background: 240 20% 99%;
-  --foreground: 240 10% 10%;
-  --border: 240 15% 90%;
-  --card: 0 0% 100%;
-  --card-foreground: 240 10% 10%;
-  --card-border: 240 15% 90%;
-  --sidebar: 240 20% 99%;
-  --sidebar-foreground: 240 10% 10%;
-  --sidebar-border: 240 15% 90%;
-  --sidebar-primary: 255 85% 55%;
+  /* Surfaces — deep near-black / dark navy */
+  --background: 222 45% 3%;            /* ~#05070B near-black */
+  --foreground: 220 20% 98%;           /* bright white */
+  --border: 220 22% 14%;               /* subtle dark-blue/gray borders */
+  --card: 224 32% 6%;                  /* ~#0D111A dark surface */
+  --card-foreground: 220 20% 98%;
+  --card-border: 220 22% 15%;
+  --sidebar: 224 40% 4%;               /* ~#080C14 dark navy */
+  --sidebar-foreground: 220 20% 96%;
+  --sidebar-border: 220 24% 12%;
+  --sidebar-primary: 217 95% 60%;      /* electric blue */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 15% 94%;
-  --sidebar-accent-foreground: 240 10% 10%;
-  --sidebar-ring: 255 85% 55%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 10%;
-  --popover-border: 240 15% 90%;
-  --primary: 255 85% 55%;
+  --sidebar-accent: 217 80% 16%;       /* blue-tinted active/hover chip */
+  --sidebar-accent-foreground: 217 90% 88%;
+  --sidebar-ring: 217 95% 60%;
+  --popover: 224 34% 5%;
+  --popover-foreground: 220 20% 98%;
+  --popover-border: 220 22% 15%;
+  --primary: 217 95% 60%;              /* electric blue accent */
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 15% 94%;
-  --secondary-foreground: 240 10% 10%;
-  --muted: 240 15% 94%;
-  --muted-foreground: 240 10% 45%;
-  --accent: 240 15% 94%;
-  --accent-foreground: 240 10% 10%;
-  --destructive: 0 84% 60%;
+  --secondary: 220 24% 10%;
+  --secondary-foreground: 220 20% 92%;
+  --muted: 220 24% 9%;
+  --muted-foreground: 220 12% 63%;     /* soft gray secondary text */
+  --accent: 220 30% 12%;
+  --accent-foreground: 220 20% 96%;
+  --destructive: 0 78% 55%;            /* clean red */
   --destructive-foreground: 0 0% 100%;
-  --input: 240 15% 90%;
-  --ring: 255 85% 55%;
-  --chart-1: 255 85% 55%;
-  --chart-2: 240 85% 65%;
-  --chart-3: 280 85% 65%;
-  --chart-4: 220 85% 65%;
-  --chart-5: 300 85% 65%;
+  --input: 220 18% 22%;
+  --ring: 217 95% 60%;
+  --success: 152 62% 42%;              /* clean modern green */
+  --success-foreground: 150 50% 99%;
+  --warning: 40 95% 55%;               /* warm amber */
+  --warning-foreground: 32 60% 10%;
+  --chart-1: 217 95% 60%;              /* blue-led chart family */
+  --chart-2: 215 85% 70%;
+  --chart-3: 152 62% 48%;
+  --chart-4: 200 80% 55%;
+  --chart-5: 260 55% 66%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
-  --radius: .5rem; /* 8px */
-  --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
-  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px -1px rgba(0, 0, 0, 0.1);
-  --shadow-sm: 0px 2px 4px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0px 10px 15px -3px rgba(0, 0, 0, 0.1), 0px 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0px 20px 25px -5px rgba(0, 0, 0, 0.1), 0px 8px 10px -6px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0px 25px 50px -12px rgba(0, 0, 0, 0.25);
-  --shadow-2xl: 0px 35px 60px -15px rgba(0, 0, 0, 0.3);
+  --radius: .75rem; /* 12px → rounded-lg 12px, rounded-xl 16px, rounded-2xl 20px */
+
+  /* Soft, deep shadows for premium dark surfaces */
+  --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.35);
+  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.4), 0px 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0px 2px 6px -1px rgba(0, 0, 0, 0.4), 0px 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow: 0px 6px 14px -2px rgba(0, 0, 0, 0.45), 0px 2px 5px -3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0px 12px 24px -4px rgba(0, 0, 0, 0.5), 0px 4px 8px -4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0px 20px 32px -6px rgba(0, 0, 0, 0.55), 0px 8px 12px -6px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0px 24px 48px -8px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0px 32px 60px -12px rgba(0, 0, 0, 0.65);
+
+  /* Card surface + primary glow tokens */
+  --card-shadow: 0 1px 0 0 hsl(var(--border) / 0.4) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --glow-primary: 0 0 0 1px hsl(var(--primary) / 0.4), 0 0 24px -6px hsl(var(--primary) / 0.5);
+
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -160,61 +179,66 @@
 }
 
 .dark {
+  /* Mirrors `:root` so `dark:*` utilities match the single PageFlow theme. */
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
+  --opaque-button-border-intensity: 9;
+  --elevate-1: rgba(255,255,255, .05);
+  --elevate-2: rgba(255,255,255, .10);
 
-  --opaque-button-border-intensity: 9;  /* In terms of percentages */
-
-  /* Backgrounds applied on top of other backgrounds when hovered/active */
-  --elevate-1: rgba(255,255,255, .04);
-  --elevate-2: rgba(255,255,255, .09);
-
-  --background: 240 10% 4%;
-  --foreground: 0 0% 98%;
-  --border: 240 10% 15%;
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 10% 15%;
-  --sidebar: 240 10% 6%;
-  --sidebar-foreground: 0 0% 98%;
-  --sidebar-border: 240 10% 15%;
-  --sidebar-primary: 255 85% 65%;
+  --background: 222 45% 3%;
+  --foreground: 220 20% 98%;
+  --border: 220 22% 14%;
+  --card: 224 32% 6%;
+  --card-foreground: 220 20% 98%;
+  --card-border: 220 22% 15%;
+  --sidebar: 224 40% 4%;
+  --sidebar-foreground: 220 20% 96%;
+  --sidebar-border: 220 24% 12%;
+  --sidebar-primary: 217 95% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 10% 12%;
-  --sidebar-accent-foreground: 0 0% 98%;
-  --sidebar-ring: 255 85% 65%;
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 98%;
-  --popover-border: 240 10% 15%;
-  --primary: 255 85% 65%;
+  --sidebar-accent: 217 80% 16%;
+  --sidebar-accent-foreground: 217 90% 88%;
+  --sidebar-ring: 217 95% 60%;
+  --popover: 224 34% 5%;
+  --popover-foreground: 220 20% 98%;
+  --popover-border: 220 22% 15%;
+  --primary: 217 95% 60%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 10% 12%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 240 10% 12%;
-  --muted-foreground: 240 10% 65%;
-  --accent: 240 10% 12%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 50%;
-  --destructive-foreground: 0 0% 98%;
+  --secondary: 220 24% 10%;
+  --secondary-foreground: 220 20% 92%;
+  --muted: 220 24% 9%;
+  --muted-foreground: 220 12% 63%;
+  --accent: 220 30% 12%;
+  --accent-foreground: 220 20% 96%;
+  --destructive: 0 78% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 152 62% 42%;
+  --success-foreground: 150 50% 99%;
+  --warning: 40 95% 55%;
+  --warning-foreground: 32 60% 10%;
 
   /* Used as the border around inputs. Dark mode: Should be a border that is light enough to have high contrast when rendered on a --card background. More contrast than standard --border */
-  --input: 240 10% 25%;
-  --ring: 255 85% 65%;
-  --chart-1: 255 85% 65%;
-  --chart-2: 240 85% 75%;
-  --chart-3: 280 85% 75%;
-  --chart-4: 220 85% 75%;
-  --chart-5: 300 85% 75%;
+  --input: 220 18% 22%;
+  --ring: 217 95% 60%;
+  --chart-1: 217 95% 60%;
+  --chart-2: 215 85% 70%;
+  --chart-3: 152 62% 48%;
+  --chart-4: 200 80% 55%;
+  --chart-5: 260 55% 66%;
 
-  --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.05);
-  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.1), 0px 1px 2px -1px rgba(0, 0, 0, 0.1);
-  --shadow-sm: 0px 2px 4px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0px 10px 15px -3px rgba(0, 0, 0, 0.1), 0px 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0px 20px 25px -5px rgba(0, 0, 0, 0.1), 0px 8px 10px -6px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0px 25px 50px -12px rgba(0, 0, 0, 0.25);
-  --shadow-2xl: 0px 35px 60px -15px rgba(0, 0, 0, 0.3);
+  --shadow-2xs: 0px 1px 2px 0px rgba(0, 0, 0, 0.35);
+  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.4), 0px 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0px 2px 6px -1px rgba(0, 0, 0, 0.4), 0px 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow: 0px 6px 14px -2px rgba(0, 0, 0, 0.45), 0px 2px 5px -3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0px 12px 24px -4px rgba(0, 0, 0, 0.5), 0px 4px 8px -4px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0px 20px 32px -6px rgba(0, 0, 0, 0.55), 0px 8px 12px -6px rgba(0, 0, 0, 0.35);
+  --shadow-xl: 0px 24px 48px -8px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0px 32px 60px -12px rgba(0, 0, 0, 0.65);
 
+  --card-shadow: 0 1px 0 0 hsl(var(--border) / 0.4) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  --glow-primary: 0 0 0 1px hsl(var(--primary) / 0.4), 0 0 24px -6px hsl(var(--primary) / 0.5);
 }
 
 @layer base {
@@ -222,8 +246,121 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+
+    /* Very subtle premium blue ambient glows in selected areas only —
+       the radial gradients are kept low-alpha so surfaces stay clean. */
+    background-image:
+      radial-gradient(1000px 520px at 85% -12%, hsl(var(--primary) / 0.07), transparent 60%),
+      radial-gradient(760px 460px at -12% 18%, hsl(217 80% 55% / 0.05), transparent 55%),
+      radial-gradient(900px 500px at 50% 115%, hsl(217 70% 45% / 0.04), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.18);
+  }
+
+  /* Thin, unobtrusive scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* iOS safe areas for the mobile bottom tab bar */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* ── Premium component utilities ──────────────────────────────────────────── */
+
+@layer components {
+  /* Interactive card / list-row surfaces: subtle border accent + soft elevation
+     on hover (used on cards that navigate or open actions). */
+  .card-hover {
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  }
+  .card-hover:hover {
+    border-color: hsl(var(--primary) / 0.35);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.12),
+      0 12px 28px -12px rgba(0, 0, 0, 0.65),
+      0 0 24px -10px hsl(var(--primary) / 0.35);
+  }
+
+  /* Soft inner top highlight used on premium dark surfaces */
+  .surface-topline {
+    box-shadow: 0 1px 0 0 hsl(var(--border) / 0.5) inset;
+  }
+
+  /* Blue gradient text for hero numbers / key highlights */
+  .text-gradient-blue {
+    background-image: linear-gradient(120deg, hsl(217 95% 78%), hsl(217 95% 55%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Subtle blue-tinted surface chip for platform/status meta blocks */
+  .chip-blue {
+    background: linear-gradient(180deg, hsl(var(--primary) / 0.12), hsl(var(--primary) / 0.05));
+    border: 1px solid hsl(var(--primary) / 0.18);
+    color: hsl(217 90% 82%);
+  }
+
+  /* Badge "dot" states — semantic, subtle, dark-friendly */
+  .badge-dot {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-dot::before {
+    content: "";
+    @apply h-1.5 w-1.5 rounded-full;
+    background: currentColor;
+  }
+  .badge-dot[data-state="active"],
+  .badge-dot[data-state="published"],
+  .badge-dot[data-state="posted"],
+  .badge-dot[data-state="success"] {
+    color: hsl(var(--success));
+  }
+  .badge-dot[data-state="pending"],
+  .badge-dot[data-state="scheduled"] {
+    color: hsl(var(--primary));
+  }
+  .badge-dot[data-state="processing"] {
+    color: hsl(var(--warning));
+  }
+  .badge-dot[data-state="paused"] {
+    color: hsl(40 70% 55%);
+  }
+  .badge-dot[data-state="failed"],
+  .badge-dot[data-state="error"] {
+    color: hsl(var(--destructive));
   }
 }
 

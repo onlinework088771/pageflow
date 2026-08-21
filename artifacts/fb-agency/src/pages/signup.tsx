@@ -50,10 +50,10 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden bg-[radial-gradient(900px_520px_at_75%_-10%,hsl(var(--primary)/0.14),transparent_60%)]">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-15%] left-[50%] -translate-x-1/2 w-[700px] h-[400px] bg-violet-600/15 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[20%] w-[400px] h-[300px] bg-indigo-600/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[-15%] right-[-5%] h-[480px] w-[520px] rounded-full bg-[hsl(var(--primary)/0.14)] blur-[120px]" />
+        <div className="absolute bottom-[-12%] left-[15%] h-[380px] w-[380px] rounded-full bg-[hsl(210_80%_55%/0.10)] blur-[110px]" />
       </div>
 
       <div className="w-full max-w-md relative z-10">
@@ -61,42 +61,42 @@ export default function Signup() {
           <div className="flex justify-center mb-5">
             <PageFlowLogo size="xl" variant="dark" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Create your agency</h1>
-          <p className="text-gray-400 mt-1.5 text-sm">Set up PageFlow for your team in minutes</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Create your agency</h1>
+          <p className="text-muted-foreground mt-1.5 text-sm">Set up PageFlow for your team in minutes</p>
         </div>
 
         <div
           className="rounded-2xl p-[1px]"
-          style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.4) 0%, rgba(99,102,241,0.15) 50%, rgba(255,255,255,0.05) 100%)" }}
+          style={{ background: "linear-gradient(135deg, hsl(var(--primary)/0.5) 0%, hsl(217 85% 55%/0.22) 50%, hsl(var(--border)/0.4) 100%)" }}
         >
-          <div className="bg-gray-900/95 backdrop-blur-sm rounded-2xl p-6 sm:p-7">
+          <div className="bg-card/95 backdrop-blur-sm rounded-2xl p-6 sm:p-7 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.7)]">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="name" className="text-gray-300 text-sm font-medium">Your Name</Label>
+                  <Label htmlFor="name" className="text-foreground/85 text-sm font-medium">Your Name</Label>
                   <Input
                     id="name"
                     placeholder="Jane Doe"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="bg-gray-800/80 border-gray-700/70 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-lg"
+                    className="h-11 rounded-lg"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="agencyName" className="text-gray-300 text-sm font-medium">Agency Name</Label>
+                  <Label htmlFor="agencyName" className="text-foreground/85 text-sm font-medium">Agency Name</Label>
                   <Input
                     id="agencyName"
                     placeholder="Acme Agency"
                     value={agencyName}
                     onChange={(e) => setAgencyName(e.target.value)}
                     required
-                    className="bg-gray-800/80 border-gray-700/70 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-lg"
+                    className="h-11 rounded-lg"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-300 text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-foreground/85 text-sm font-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -104,11 +104,11 @@ export default function Signup() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-gray-800/80 border-gray-700/70 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-lg"
+                  className="h-11 rounded-lg"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-300 text-sm font-medium">Password</Label>
+                <Label htmlFor="password" className="text-foreground/85 text-sm font-medium">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -116,22 +116,22 @@ export default function Signup() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="bg-gray-800/80 border-gray-700/70 text-white placeholder-gray-500 focus:border-violet-500 focus:ring-violet-500/20 h-11 rounded-lg"
+                  className="h-11 rounded-lg"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-11 rounded-lg font-semibold text-white shadow-lg shadow-violet-900/30 transition-all duration-200 hover:shadow-violet-700/40 hover:scale-[1.01] active:scale-[0.99]"
-                style={{ background: "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)" }}
+                className="w-full h-11 rounded-lg font-semibold text-white shadow-[0_10px_30px_-8px_hsl(var(--primary)/0.5)] transition-all duration-200 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.6),0_14px_36px_-10px_hsl(var(--primary)/0.65)] active:scale-[0.99]"
+                style={{ background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" }}
               >
                 {isLoading ? "Creating account..." : "Create account"}
               </Button>
             </form>
 
-            <p className="text-center text-gray-500 text-sm mt-5">
+            <p className="text-center text-muted-foreground text-sm mt-5">
               Already have an account?{" "}
-              <Link href="/login" className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+              <Link href="/login" className="text-primary hover:text-primary/80 font-medium transition-colors">
                 Sign in
               </Link>
             </p>

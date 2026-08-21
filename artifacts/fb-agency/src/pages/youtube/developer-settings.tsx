@@ -258,7 +258,7 @@ export default function YoutubeDeveloperSettings() {
             <ChevronRight className="h-3 w-3" />
             <span>Developer Settings</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">YouTube Developer Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">YouTube Developer Settings</h1>
           <p className="text-muted-foreground mt-1">
             Update your Google OAuth Client ID and Client Secret. Changes apply immediately — no restart required.
           </p>

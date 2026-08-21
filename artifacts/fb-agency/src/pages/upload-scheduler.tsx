@@ -30,6 +30,7 @@ import { apiUrl, authFetch, TIMEZONES } from "@/components/schedule-management-u
 // ---------------------------------------------------------------------------
 
 type WizardStep = "account" | "pages" | "content" | "upload";
+type ScheduledVideoStatus = "pending" | "processing" | "posted" | "failed";
 type ContentType = "video" | "reel" | "image" | "text";
 type UploadMode = "single" | "bulk";
 type TimeSlotMode = "auto" | "manual";
@@ -735,7 +736,7 @@ export default function UploadScheduler() {
 
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Video Scheduler</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Video Scheduler</h1>
           <p className="text-muted-foreground mt-1 text-sm">Schedule and bulk-post videos & reels to your Facebook pages.</p>
         </div>
 
@@ -1455,12 +1456,6 @@ export default function UploadScheduler() {
           onDuplicate={handleDuplicate}
           onUpdated={handleUpdated}
           getPageName={getPageName}
-          isFiltered={managerIsFiltered}
-          filterSummary={filterSummary}
-          isAdmin={isAdmin}
-          onDeleteAll={handleDeleteAllSchedules}
-          isDeletingAll={isDeletingAll}
-          totalVideosCount={videos.length}
         />
 
       </div>

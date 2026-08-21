@@ -994,7 +994,9 @@ export default function ScheduleManager() {
 
   /* ── PAGES VIEW ───────────────────────────────────────────────────── */
   if (view === "pages") {
-    const connectedPages = accountPages.filter((p) => p.status === "active" || p.status === "paused" || p.status === "connected");
+    // The live API can also return "connected"; widening avoids a type error
+    // in the filter below without changing runtime behavior.
+    const connectedPages = accountPages.filter((p) => ["active", "paused", "connected"].includes(p.status));
     return (
       <Layout>
         <div className="space-y-6">

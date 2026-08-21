@@ -263,10 +263,10 @@ export default function YouTubeChannelDetail() {
                   {statusBadge(channel.status, channel.automationEnabled)}
                 </div>
                 <p className="text-sm text-muted-foreground font-mono">{channel.channelId}</p>
-                {channel.subscriberCount > 0 && (
+                {(channel.subscriberCount ?? 0) > 0 && (
                   <p className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
                     <Users className="h-3.5 w-3.5" />
-                    {channel.subscriberCount.toLocaleString()} subscribers
+                    {(channel.subscriberCount ?? 0).toLocaleString()} subscribers
                   </p>
                 )}
               </div>

@@ -4,6 +4,7 @@ import { Layout } from "@/components/layout";
 import {
   useListPages, getListPagesQueryKey,
   useCreatePage,
+  type CreatePageBody,
   useUpdatePage,
   useListAccounts, getListAccountsQueryKey,
   useGetAccountAvailablePages, getGetAccountAvailablePagesQueryKey,
@@ -248,6 +249,8 @@ export default function PagesManagement() {
 
     createPage.mutate(
       {
+        // timeSlots is consumed by the automation config on the server but is
+        // absent from the generated CreatePageBody schema, hence the cast.
         data: {
           fbPageId: selectedPage.fbPageId,
           name: selectedPage.name,
@@ -259,7 +262,7 @@ export default function PagesManagement() {
           scheduleLogic: step2.scheduleLogic,
           timezone: step2.timezone,
           timeSlots: step2.timeSlots,
-        },
+        } as unknown as CreatePageBody,
       },
       {
         onSuccess: () => {
@@ -359,7 +362,7 @@ export default function PagesManagement() {
         {/* Header */}
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Page Automation</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Page Automation</h1>
             <p className="text-muted-foreground mt-1">
               Manage your automated Facebook page posting schedules.
             </p>
@@ -525,20 +528,22 @@ export default function PagesManagement() {
                       </div>
                     </div>
 
-                    {/* Source info */}
+                    {/* Source info — the automation pulls content FROM this feed
+                        and publishes it to the Facebook page above, so it is
+                        labeled unambiguously as the content source. */}
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border">
                       <span className="text-muted-foreground flex-shrink-0">
                         {page.sourceType ? SOURCE_ICONS[page.sourceType] : <Globe className="h-4 w-4" />}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <span className="text-xs font-medium">
-                          {page.sourceType ? SOURCE_LABELS[page.sourceType] : "No source"}
+                        <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/90">
+                          Content source
                         </span>
-                        {page.sourceIdentity && (
-                          <span className="text-xs text-muted-foreground ml-1.5 truncate block">
-                            {page.sourceIdentity}
-                          </span>
-                        )}
+                        <span className="block text-xs font-medium text-foreground">
+                          {page.sourceType
+                            ? `${SOURCE_LABELS[page.sourceType] ?? "Source"}${page.sourceIdentity ? ` · ${page.sourceIdentity}` : ""}`
+                            : "No source configured"}
+                        </span>
                       </div>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
                         {page.postsPerDay}×/day

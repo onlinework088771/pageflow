@@ -30,7 +30,6 @@ function Li({ children }: { children: ReactNode }) {
   );
 }
 
-import { ReactNode } from "react";
 
 export default function Privacy() {
   return (

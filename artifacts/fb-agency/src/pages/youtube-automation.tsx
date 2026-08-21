@@ -270,10 +270,10 @@ export default function YouTubeAutomation() {
                         <CardTitle className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
                           {ch.name}
                         </CardTitle>
-                        {ch.subscriberCount > 0 && (
+                        {(ch.subscriberCount ?? 0) > 0 && (
                           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <Users className="h-3 w-3" />
-                            {ch.subscriberCount.toLocaleString()} subscribers
+                            {(ch.subscriberCount ?? 0).toLocaleString()} subscribers
                           </p>
                         )}
                       </div>
