@@ -45,6 +45,7 @@ interface BulkFile {
   file?: File;
   sourceUrl?: string;
   originalTitle: string | null;
+  originalTitleResolved: boolean;
   titleOverride?: string;
   captionOverride?: string;
   titleManuallyEdited: boolean;
@@ -267,6 +268,20 @@ async function resolveSourceTitle(url: string): Promise<string | null> {
     : null;
 }
 
+async function resolveLocalFileTitle(file: File): Promise<string | null> {
+  const formData = new FormData();
+  formData.append("video", file);
+  const response = await authFetch(apiUrl("/scheduled-videos/resolve-file-title"), {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => ({}));
+  return typeof data.originalTitle === "string" && data.originalTitle.trim()
+    ? data.originalTitle.trim()
+    : null;
+}
+
 function BulkFileCard({
   f,
   previewTitle,
@@ -301,7 +316,8 @@ function BulkFileCard({
       {statusIcon}
       <div className="flex-1 min-w-0">
         <span className="block truncate text-xs">{f.file?.name ?? f.sourceUrl ?? "Source URL"}</span>
-        {useOriginalTitle && f.originalTitle && <span className="block truncate text-[10px] text-muted-foreground">Original title: {f.originalTitle}</span>}
+        {useOriginalTitle && !f.originalTitleResolved && <span className="block truncate text-[10px] text-muted-foreground">Reading embedded/source title…</span>}
+        {useOriginalTitle && f.originalTitleResolved && f.originalTitle && <span className="block truncate text-[10px] text-muted-foreground">Original title: {f.originalTitle}</span>}
       </div>
       {f.file && <span className="text-muted-foreground text-[10px] shrink-0">{fmtBytes(f.file.size)}</span>}
       {f.status === "pending" && (
@@ -493,6 +509,11 @@ export default function UploadScheduler() {
   const [singleTitleManuallyEdited, setSingleTitleManuallyEdited] = useState(false);
   const [singleCaptionManuallyEdited, setSingleCaptionManuallyEdited] = useState(false);
   const [singleUseOriginalVideoTitle, setSingleUseOriginalVideoTitle] = useState(false);
+  const [singleTitleResolving, setSingleTitleResolving] = useState(false);
+  const singleTitleRequestRef = useRef(0);
+  const singleUseOriginalTitleRef = useRef(false);
+  const singleTitleManualRef = useRef(false);
+  const singleCaptionManualRef = useRef(false);
   const [singleUploading, setSingleUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver]               = useState(false);
@@ -507,7 +528,8 @@ export default function UploadScheduler() {
   const [showAdvanced, setShowAdvanced]       = useState(false);
   const bulkFileRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(false);
-  const resolvingBulkTitlesRef = useRef(new Set<string>());
+  const resolvingBulkTitlesRef = useRef(new Map<string, symbol>());
+  const bulkUseOriginalTitleRef = useRef(false);
 
   // Schedule management state
   const [scheduledVideos, setScheduledVideos] = useState<ScheduledVideo[]>([]);
@@ -523,39 +545,76 @@ export default function UploadScheduler() {
 
   const applySingleOriginalTitle = useCallback((title: string | null) => {
     setSingleOriginalTitle(title);
-    if (!singleUseOriginalVideoTitle || !title) return;
-    if (!singleTitleManuallyEdited) setSingleTitle(title);
-    if (!singleCaptionManuallyEdited) setSingleCaption(title);
-  }, [singleCaptionManuallyEdited, singleTitleManuallyEdited, singleUseOriginalVideoTitle]);
+    if (!singleUseOriginalTitleRef.current || !title) return;
+    if (!singleTitleManualRef.current) setSingleTitle(title);
+    if (!singleCaptionManualRef.current) setSingleCaption(title);
+  }, []);
 
-  const selectSingleFile = useCallback((file: File | null) => {
-    setSingleFile(file);
-    if (file) {
-      applySingleOriginalTitle(originalTitleFromFilename(file.name));
-    } else {
-      setSingleOriginalTitle(null);
+  const resolveSingleFileTitle = useCallback(async (file: File, requestId: number) => {
+    setSingleTitleResolving(true);
+    try {
+      const embeddedTitle = await resolveLocalFileTitle(file);
+      if (requestId !== singleTitleRequestRef.current || !singleUseOriginalTitleRef.current) return;
+      applySingleOriginalTitle(embeddedTitle ?? originalTitleFromFilename(file.name));
+    } catch {
+      if (requestId === singleTitleRequestRef.current && singleUseOriginalTitleRef.current) {
+        applySingleOriginalTitle(originalTitleFromFilename(file.name));
+      }
+    } finally {
+      if (requestId === singleTitleRequestRef.current) setSingleTitleResolving(false);
     }
   }, [applySingleOriginalTitle]);
 
-  const handleSingleOriginalTitleToggle = useCallback((enabled: boolean) => {
-    setSingleUseOriginalVideoTitle(enabled);
-    if (enabled && singleOriginalTitle) {
-      if (!singleTitleManuallyEdited) setSingleTitle(singleOriginalTitle);
-      if (!singleCaptionManuallyEdited) setSingleCaption(singleOriginalTitle);
+  const selectSingleFile = useCallback((file: File | null) => {
+    const requestId = ++singleTitleRequestRef.current;
+    setSingleFile(file);
+    if (!file) {
+      setSingleTitleResolving(false);
+      setSingleOriginalTitle(null);
+      return;
     }
-  }, [singleCaptionManuallyEdited, singleTitleManuallyEdited, singleOriginalTitle]);
+
+    applySingleOriginalTitle(originalTitleFromFilename(file.name));
+    if (singleUseOriginalTitleRef.current) void resolveSingleFileTitle(file, requestId);
+  }, [applySingleOriginalTitle, resolveSingleFileTitle]);
+
+  const handleSingleOriginalTitleToggle = useCallback((enabled: boolean) => {
+    singleUseOriginalTitleRef.current = enabled;
+    setSingleUseOriginalVideoTitle(enabled);
+    if (!enabled) {
+      setSingleTitleResolving(false);
+      return;
+    }
+    if (singleFile) {
+      const requestId = ++singleTitleRequestRef.current;
+      applySingleOriginalTitle(originalTitleFromFilename(singleFile.name));
+      void resolveSingleFileTitle(singleFile, requestId);
+    } else if (singleOriginalTitle) {
+      applySingleOriginalTitle(singleOriginalTitle);
+    }
+  }, [applySingleOriginalTitle, resolveSingleFileTitle, singleFile, singleOriginalTitle]);
 
   useEffect(() => {
     let cancelled = false;
     if (!singleUseOriginalVideoTitle || singleFile || !singleUrl.trim()) {
       if (!singleFile && !singleUrl.trim()) applySingleOriginalTitle(null);
+      setSingleTitleResolving(false);
       return () => { cancelled = true; };
     }
 
+    const requestId = ++singleTitleRequestRef.current;
+    setSingleTitleResolving(true);
     const timeoutId = window.setTimeout(() => {
-      resolveSourceTitle(singleUrl.trim()).then((title) => {
-        if (!cancelled) applySingleOriginalTitle(title);
-      });
+      resolveSourceTitle(singleUrl.trim())
+        .then((title) => {
+          if (!cancelled && requestId === singleTitleRequestRef.current && singleUseOriginalTitleRef.current) {
+            applySingleOriginalTitle(title);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (requestId === singleTitleRequestRef.current) setSingleTitleResolving(false);
+        });
     }, 450);
     return () => {
       cancelled = true;
@@ -624,6 +683,10 @@ export default function UploadScheduler() {
   }
 
   async function submitSingle(postNow: boolean) {
+    if (singleUseOriginalVideoTitle && singleTitleResolving) {
+      toast({ title: "Resolving original title", description: "Please wait for the embedded video metadata to finish loading." });
+      return;
+    }
     if (!singleTitle.trim()) {
       toast({ title: "Title required", variant: "destructive" }); return;
     }
@@ -683,6 +746,8 @@ export default function UploadScheduler() {
       setSingleTitle(""); setSingleCaption(""); setSingleHashtags("");
       setSingleDate(""); setSingleTime(""); setSingleUrl("");
       selectSingleFile(null);
+      singleTitleManualRef.current = false;
+      singleCaptionManualRef.current = false;
       setSingleTitleManuallyEdited(false);
       setSingleCaptionManuallyEdited(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -701,6 +766,7 @@ export default function UploadScheduler() {
       id: uid(),
       file,
       originalTitle: originalTitleFromFilename(file.name),
+      originalTitleResolved: false,
       titleManuallyEdited: false,
       captionManuallyEdited: false,
       status: "pending",
@@ -717,6 +783,9 @@ export default function UploadScheduler() {
   }
 
   function updateBulkFile(id: string, patch: Partial<BulkFile>) {
+    if (patch.file !== undefined || patch.sourceUrl !== undefined) {
+      resolvingBulkTitlesRef.current.delete(id);
+    }
     setBulkFiles((prev) => prev.map((f) => f.id === id ? { ...f, ...patch } : f));
   }
 
@@ -732,6 +801,7 @@ export default function UploadScheduler() {
       id,
       sourceUrl: url,
       originalTitle: null,
+      originalTitleResolved: false,
       titleManuallyEdited: false,
       captionManuallyEdited: false,
       status: "pending",
@@ -739,23 +809,52 @@ export default function UploadScheduler() {
     setBulkSourceUrl("");
   }
 
+  const handleBulkOriginalTitleToggle = useCallback((enabled: boolean) => {
+    bulkUseOriginalTitleRef.current = enabled;
+    setBulkUseOriginalVideoTitle(enabled);
+    if (!enabled) resolvingBulkTitlesRef.current.clear();
+  }, []);
+
   useEffect(() => {
-    if (!bulkUseOriginalVideoTitle) return;
-    const pending = bulkFiles.filter((f) => f.sourceUrl && f.originalTitle === null && !resolvingBulkTitlesRef.current.has(f.id));
+    if (!bulkUseOriginalVideoTitle) {
+      resolvingBulkTitlesRef.current.clear();
+      return;
+    }
+
+    const pending = bulkFiles.filter((f) =>
+      !f.originalTitleResolved &&
+      Boolean(f.file || f.sourceUrl) &&
+      !resolvingBulkTitlesRef.current.has(f.id),
+    );
     if (pending.length === 0) return;
 
-    let cancelled = false;
     pending.forEach((file) => {
-      if (!file.sourceUrl) return;
-      resolvingBulkTitlesRef.current.add(file.id);
-      resolveSourceTitle(file.sourceUrl)
+      const requestToken = Symbol(file.id);
+      resolvingBulkTitlesRef.current.set(file.id, requestToken);
+      const resolution = file.file
+        ? resolveLocalFileTitle(file.file)
+        : file.sourceUrl
+          ? resolveSourceTitle(file.sourceUrl)
+          : Promise.resolve(null);
+      resolution
+        .catch(() => null)
         .then((originalTitle) => {
-          if (!cancelled) updateBulkFile(file.id, { originalTitle });
+          if (
+            bulkUseOriginalTitleRef.current &&
+            resolvingBulkTitlesRef.current.get(file.id) === requestToken
+          ) {
+            updateBulkFile(file.id, {
+              originalTitle: originalTitle ?? (file.file ? originalTitleFromFilename(file.file.name) : null),
+              originalTitleResolved: true,
+            });
+          }
         })
-        .finally(() => resolvingBulkTitlesRef.current.delete(file.id));
+        .finally(() => {
+          if (resolvingBulkTitlesRef.current.get(file.id) === requestToken) {
+            resolvingBulkTitlesRef.current.delete(file.id);
+          }
+        });
     });
-
-    return () => { cancelled = true; };
   }, [bulkFiles, bulkUseOriginalVideoTitle]);
 
   function removeBulkFile(id: string) {
@@ -764,6 +863,7 @@ export default function UploadScheduler() {
   }
 
   function clearBulkFiles() {
+    resolvingBulkTitlesRef.current.clear();
     setBulkFiles([]);
   }
 
@@ -786,6 +886,10 @@ export default function UploadScheduler() {
   async function startBulkScheduling() {
     if (bulkFiles.length === 0) {
       toast({ title: "No files selected", variant: "destructive" }); return;
+    }
+    if (bulkUseOriginalVideoTitle && bulkFiles.some((file) => !file.originalTitleResolved)) {
+      toast({ title: "Resolving original titles", description: "Please wait for every video’s embedded metadata to finish loading." });
+      return;
     }
     if (selectedPageIds.length === 0) {
       toast({ title: "Select at least one page", variant: "destructive" }); return;
@@ -1192,7 +1296,7 @@ export default function UploadScheduler() {
                 <OriginalTitleToggle
                   id="bulk-use-original-title"
                   checked={bulkUseOriginalVideoTitle}
-                  onCheckedChange={setBulkUseOriginalVideoTitle}
+                  onCheckedChange={handleBulkOriginalTitleToggle}
                 />
               )}
             </div>
@@ -1256,12 +1360,16 @@ export default function UploadScheduler() {
                       <Input
                         placeholder="Enter title..."
                         value={singleTitle}
-                        onChange={(e) => {
-                          setSingleTitleManuallyEdited(true);
-                          setSingleTitle(e.target.value);
-                        }}
+                          onChange={(e) => {
+                            singleTitleManualRef.current = true;
+                            setSingleTitleManuallyEdited(true);
+                            setSingleTitle(e.target.value);
+                          }}
                       />
-                      {singleUseOriginalVideoTitle && singleOriginalTitle && !singleTitleManuallyEdited && (
+                      {singleUseOriginalVideoTitle && singleTitleResolving && (
+                        <p className="text-[10px] text-muted-foreground">Reading embedded/source title…</p>
+                      )}
+                      {singleUseOriginalVideoTitle && !singleTitleResolving && singleOriginalTitle && !singleTitleManuallyEdited && (
                         <p className="text-[10px] text-muted-foreground">Using original title: {singleOriginalTitle}</p>
                       )}
                     </div>
@@ -1274,6 +1382,7 @@ export default function UploadScheduler() {
                         placeholder="Write your caption..."
                         value={singleCaption}
                         onChange={(e) => {
+                          singleCaptionManualRef.current = true;
                           setSingleCaptionManuallyEdited(true);
                           setSingleCaption(e.target.value);
                         }}
