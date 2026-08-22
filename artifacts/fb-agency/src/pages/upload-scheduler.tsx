@@ -24,6 +24,10 @@ import {
 import { FacebookPostPreview } from "@/components/facebook-post-preview";
 import { ScheduleManagement } from "@/components/schedule-management";
 import { apiUrl, authFetch, TIMEZONES } from "@/components/schedule-management-utils";
+import {
+  resolveOriginalCaptionForItem,
+  resolveOriginalTitleForItem,
+} from "@/lib/original-title-rules";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,7 +42,13 @@ type TitleMode = "same" | "sequential";
 
 interface BulkFile {
   id: string;
-  file: File;
+  file?: File;
+  sourceUrl?: string;
+  originalTitle: string | null;
+  titleOverride?: string;
+  captionOverride?: string;
+  titleManuallyEdited: boolean;
+  captionManuallyEdited: boolean;
   status: "pending" | "uploading" | "done" | "failed";
   error?: string;
   scheduledAt?: string;
@@ -130,6 +140,23 @@ function getTitle(idx: number, cfg: BulkConfig): string {
   return `${cfg.sequentialPrefix || "Post"} #${idx + 1}`;
 }
 
+function originalTitleFromFilename(filename: string): string | null {
+  const baseName = filename.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, "").trim() ?? "";
+  return baseName || null;
+}
+
+function getBulkTitle(f: BulkFile, index: number, cfg: BulkConfig, useOriginalTitle: boolean): string {
+  return resolveOriginalTitleForItem(f, getTitle(index, cfg), useOriginalTitle);
+}
+
+function getBulkCaption(f: BulkFile, cfg: BulkConfig, useOriginalTitle: boolean): string {
+  const fallbackCaption = [
+    cfg.applyCaption ? cfg.defaultCaption : "",
+    cfg.applyHashtags ? cfg.defaultHashtags : "",
+  ].filter(Boolean).join("\n\n");
+  return resolveOriginalCaptionForItem(f, fallbackCaption, useOriginalTitle);
+}
+
 function fmtBytes(b: number): string {
   if (b >= 1073741824) return (b / 1073741824).toFixed(1) + " GB";
   if (b >= 1048576) return (b / 1048576).toFixed(1) + " MB";
@@ -205,7 +232,58 @@ function TimeSlotRow({ value, onChange, onRemove }: { value: string; onChange: (
 // Bulk file card
 // ---------------------------------------------------------------------------
 
-function BulkFileCard({ f, onRemove }: { f: BulkFile; onRemove: () => void }) {
+function OriginalTitleToggle({
+  checked,
+  onCheckedChange,
+  id,
+}: {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  id: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+      <div className="min-w-0">
+        <Label htmlFor={id} className="text-sm font-medium cursor-pointer">Use Original Video Title</Label>
+        <p className="text-[11px] leading-relaxed text-muted-foreground mt-0.5">
+          Use each video's original title for the Reel title and caption. Manual edits always take priority.
+        </p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} className="shrink-0" />
+    </div>
+  );
+}
+
+async function resolveSourceTitle(url: string): Promise<string | null> {
+  const response = await authFetch(apiUrl("/scheduled-videos/resolve-title"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => ({}));
+  return typeof data.originalTitle === "string" && data.originalTitle.trim()
+    ? data.originalTitle.trim()
+    : null;
+}
+
+function BulkFileCard({
+  f,
+  previewTitle,
+  previewCaption,
+  useOriginalTitle,
+  onRemove,
+  onTitleChange,
+  onCaptionChange,
+}: {
+  f: BulkFile;
+  previewTitle: string;
+  previewCaption: string;
+  useOriginalTitle: boolean;
+  onRemove: () => void;
+  onTitleChange: (value: string) => void;
+  onCaptionChange: (value: string) => void;
+}) {
   const statusIcon = {
     pending:   <Clock className="h-3.5 w-3.5 text-muted-foreground" />,
     uploading: <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />,
@@ -214,21 +292,43 @@ function BulkFileCard({ f, onRemove }: { f: BulkFile; onRemove: () => void }) {
   }[f.status];
 
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
+    <div       className={`flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
       f.status === "done" ? "bg-green-500/5 border-green-500/20" :
       f.status === "failed" ? "bg-destructive/5 border-destructive/20" :
       f.status === "uploading" ? "bg-primary/5 border-primary/20" :
       "bg-muted/30 border-border/50"
     }`}>
       {statusIcon}
-      <span className="flex-1 truncate min-w-0 text-xs">{f.file.name}</span>
-      <span className="text-muted-foreground text-[10px] shrink-0">{fmtBytes(f.file.size)}</span>
+      <div className="flex-1 min-w-0">
+        <span className="block truncate text-xs">{f.file?.name ?? f.sourceUrl ?? "Source URL"}</span>
+        {useOriginalTitle && f.originalTitle && <span className="block truncate text-[10px] text-muted-foreground">Original title: {f.originalTitle}</span>}
+      </div>
+      {f.file && <span className="text-muted-foreground text-[10px] shrink-0">{fmtBytes(f.file.size)}</span>}
       {f.status === "pending" && (
         <button onClick={onRemove} className="text-muted-foreground hover:text-destructive shrink-0">
           <X className="h-3.5 w-3.5" />
         </button>
       )}
       {f.error && <span className="text-destructive text-[10px] truncate max-w-[80px]">{f.error}</span>}
+      {useOriginalTitle && (
+        <div className="basis-full grid gap-1.5 pl-6 pt-1">
+          <Input
+            value={f.titleOverride ?? previewTitle}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder="Title"
+            className="h-7 text-xs"
+            aria-label={`Title for ${f.file?.name ?? f.sourceUrl ?? "source"}`}
+          />
+          <Textarea
+            value={f.captionOverride ?? previewCaption}
+            onChange={(e) => onCaptionChange(e.target.value)}
+            placeholder="Caption"
+            rows={2}
+            className="text-xs"
+            aria-label={`Caption for ${f.file?.name ?? f.sourceUrl ?? "source"}`}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -389,18 +489,25 @@ export default function UploadScheduler() {
   const [singleTimezone, setSingleTimezone]   = useState("America/New_York");
   const [singleUrl, setSingleUrl]             = useState("");
   const [singleFile, setSingleFile]           = useState<File | null>(null);
+  const [singleOriginalTitle, setSingleOriginalTitle] = useState<string | null>(null);
+  const [singleTitleManuallyEdited, setSingleTitleManuallyEdited] = useState(false);
+  const [singleCaptionManuallyEdited, setSingleCaptionManuallyEdited] = useState(false);
+  const [singleUseOriginalVideoTitle, setSingleUseOriginalVideoTitle] = useState(false);
   const [singleUploading, setSingleUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver]               = useState(false);
 
   // Bulk upload state
   const [bulkFiles, setBulkFiles]             = useState<BulkFile[]>([]);
+  const [bulkSourceUrl, setBulkSourceUrl]     = useState("");
   const [bulkConfig, setBulkConfig]           = useState<BulkConfig>(DEFAULT_BULK_CONFIG);
+  const [bulkUseOriginalVideoTitle, setBulkUseOriginalVideoTitle] = useState(false);
   const [bulkProcessing, setBulkProcessing]   = useState(false);
   const [bulkDragOver, setBulkDragOver]       = useState(false);
   const [showAdvanced, setShowAdvanced]       = useState(false);
   const bulkFileRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(false);
+  const resolvingBulkTitlesRef = useRef(new Set<string>());
 
   // Schedule management state
   const [scheduledVideos, setScheduledVideos] = useState<ScheduledVideo[]>([]);
@@ -413,6 +520,48 @@ export default function UploadScheduler() {
     : [];
   const connectedFbPages = (allPages ?? []).filter((p) => p.status === "active" || p.status === "paused");
   const allSelected  = accountPages.length > 0 && accountPages.every((p) => selectedPageIds.includes(p.id));
+
+  const applySingleOriginalTitle = useCallback((title: string | null) => {
+    setSingleOriginalTitle(title);
+    if (!singleUseOriginalVideoTitle || !title) return;
+    if (!singleTitleManuallyEdited) setSingleTitle(title);
+    if (!singleCaptionManuallyEdited) setSingleCaption(title);
+  }, [singleCaptionManuallyEdited, singleTitleManuallyEdited, singleUseOriginalVideoTitle]);
+
+  const selectSingleFile = useCallback((file: File | null) => {
+    setSingleFile(file);
+    if (file) {
+      applySingleOriginalTitle(originalTitleFromFilename(file.name));
+    } else {
+      setSingleOriginalTitle(null);
+    }
+  }, [applySingleOriginalTitle]);
+
+  const handleSingleOriginalTitleToggle = useCallback((enabled: boolean) => {
+    setSingleUseOriginalVideoTitle(enabled);
+    if (enabled && singleOriginalTitle) {
+      if (!singleTitleManuallyEdited) setSingleTitle(singleOriginalTitle);
+      if (!singleCaptionManuallyEdited) setSingleCaption(singleOriginalTitle);
+    }
+  }, [singleCaptionManuallyEdited, singleTitleManuallyEdited, singleOriginalTitle]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!singleUseOriginalVideoTitle || singleFile || !singleUrl.trim()) {
+      if (!singleFile && !singleUrl.trim()) applySingleOriginalTitle(null);
+      return () => { cancelled = true; };
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      resolveSourceTitle(singleUrl.trim()).then((title) => {
+        if (!cancelled) applySingleOriginalTitle(title);
+      });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [applySingleOriginalTitle, singleFile, singleUrl, singleUseOriginalVideoTitle]);
 
   // Fetch scheduled videos
   const fetchVideos = useCallback(async () => {
@@ -471,7 +620,7 @@ export default function UploadScheduler() {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file) setSingleFile(file);
+    if (file) selectSingleFile(file);
   }
 
   async function submitSingle(postNow: boolean) {
@@ -497,7 +646,10 @@ export default function UploadScheduler() {
     setSingleUploading(true);
     try {
       const fd = new FormData();
-      fd.append("title", singleTitle);
+      fd.append("title", singleTitle.trim());
+      fd.append("useOriginalTitle", String(singleUseOriginalVideoTitle));
+      fd.append("titleManuallyEdited", String(singleTitleManuallyEdited));
+      fd.append("captionManuallyEdited", String(singleCaptionManuallyEdited));
       if (caption) fd.append("description", caption);
       fd.append("pageIds", JSON.stringify(selectedPageIds));
       fd.append("scheduledAt", scheduledAt);
@@ -530,7 +682,9 @@ export default function UploadScheduler() {
 
       setSingleTitle(""); setSingleCaption(""); setSingleHashtags("");
       setSingleDate(""); setSingleTime(""); setSingleUrl("");
-      setSingleFile(null);
+      selectSingleFile(null);
+      setSingleTitleManuallyEdited(false);
+      setSingleCaptionManuallyEdited(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
@@ -543,17 +697,69 @@ export default function UploadScheduler() {
 
   function addBulkFiles(files: FileList | File[]) {
     const arr = Array.from(files);
-    const newFiles: BulkFile[] = arr.map((f) => ({ id: uid(), file: f, status: "pending" }));
+    const newFiles: BulkFile[] = arr.map((file) => ({
+      id: uid(),
+      file,
+      originalTitle: originalTitleFromFilename(file.name),
+      titleManuallyEdited: false,
+      captionManuallyEdited: false,
+      status: "pending",
+    }));
     setBulkFiles((prev) => {
-      const existing = new Set(prev.map((f) => f.file.name + f.file.size));
+      const existing = new Set(prev.map((f) => f.file ? `${f.file.name}:${f.file.size}` : `url:${f.sourceUrl}`));
       return [
         ...prev,
-        ...(bulkConfig.skipDuplicates ? newFiles.filter((f) => !existing.has(f.file.name + f.file.size)) : newFiles),
+        ...(bulkConfig.skipDuplicates
+          ? newFiles.filter((f) => !existing.has(`${f.file?.name}:${f.file?.size}`))
+          : newFiles),
       ];
     });
   }
 
+  function updateBulkFile(id: string, patch: Partial<BulkFile>) {
+    setBulkFiles((prev) => prev.map((f) => f.id === id ? { ...f, ...patch } : f));
+  }
+
+  async function addBulkSourceUrl() {
+    const url = bulkSourceUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      toast({ title: "Enter a valid HTTP(S) URL", variant: "destructive" });
+      return;
+    }
+    const id = uid();
+    setBulkFiles((prev) => [...prev, {
+      id,
+      sourceUrl: url,
+      originalTitle: null,
+      titleManuallyEdited: false,
+      captionManuallyEdited: false,
+      status: "pending",
+    }]);
+    setBulkSourceUrl("");
+  }
+
+  useEffect(() => {
+    if (!bulkUseOriginalVideoTitle) return;
+    const pending = bulkFiles.filter((f) => f.sourceUrl && f.originalTitle === null && !resolvingBulkTitlesRef.current.has(f.id));
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    pending.forEach((file) => {
+      if (!file.sourceUrl) return;
+      resolvingBulkTitlesRef.current.add(file.id);
+      resolveSourceTitle(file.sourceUrl)
+        .then((originalTitle) => {
+          if (!cancelled) updateBulkFile(file.id, { originalTitle });
+        })
+        .finally(() => resolvingBulkTitlesRef.current.delete(file.id));
+    });
+
+    return () => { cancelled = true; };
+  }, [bulkFiles, bulkUseOriginalVideoTitle]);
+
   function removeBulkFile(id: string) {
+    resolvingBulkTitlesRef.current.delete(id);
     setBulkFiles((prev) => prev.filter((f) => f.id !== id));
   }
 
@@ -589,6 +795,11 @@ export default function UploadScheduler() {
     }
 
     const files = bulkConfig.shuffleOrder ? [...bulkFiles].sort(() => Math.random() - 0.5) : [...bulkFiles];
+    const missingTitles = files.filter((file, index) => !getBulkTitle(file, index, bulkConfig, bulkUseOriginalVideoTitle).trim());
+    if (missingTitles.length > 0) {
+      toast({ title: `${missingTitles.length} video(s) need a title`, variant: "destructive" });
+      return;
+    }
     const schedule = generateSchedule(files.length, bulkConfig);
 
     setBulkProcessing(true);
@@ -606,14 +817,14 @@ export default function UploadScheduler() {
 
         setBulkFiles((prev) => prev.map((bf) => bf.id === f.id ? { ...bf, status: "uploading" } : bf));
 
-        const title = getTitle(globalIdx, bulkConfig);
-        const caption = [
-          bulkConfig.applyCaption ? bulkConfig.defaultCaption : "",
-          bulkConfig.applyHashtags ? bulkConfig.defaultHashtags : "",
-        ].filter(Boolean).join("\n\n");
+        const title = getBulkTitle(f, globalIdx, bulkConfig, bulkUseOriginalVideoTitle).trim();
+        const caption = getBulkCaption(f, bulkConfig, bulkUseOriginalVideoTitle);
 
         const fd = new FormData();
         fd.append("title", title);
+        fd.append("useOriginalTitle", String(bulkUseOriginalVideoTitle));
+        fd.append("titleManuallyEdited", String(f.titleManuallyEdited));
+        fd.append("captionManuallyEdited", String(f.captionManuallyEdited));
         if (caption) fd.append("description", caption);
         fd.append("pageIds", JSON.stringify(selectedPageIds));
         fd.append("scheduledAt", scheduledAt);
@@ -621,10 +832,11 @@ export default function UploadScheduler() {
         fd.append("postType", contentType);
         fd.append("publishMode", contentType === "reel" ? "reel" : "video");
         if (contentType === "reel" && collabEnabled && selectedCollabPageIds.length > 0) {
-          fd.append("collaborationEnabled", "true");
-          fd.append("collaboratorPageIds", JSON.stringify(selectedCollabPageIds));
-        }
-        fd.append("video", f.file);
+        fd.append("collaborationEnabled", "true");
+        fd.append("collaboratorPageIds", JSON.stringify(selectedCollabPageIds));
+      }
+      if (f.file) fd.append("video", f.file);
+      if (f.sourceUrl) fd.append("videoUrl", f.sourceUrl);
 
         let retries = 0;
         while (retries <= (bulkConfig.autoRetry ? bulkConfig.maxRetries : 0)) {
@@ -969,6 +1181,22 @@ export default function UploadScheduler() {
               ))}
             </div>
 
+            <div className="max-w-2xl">
+              {uploadMode === "single" ? (
+                <OriginalTitleToggle
+                  id="single-use-original-title"
+                  checked={singleUseOriginalVideoTitle}
+                  onCheckedChange={handleSingleOriginalTitleToggle}
+                />
+              ) : (
+                <OriginalTitleToggle
+                  id="bulk-use-original-title"
+                  checked={bulkUseOriginalVideoTitle}
+                  onCheckedChange={setBulkUseOriginalVideoTitle}
+                />
+              )}
+            </div>
+
             {/* ---- SINGLE UPLOAD ---- */}
             {uploadMode === "single" && (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -997,7 +1225,7 @@ export default function UploadScheduler() {
                           <span className="text-xs text-muted-foreground">({fmtBytes(singleFile.size)})</span>
                           <button
                             className="text-muted-foreground hover:text-destructive ml-1"
-                            onClick={(e) => { e.stopPropagation(); setSingleFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                            onClick={(e) => { e.stopPropagation(); selectSingleFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                           >
                             <XCircle className="h-4 w-4" />
                           </button>
@@ -1011,7 +1239,7 @@ export default function UploadScheduler() {
                       )}
                     </div>
                     <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
-                      onChange={(e) => setSingleFile(e.target.files?.[0] ?? null)} />
+                      onChange={(e) => selectSingleFile(e.target.files?.[0] ?? null)} />
 
                     {/* URL alternative */}
                     <div className="space-y-1.5">
@@ -1025,14 +1253,31 @@ export default function UploadScheduler() {
                     {/* Title */}
                     <div className="space-y-1.5">
                       <Label>Title <span className="text-destructive">*</span></Label>
-                      <Input placeholder="Enter title..." value={singleTitle} onChange={(e) => setSingleTitle(e.target.value)} />
+                      <Input
+                        placeholder="Enter title..."
+                        value={singleTitle}
+                        onChange={(e) => {
+                          setSingleTitleManuallyEdited(true);
+                          setSingleTitle(e.target.value);
+                        }}
+                      />
+                      {singleUseOriginalVideoTitle && singleOriginalTitle && !singleTitleManuallyEdited && (
+                        <p className="text-[10px] text-muted-foreground">Using original title: {singleOriginalTitle}</p>
+                      )}
                     </div>
 
                     {/* Caption */}
                     <div className="space-y-1.5">
                       <Label>Caption <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
-                      <Textarea rows={3} placeholder="Write your caption..." value={singleCaption}
-                        onChange={(e) => setSingleCaption(e.target.value)} />
+                      <Textarea
+                        rows={3}
+                        placeholder="Write your caption..."
+                        value={singleCaption}
+                        onChange={(e) => {
+                          setSingleCaptionManuallyEdited(true);
+                          setSingleCaption(e.target.value);
+                        }}
+                      />
                     </div>
 
                     {/* Hashtags */}
@@ -1131,6 +1376,21 @@ export default function UploadScheduler() {
                       </div>
                       <input ref={bulkFileRef} type="file" accept="video/*" multiple className="hidden"
                         onChange={(e) => { if (e.target.files) addBulkFiles(e.target.files); }} />
+                      <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                        <Input
+                          value={bulkSourceUrl}
+                          onChange={(e) => setBulkSourceUrl(e.target.value)}
+                          placeholder="Or add a source URL"
+                          aria-label="Bulk source video URL"
+                          className="text-xs"
+                        />
+                        <Button type="button" variant="outline" onClick={addBulkSourceUrl} disabled={!bulkSourceUrl.trim()}>
+                          Add URL
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        URL titles come only from the existing source metadata extractor; if unavailable, the normal title flow is used.
+                      </p>
                     </CardContent>
                   </Card>
 
@@ -1182,8 +1442,17 @@ export default function UploadScheduler() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                          {bulkFiles.map((f) => (
-                            <BulkFileCard key={f.id} f={f} onRemove={() => removeBulkFile(f.id)} />
+                          {bulkFiles.map((f, i) => (
+                            <BulkFileCard
+                              key={f.id}
+                              f={f}
+                              previewTitle={getBulkTitle(f, i, bulkConfig, bulkUseOriginalVideoTitle)}
+                              previewCaption={getBulkCaption(f, bulkConfig, bulkUseOriginalVideoTitle)}
+                              useOriginalTitle={bulkUseOriginalVideoTitle}
+                              onRemove={() => removeBulkFile(f.id)}
+                              onTitleChange={(value) => updateBulkFile(f.id, { titleOverride: value, titleManuallyEdited: true })}
+                              onCaptionChange={(value) => updateBulkFile(f.id, { captionOverride: value, captionManuallyEdited: true })}
+                            />
                           ))}
                         </div>
                       </CardContent>
@@ -1414,7 +1683,9 @@ export default function UploadScheduler() {
                         <div className="space-y-1 max-h-40 overflow-y-auto">
                           {generateSchedule(Math.min(bulkFiles.length, 9), bulkConfig).map((dt, i) => (
                             <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                              <span className="text-muted-foreground">{getTitle(i, bulkConfig)}</span>
+                              <span className="text-muted-foreground truncate pr-2">
+                                {getBulkTitle(bulkFiles[i]!, i, bulkConfig, bulkUseOriginalVideoTitle)}
+                              </span>
                               <span className="font-medium">{new Date(dt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                             </div>
                           ))}
